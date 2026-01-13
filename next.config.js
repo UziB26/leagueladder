@@ -1,12 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    
+    // Disable Vercel features
     devIndicators: {
       buildActivity: false,
-      buildActivityPosition: 'bottom-right',
     },
-    
+    // Fix TLS certificate issue
     experimental: {
+      turbopackUseSystemTlsCerts: true,
       serverActions: {
         allowedOrigins: ['localhost:3000'],
       },

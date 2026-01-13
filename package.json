@@ -11,6 +11,7 @@
   "db:reset": "rm -f league-ladder.db && npm run build",
   "db:view": "sqlite3 league-ladder.db",
   "db:backup": "cp league-ladder.db league-ladder-backup-$(date +%Y%m%d-%H%M%S).db"
+  
     
   
   
