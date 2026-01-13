@@ -1,6 +1,23 @@
+"use client"
+
 import { Button } from "@/components/ui/button"
+import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 
 export default function Home() {
+  const { data: session } = useSession()
+  const router = useRouter()
+
+  const handleJoinLeague = (gameType: 'fifa' | 'table-tennis') => {
+    if (!session) {
+      router.push('/auth/login')
+      return
+    }
+    
+    // For now, redirect to dashboard where they can join leagues
+    router.push('/dashboard')
+  }
+
   return (
     <main className="min-h-screen p-8 bg-gray-50">
       <div className="max-w-6xl mx-auto">
@@ -13,13 +30,17 @@ export default function Home() {
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-3xl font-bold text-gray-950 mb-4">🎮 FIFA League</h2>
             <p className="text-base text-gray-800 mb-4 leading-relaxed">Challenge players, record matches, climb the FIFA rankings</p>
-            <Button>Join FIFA League</Button>
+            <Button onClick={() => handleJoinLeague('fifa')}>
+              {session ? 'Go to Dashboard' : 'Join FIFA League'}
+            </Button>
           </div>
           
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-3xl font-bold text-gray-950 mb-4">🏓 Table Tennis</h2>
             <p className="text-base text-gray-800 mb-4 leading-relaxed">Compete in table tennis matches with Elo-based rankings</p>
-            <Button>Join Table Tennis</Button>
+            <Button onClick={() => handleJoinLeague('table-tennis')}>
+              {session ? 'Go to Dashboard' : 'Join Table Tennis'}
+            </Button>
           </div>
         </div>
         

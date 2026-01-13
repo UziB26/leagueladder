@@ -29,11 +29,11 @@ export function AuthButton() {
       <Button
         variant="outline"
         size="sm"
-        onClick={() => router.push("/login")}
+        onClick={() => router.push("/auth/login")}
       >
         Login
       </Button>
-      <Button size="sm" onClick={() => router.push("/register")}>
+      <Button size="sm" onClick={() => router.push("/auth/register")}>
         Register
       </Button>
     </div>
