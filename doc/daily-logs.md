@@ -1,6 +1,6 @@
 # Day 1 Summary
 
-## 📊 Status
+## 📊 Status:
 **Foundation Complete** ✅
 
 ## ✅ What Works
@@ -28,24 +28,27 @@ All Day 1 files are ready for GitHub Desktop commit.
 
 ---
 
-## **📊 Day 2 Summary**
+## **Day 2 Summary**
 
-**Status**: ✅ **Complete and Functional**
+## 📊 Status:  
+**Complete and Functional** ✅
 
-**What Works**:
+## ✅ What Works:
 - User registration and login
 - League joining from dashboard
 - Session management
 - Navigation updates based on auth state
 - Database with all required relationships
 
-**Ready for Testing**:
+## 🧪 Ready for Testing:
 1. Register at `http://localhost:3000/register`
 2. Login at `http://localhost:3000/login`
 3. Visit dashboard at `http://localhost:3000/dashboard`
 4. Join a league (FIFA or Table Tennis)
 5. Check database for created records
 
-**Next Steps**: Leaderboards and player profiles in Day 3!
+## 🚀 Next Steps: 
+Leaderboards and player profiles in Day 3!
 
-**Files to Commit**: All Day 2 files are ready for GitHub Desktop commit.
+## 📁 Files to Commit: 
+All Day 2 files are ready for GitHub Desktop commit.
