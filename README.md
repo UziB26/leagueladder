@@ -1,104 +1,87 @@
-League Ladder - Table Tennis & FIFA Ranking System
-A modern web app for managing competitive leagues with Elo-based rankings. Players can join leagues, challenge opponents, record matches, and climb leaderboards.
+# League Ladder Web App
+## Table Tennis + FIFA Ranking System
 
-Features
+A modern web application for managing competitive leagues with Elo-based rankings. Players can join leagues, challenge opponents, record match results, and climb leaderboards in real-time.
 
-Dual Leagues: Separate ladders for Table Tennis and FIFA
-Elo Rating System: Transparent, mathematical rankings
-Challenge System: Challenge players, accept/decline matches
-Live Leaderboards: Real-time ranking updates
-Match History: Track all games and results
-Mobile-Friendly: Works perfectly on phones and tablets
+## 🚀 Live Demo
+**URL:** [Coming Sooon]
+
+## ✨ Features
+
+### 🎯 Core MVP Features
+- **Dual Leagues**: Separate rating ladders for Table Tennis and FIFA
+- **Elo Rating System**: Transparent, mathematical rankings with per-league ratings
+- **Player Registration**: Simple profile creation with name, email, and optional avatar
+- **Challenge System**: Issue challenges, accept/decline, track status
+- **Match Reporting**: Enter scores, mark matches complete, auto-update ratings
+- **Live Leaderboards**: Real-time ranking updates for each league
+- **Match History**: Complete game history per player and per league
+- **Mobile-Friendly UI**: Optimized for quick actions on phones and tablets
+- **Admin Controls**: Match editing/voiding capabilities
+
+### 🎨 Nice-to-Haves (Coming Soon)
+- Opponent confirmation flow
+- In-app notifications
+- Head-to-head statistics
+- Season support with quarterly resets
+- Anti-abuse constraints and cooldowns
+- Analytics dashboard
+
+## 🏗️ Technical Architecture
+
+### Tech Stack
+- **Frontend**: Next.js 14 (App Router) + TypeScript + Tailwind CSS
+- **Backend**: Next.js API Routes
+- **Database**: SQLite with better-sqlite3 (Production: Postgres ready)
+- **Authentication**: NextAuth.js
+- **Hosting**: Vercel (with AWS deployment planned)
 
 
- Tech Stack
-Frontend: Next.js 14 (App Router) + TypeScript + Tailwind CSS
-Database: SQLite with better-sqlite3
-Authentication: NextAuth.js
-Rating System: Custom Elo calculator
+## ⚖️ Ranking System
 
+### Elo Configuration
+- **Base Rating**: 1000 for all new players
+- **K-factor**: 32 (standard competitive setting)
+- **Rating Updates**: Separate ratings maintained for Table Tennis and FIFA
+- **Transparency**: Full formula documentation available in `/docs/elo-system.md`
 
-Installation
-# Clone repository
-git clone https://github.com/yourusername/league-ladder.git
+### How Ratings Work
+1. New players start at 1000 rating
+2. After each match:
+   - Winner gains rating points
+   - Loser loses rating points
+   - Points exchanged based on rating difference
+3. Upsets (lower-rated beating higher-rated) yield larger rating changes
+
+## 📦 Installation & Setup
+
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
+- Git
+
+### Local Development
+```bash
+# 1. Clone repository
+git clone https://github.com/UziB26/league-ladder.git
 cd league-ladder
 
-# Install dependencies
+# 2. Install dependencies
 npm install
 
-# Set up environment
+# 3. Set up environment variables
 cp .env.example .env.local
 # Edit .env.local with your values
 
-# Start development server
+# 4. Set up database
+npx prisma migrate dev
+npx prisma db seed
+
+# 5. Start development server
 npm run dev
-Open http://localhost:3000 in your browser.
 
+# Build the application
+npm run build
 
-
- Project Structure
-league-ladder/
-├── src/
-│   ├── app/              # Next.js pages & API routes
-│   ├── components/       # React components
-│   ├── lib/             # Utilities (database, Elo)
-│   └── types/           # TypeScript definitions
-├── prisma/              # Database schema
-├── docs/                # Documentation
-└── league-ladder.db     # SQLite database
-
-How It Works
-Register - Create your player profile
-Join League - Choose Table Tennis or FIFA
-Challenge - Challenge other players to matches
-Play & Record - Play matches and enter scores
-Climb - Watch your Elo rating rise on the leaderboard
-
-Database
-Uses SQLite for simplicity:
-Single file database (league-ladder.db)
-Auto-initialized with Table Tennis and FIFA leagues
-All tables created on first run
-Easy to backup and inspect
-Database Commands
-# View database
-npm run db:view
-# Reset database
-npm run db:reset
-# Create backup
-npm run db:backup
-
-Available Scripts
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run start        # Start production server
-npm run lint         # Run ESLint
-npm run format       # Format code with Prettier
-
-Elo Rating System
-Base Rating: 1000 for all new players
-K-factor: 32 (standard competitive setting)
-Transparent: Formula shown in documentation
-Per-league: Separate ratings for Table Tennis and FIFA
-
-Documentation
-Requirements - MVP features
-Architecture - System design
-Database Schema - Tables & relationships
-API Reference - Endpoints
-Daily Log - Development progress
-
-
- Deployment
-Build: npm run build
-Start: npm run start
-Set environment variables in production
-
-License
-MIT
-
-Contact
-Project Lead: Uzayr
-GitHub: UziB26
-
-
+# Start production server
+npm start
