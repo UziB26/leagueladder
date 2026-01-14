@@ -2,6 +2,10 @@
   "name": "league-ladder",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "scripts": {
   "dev": "next dev",
   "build": "next build",
@@ -45,7 +49,6 @@
     "@types/node": "^20.19.28",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/react-select": "^5.0.4",
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^8.52.0",
     "@typescript-eslint/parser": "^8.52.0",
