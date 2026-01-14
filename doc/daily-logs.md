@@ -84,3 +84,54 @@ Challenge system and match reporting in Day 4!
 
 ## 📁 Files to Commit: 
 All Day 3 files are ready for GitHub Desktop commit.
+
+---
+
+## **Day 4 Summary**
+
+## 📊 Status:  
+**Complete and Functional** ✅
+
+## ✅ What Works:
+- Challenge creation system (Player A can challenge Player B)
+- Challenge list with tabs for incoming, outgoing, and all challenges
+- Status tracking (pending, accepted, declined, completed, cancelled, expired)
+- Accept/decline challenge functionality with proper authorization
+- Cancel challenge functionality for challengers
+- Edge case handling:
+  - Prevents self-challenges (database CHECK constraint + API validation)
+  - Prevents duplicate pending challenges
+  - Validates both players are in the same league
+  - Prevents accepting expired challenges
+  - Authorization checks (only challengee can accept/decline, only challenger can cancel)
+- Challenge expiration (7 days) with visual indicators
+- Error and success message display in UI
+- Challenge stats display (pending/accepted counts)
+- API endpoints for challenges:
+  - `GET /api/challenges` - Get all challenges for current player
+  - `POST /api/challenges` - Create a new challenge
+  - `GET /api/challenges/incoming` - Get incoming challenges
+  - `GET /api/challenges/outgoing` - Get outgoing challenges
+  - `POST /api/challenges/[challengeId]/accept` - Accept a challenge
+  - `POST /api/challenges/[challengeId]/decline` - Decline a challenge
+  - `POST /api/challenges/[challengeId]/cancel` - Cancel a challenge
+- API endpoint for available players: `GET /api/players/available`
+- React Select component integration for player/league selection
+- End-to-end challenge workflow from creation to completion
+
+## 🧪 Ready for Testing:
+1. Navigate to challenges page at `http://localhost:3000/challenges`
+2. Create a challenge by selecting a league and player
+3. View incoming challenges in the "Incoming" tab
+4. View outgoing challenges in the "Outgoing" tab
+5. Accept or decline incoming challenges
+6. Cancel outgoing challenges
+7. Verify error messages for edge cases (self-challenge, duplicate challenge, expired challenge)
+8. Check challenge stats display
+9. Test API endpoints documented in `/doc/api.md`
+
+## 🚀 Next Steps: 
+Match reporting and Elo rating updates in Day 5!
+
+## 📁 Files to Commit: 
+All Day 4 files are ready for GitHub Desktop commit.

@@ -167,7 +167,7 @@ export default function DashboardPage() {
         </div>
         
         <div className="mt-12">
-          <h3 className="text-xl font-semibold mb-4 !text-black">How it works</h3>
+          <h3 className="text-xl font-semibold mb-4 text-black">How it works</h3>
           <ol className="list-decimal pl-5 space-y-2 text-gray-700">
             <li>Register and create your player profile</li>
             <li>Join either FIFA or Table Tennis league (or both!)</li>

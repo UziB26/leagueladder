@@ -47,7 +47,7 @@ export function Navigation() {
               href="/challenges" 
               className={`text-sm font-medium transition-colors ${
                 isActive('/challenges') 
-                  ? 'text-blue-600' 
+                  ? 'text-blue-600 font-semibold' 
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >

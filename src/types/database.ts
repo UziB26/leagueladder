@@ -34,6 +34,9 @@ export interface Player {
     status: 'pending' | 'accepted' | 'declined' | 'completed'
     created_at: string
     expires_at?: string
+    challenger_name?: string
+    challengee_name?: string
+    league_name?: string
   }
   
   export interface Match {

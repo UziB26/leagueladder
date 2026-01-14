@@ -114,7 +114,7 @@ export function initializeDatabase() {
       )
     `)
   
-    // Challenges
+    // Challenges table
     db.exec(`
       CREATE TABLE IF NOT EXISTS challenges (
         id TEXT PRIMARY KEY,
@@ -126,11 +126,12 @@ export function initializeDatabase() {
         expires_at DATETIME,
         FOREIGN KEY (challenger_id) REFERENCES players(id),
         FOREIGN KEY (challengee_id) REFERENCES players(id),
-        FOREIGN KEY (league_id) REFERENCES leagues(id)
+        FOREIGN KEY (league_id) REFERENCES leagues(id),
+        CHECK (challenger_id != challengee_id)
       )
     `)
   
-    // Matches
+    // Matches table
     db.exec(`
       CREATE TABLE IF NOT EXISTS matches (
         id TEXT PRIMARY KEY,
@@ -148,7 +149,10 @@ export function initializeDatabase() {
         FOREIGN KEY (player1_id) REFERENCES players(id),
         FOREIGN KEY (player2_id) REFERENCES players(id),
         FOREIGN KEY (winner_id) REFERENCES players(id),
-        FOREIGN KEY (league_id) REFERENCES leagues(id)
+        FOREIGN KEY (league_id) REFERENCES leagues(id),
+        CHECK (player1_id != player2_id),
+        CHECK (player1_score >= 0),
+        CHECK (player2_score >= 0)
       )
     `)
   

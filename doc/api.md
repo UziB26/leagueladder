@@ -440,3 +440,107 @@ Currently, there are no rate limits implemented. This may change in future versi
 - Player ratings start at 1000 when joining a league
 - When a player joins a league, their initial stats (games_played, wins, losses, draws) are set to 0
 - The `/api/players/[playerId]` endpoint returns up to 20 most recent completed matches
+
+---
+
+## Challenge Process Flow
+
+This diagram shows the complete lifecycle of a challenge, including API endpoints and status transitions.
+
+```mermaid
+flowchart LR
+    A[POST /api/challenges] --> B[Status: pending]
+    B --> C{Challengee Action}
+    C -->|Accept| D[POST /api/challenges/:id/accept]
+    D --> E[Status: accepted]
+    E --> F[Ready for match reporting]
+    F --> G[POST /api/matches]
+    G --> H[Status: completed]
+    C -->|Decline| I[POST /api/challenges/:id/decline]
+    I --> J[Status: declined]
+    B --> K[Challenger Action]
+    K -->|Cancel| L[POST /api/challenges/:id/cancel]
+    L --> M[Challenge deleted]
+```
+
+---
+
+## API Request Processing Flow
+
+This diagram illustrates the validation, authentication, authorization, and business logic checks performed for each API request.
+
+```mermaid
+flowchart TD
+    Start([API Request]) --> Validate{Validate Input}
+    Validate -->|Invalid| Error400[400 Bad Request<br/>Missing fields]
+    Validate -->|Valid| Auth{Check Auth}
+    Auth -->|Not authenticated| Error401[401 Unauthorized]
+    Auth -->|Authenticated| Permissions{Check Permissions}
+    Permissions -->|Not authorized| Error403[403 Forbidden]
+    Permissions -->|Authorized| Business{Business Logic}
+    Business -->|Players not in same league| Error400b[400 Bad Request]
+    Business -->|Self-challenge| Error400c[400 Bad Request]
+    Business -->|Duplicate challenge| Error400d[400 Bad Request]
+    Business -->|Valid| Process[Process Request]
+    Process --> DB{Database Operation}
+    DB -->|Database error| Error500[500 Internal Error]
+    DB -->|Success| Success[200 OK]
+    Error400 --> ErrorResponse[Error Response]
+    Error400b --> ErrorResponse
+    Error400c --> ErrorResponse
+    Error400d --> ErrorResponse
+    Error401 --> ErrorResponse
+    Error403 --> ErrorResponse
+    Error500 --> ErrorResponse
+```
+
+---
+
+## Challenge Flow Sequence
+
+```mermaid
+sequenceDiagram
+    title Challenge API Flow
+    participant Client as Web Client
+    participant Auth as Auth Middleware
+    participant ChallengeAPI as /api/challenges
+    participant DB as SQLite
+
+    Note over Client,DB: 1. Create Challenge
+    Client->>ChallengeAPI: POST /api/challenges
+    ChallengeAPI->>Auth: Verify authentication
+    Auth-->>ChallengeAPI: User authenticated
+    ChallengeAPI->>DB: Validate players in same league
+    DB-->>ChallengeAPI: Validation passed
+    ChallengeAPI->>DB: Create challenge record
+    DB-->>ChallengeAPI: Challenge created
+    ChallengeAPI-->>Client: 201 Created
+
+    Note over Client,DB: 2. View Challenges
+    Client->>ChallengeAPI: GET /api/challenges/incoming
+    ChallengeAPI->>Auth: Verify authentication
+    Auth-->>ChallengeAPI: User authenticated
+    ChallengeAPI->>DB: Fetch user's incoming challenges
+    DB-->>ChallengeAPI: Return challenges with player names
+    ChallengeAPI-->>Client: 200 OK with challenges
+
+    Note over Client,DB: 3. Accept Challenge
+    Client->>ChallengeAPI: POST /api/challenges/:id/accept
+    ChallengeAPI->>Auth: Verify authentication
+    Auth-->>ChallengeAPI: User authenticated
+    ChallengeAPI->>DB: Verify user is challengee
+    DB-->>ChallengeAPI: User authorized
+    ChallengeAPI->>DB: Update status to 'accepted'
+    DB-->>ChallengeAPI: Update successful
+    ChallengeAPI-->>Client: 200 OK
+
+    Note over Client,DB: 4. Cancel Challenge (Challenger)
+    Client->>ChallengeAPI: POST /api/challenges/:id/cancel
+    ChallengeAPI->>Auth: Verify authentication
+    Auth-->>ChallengeAPI: User authenticated
+    ChallengeAPI->>DB: Verify user is challenger
+    DB-->>ChallengeAPI: User authorized
+    ChallengeAPI->>DB: Delete challenge record
+    DB-->>ChallengeAPI: Delete successful
+    ChallengeAPI-->>Client: 200 OK
+```
