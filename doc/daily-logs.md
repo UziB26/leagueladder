@@ -52,3 +52,35 @@ Leaderboards and player profiles in Day 3!
 
 ## 📁 Files to Commit: 
 All Day 2 files are ready for GitHub Desktop commit.
+
+---
+
+## **Day 3 Summary**
+
+## 📊 Status:  
+**Complete and Functional** ✅
+
+## ✅ What Works:
+- Leaderboard pages for each league (FIFA and Table Tennis)
+- Individual league leaderboard pages with top 3 players
+- Player profile pages with rating, W-L record, and match history
+- Leagues page showing all available leagues with membership status
+- Responsive layout and navigation polish
+- API endpoints for leagues, players, leaderboards, and membership
+- Visual improvements (blue headings, white input text, black dashboard headings)
+- Email addresses hidden from leaderboard (only display names shown)
+- API documentation created
+
+## 🧪 Ready for Testing:
+1. View all leaderboards at `http://localhost:3000/leaderboard`
+2. View specific league leaderboard at `http://localhost:3000/leaderboard/fifa_league` or `/leaderboard/tt_league`
+3. Click on any player name to view their profile at `/players/[playerId]`
+4. Browse available leagues at `http://localhost:3000/leagues`
+5. Check membership status and join leagues
+6. Test API endpoints documented in `/doc/api.md`
+
+## 🚀 Next Steps: 
+Challenge system and match reporting in Day 4!
+
+## 📁 Files to Commit: 
+All Day 3 files are ready for GitHub Desktop commit.
