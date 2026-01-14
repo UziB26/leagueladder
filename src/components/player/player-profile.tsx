@@ -2,6 +2,8 @@
 
 import { Player } from "@/types/database"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { PlayerMatchHistory } from "./player-match-history"
+import { RatingHistory } from "./rating-history"
 
 interface PlayerProfileProps {
   player: Player
@@ -130,9 +132,11 @@ export function PlayerProfile({ player, ratings, matches }: PlayerProfileProps) 
                       <span className={`px-2 py-1 text-xs rounded-full ${
                         match.winner_id === player.id 
                           ? 'bg-green-100 text-green-800' 
+                          : match.winner_id === null
+                          ? 'bg-gray-100 text-gray-800'
                           : 'bg-red-100 text-red-800'
                       }`}>
-                        {match.winner_id === player.id ? 'WIN' : 'LOSS'}
+                        {match.winner_id === player.id ? 'WIN' : match.winner_id === null ? 'DRAW' : 'LOSS'}
                       </span>
                     </div>
                     <div className="text-sm text-gray-600 mt-1">
@@ -149,13 +153,18 @@ export function PlayerProfile({ player, ratings, matches }: PlayerProfileProps) 
                 No matches played yet
               </div>
             )}
-            {matches.length > 3 && (
-              <a href={`/players/${player.id}/matches`} className="block text-center mt-4 text-blue-600 hover:text-blue-800 text-sm">
-                View all matches →
-              </a>
-            )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* Rating History Section */}
+      <div className="mt-6">
+        <RatingHistory playerId={player.id} limit={50} />
+      </div>
+
+      {/* Match History Section */}
+      <div className="mt-6">
+        <PlayerMatchHistory playerId={player.id} limit={50} />
       </div>
     </div>
   )

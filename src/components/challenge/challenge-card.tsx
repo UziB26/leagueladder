@@ -4,6 +4,7 @@ import { Challenge } from "@/types/database"
 import { Button } from "@/components/ui/button"
 import { formatDistanceToNow } from "date-fns"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 
 interface ChallengeCardProps {
   challenge: Challenge
@@ -11,6 +12,7 @@ interface ChallengeCardProps {
   onAccept?: (challengeId: string) => void
   onDecline?: (challengeId: string) => void
   onCancel?: (challengeId: string) => void
+  onReportSuccess?: () => void
 }
 
 export function ChallengeCard({ 
@@ -18,9 +20,16 @@ export function ChallengeCard({
   currentPlayerId,
   onAccept,
   onDecline,
-  onCancel 
+  onCancel,
+  onReportSuccess
 }: ChallengeCardProps) {
   const [loading, setLoading] = useState(false)
+  const [reporting, setReporting] = useState(false)
+  const [showReportForm, setShowReportForm] = useState(false)
+  const [player1Score, setPlayer1Score] = useState("")
+  const [player2Score, setPlayer2Score] = useState("")
+  const [reportError, setReportError] = useState("")
+  const router = useRouter()
   
   const isChallenger = challenge.challenger_id === currentPlayerId
   const isChallengee = challenge.challengee_id === currentPlayerId
@@ -38,6 +47,76 @@ export function ChallengeCard({
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleReportScore = async () => {
+    const p1Score = parseInt(player1Score)
+    const p2Score = parseInt(player2Score)
+
+    if (isNaN(p1Score) || isNaN(p2Score)) {
+      setReportError('Please enter valid scores for both players')
+      return
+    }
+
+    if (p1Score < 0 || p2Score < 0) {
+      setReportError('Scores must be non-negative')
+      return
+    }
+
+    setReporting(true)
+    setReportError("")
+
+    try {
+      const response = await fetch(`/api/matches/from-challenge/${challenge.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          player1Score: p1Score,
+          player2Score: p2Score,
+          status: 'completed'
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to report match')
+      }
+
+      // Reset form
+      setPlayer1Score("")
+      setPlayer2Score("")
+      setShowReportForm(false)
+      
+      // Trigger leaderboard refresh event
+      window.dispatchEvent(new CustomEvent('leaderboard:refresh'))
+      // Trigger match reported event for navigation badge
+      window.dispatchEvent(new CustomEvent('match:reported'))
+      
+      // Refresh challenges or navigate
+      if (onReportSuccess) {
+        onReportSuccess()
+      } else {
+        router.refresh()
+      }
+    } catch (error: any) {
+      console.error('Error reporting match:', error)
+      setReportError(error.message || 'Failed to report match. Please try again.')
+    } finally {
+      setReporting(false)
+    }
+  }
+
+  const getChallengerName = () => {
+    if (isChallenger) return 'You'
+    return challenge.challenger_name || 'Challenger'
+  }
+
+  const getChallengeeName = () => {
+    if (isChallengee) return 'You'
+    return challenge.challengee_name || 'Opponent'
   }
   
   const getStatusColor = (status: string) => {
@@ -114,11 +193,108 @@ export function ChallengeCard({
       )}
       
       {challenge.status === 'accepted' && (
-        <div className="mt-4 p-3 bg-blue-50 rounded text-sm">
-          <div className="font-medium text-blue-800">Challenge Accepted!</div>
-          <div className="text-blue-600 mt-1">
-            Schedule your match. The winner should report the score.
-          </div>
+        <div className="mt-4">
+          {!showReportForm ? (
+            <>
+              <div className="p-3 bg-blue-50 rounded text-sm mb-3">
+                <div className="font-medium text-blue-800">Challenge Accepted!</div>
+                <div className="text-blue-600 mt-1">
+                  Schedule your match. Report the score when the match is complete.
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setShowReportForm(true)}
+                className="w-full bg-blue-600 hover:bg-blue-700"
+              >
+                Report Score
+              </Button>
+            </>
+          ) : (
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="mb-3">
+                <div className="text-sm font-medium text-gray-700 mb-2">
+                  Enter match scores:
+                </div>
+                <div className="text-xs text-gray-600 mb-3">
+                  {getChallengerName()} vs {getChallengeeName()}
+                </div>
+              </div>
+
+              {reportError && (
+                <div className="mb-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
+                  {reportError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    {getChallengerName()} Score
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={player1Score}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (val === '' || /^\d+$/.test(val)) {
+                        setPlayer1Score(val)
+                        setReportError("")
+                      }
+                    }}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0"
+                    disabled={reporting}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    {getChallengeeName()} Score
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={player2Score}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (val === '' || /^\d+$/.test(val)) {
+                        setPlayer2Score(val)
+                        setReportError("")
+                      }
+                    }}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0"
+                    disabled={reporting}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleReportScore}
+                  disabled={reporting || !player1Score || !player2Score}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                >
+                  {reporting ? 'Reporting...' : 'Submit Score'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setShowReportForm(false)
+                    setPlayer1Score("")
+                    setPlayer2Score("")
+                    setReportError("")
+                  }}
+                  disabled={reporting}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

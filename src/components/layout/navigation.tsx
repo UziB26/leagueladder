@@ -3,12 +3,49 @@
 import { AuthButton } from "@/components/auth/auth-button"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
+import { useState, useEffect } from "react"
 
 export function Navigation() {
   const pathname = usePathname()
+  const { data: session } = useSession()
+  const [pendingMatchesCount, setPendingMatchesCount] = useState(0)
   
   const isActive = (path: string) => {
     return pathname === path || pathname?.startsWith(path + '/')
+  }
+
+  useEffect(() => {
+    if (session) {
+      fetchPendingMatchesCount()
+      // Refresh count periodically
+      const interval = setInterval(fetchPendingMatchesCount, 30000) // Every 30 seconds
+      
+      // Listen for match reporting events to refresh count
+      const handleMatchReported = () => {
+        fetchPendingMatchesCount()
+      }
+      window.addEventListener('match:reported', handleMatchReported)
+      
+      return () => {
+        clearInterval(interval)
+        window.removeEventListener('match:reported', handleMatchReported)
+      }
+    } else {
+      setPendingMatchesCount(0)
+    }
+  }, [session])
+
+  const fetchPendingMatchesCount = async () => {
+    try {
+      const response = await fetch('/api/matches/pending-count')
+      if (response.ok) {
+        const data = await response.json()
+        setPendingMatchesCount(data.count || 0)
+      }
+    } catch (error) {
+      console.error('Error fetching pending matches count:', error)
+    }
   }
 
   return (
@@ -55,13 +92,18 @@ export function Navigation() {
             </Link>
             <Link 
               href="/matches" 
-              className={`text-sm font-medium transition-colors ${
+              className={`relative text-sm font-medium transition-colors ${
                 isActive('/matches') 
                   ? 'text-blue-600' 
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               Matches
+              {pendingMatchesCount > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white min-w-[1.25rem] h-5">
+                  {pendingMatchesCount > 9 ? '9+' : pendingMatchesCount}
+                </span>
+              )}
             </Link>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { db } from "@/lib/db"
-import { LeaderboardTable } from "@/components/leaderboard/leaderboard-table"
+import { LeaderboardClient } from "@/components/leaderboard/leaderboard-client"
 import { notFound } from "next/navigation"
 import { LeaderboardEntry } from "@/types/database"
 import { League } from "@/types/database"
@@ -53,7 +53,11 @@ export default async function LeagueLeaderboardPage({ params }: LeaguePageProps)
         </div>
       </div>
 
-      <LeaderboardTable players={players} leagueName={league.name} />
+      <LeaderboardClient 
+        leagueId={league.id} 
+        leagueName={league.name} 
+        initialPlayers={players} 
+      />
 
       {/* Top 3 Players */}
       {players.length >= 3 && (

@@ -175,6 +175,7 @@ export default function ChallengesPage() {
                       onAccept={handleAccept}
                       onDecline={handleDecline}
                       onCancel={handleCancel}
+                      onReportSuccess={fetchChallenges}
                     />
                   ))}
                 </div>
@@ -199,6 +200,7 @@ export default function ChallengesPage() {
                       onAccept={handleAccept}
                       onDecline={handleDecline}
                       onCancel={handleCancel}
+                      onReportSuccess={fetchChallenges}
                     />
                   ))}
                 </div>
@@ -223,6 +225,7 @@ export default function ChallengesPage() {
                       onAccept={handleAccept}
                       onDecline={handleDecline}
                       onCancel={handleCancel}
+                      onReportSuccess={fetchChallenges}
                     />
                   ))}
                 </div>
