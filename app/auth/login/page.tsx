@@ -42,12 +42,12 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-4xl font-extrabold text-gray-900">
+          <h2 className="mt-6 text-center text-4xl font-extrabold text-blue-500">
             Sign in to your account
           </h2>
           <p className="mt-2 text-center text-base text-gray-700">
             Or{" "}
-            <Link href="/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link href="/auth/register" className="font-semibold text-blue-500 hover:text-blue-400 underline decoration-2 underline-offset-2">
               create a new account
             </Link>
           </p>
@@ -62,7 +62,7 @@ export default function LoginPage() {
           
           <div className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-base font-semibold text-gray-900">
+              <label htmlFor="email" className="block text-base font-semibold text-blue-500">
                 Email address
               </label>
               <input
@@ -73,13 +73,13 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-2 appearance-none relative block w-full px-4 py-3 text-base border-2 border-gray-300 placeholder-gray-400 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10"
+                className="mt-2 appearance-none relative block w-full px-4 py-3 text-base border-2 border-gray-300 placeholder-gray-400 text-white bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10"
                 placeholder="you@example.com"
               />
             </div>
             
             <div>
-              <label htmlFor="password" className="block text-base font-semibold text-gray-900">
+              <label htmlFor="password" className="block text-base font-semibold text-blue-500">
                 Password
               </label>
               <input
@@ -90,7 +90,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-2 appearance-none relative block w-full px-4 py-3 text-base border-2 border-gray-300 placeholder-gray-400 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10"
+                className="mt-2 appearance-none relative block w-full px-4 py-3 text-base border-2 border-gray-300 placeholder-gray-400 text-white bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10"
                 placeholder="••••••••"
               />
             </div>

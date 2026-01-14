@@ -80,11 +80,14 @@ export async function POST(request: Request) {
       VALUES (?, ?, ?)
     `).run(membershipId, player.id, leagueId)
 
-    // Initialize rating
+    // Initialize rating with seed rating of 1000 and zero stats
     const ratingId = crypto.randomUUID()
     db.prepare(`
-      INSERT INTO player_ratings (id, player_id, league_id, rating) 
-      VALUES (?, ?, ?, 1000)
+      INSERT INTO player_ratings (
+        id, player_id, league_id, rating, 
+        games_played, wins, losses, draws
+      ) 
+      VALUES (?, ?, ?, 1000, 0, 0, 0, 0)
     `).run(ratingId, player.id, leagueId)
 
     return NextResponse.json({ 

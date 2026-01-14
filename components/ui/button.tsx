@@ -17,7 +17,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           {
             "bg-blue-600 text-white hover:bg-blue-700": variant === 'default',
             "bg-gray-100 text-gray-900 hover:bg-gray-200": variant === 'secondary',
-            "border border-gray-300 bg-transparent hover:bg-gray-100": variant === 'outline',
+            "border border-gray-300 bg-transparent hover:bg-gray-100 text-gray-900": variant === 'outline',
             "hover:bg-gray-100": variant === 'ghost',
           },
           {

@@ -209,10 +209,10 @@ export const dbHelpers = {
   getLeague: (id: string) =>
     db.prepare('SELECT * FROM leagues WHERE id = ?').get(id),
   
-  getLeaderboard: (leagueId: string, limit = 50) => 
-    db.prepare(`
+  getLeaderboard: (leagueId: string, limit: number = 50) => {
+    return db.prepare(`
       SELECT 
-        p.id, p.name, p.avatar,
+        p.id, p.name, p.email, p.avatar,
         pr.rating, pr.games_played, pr.wins, pr.losses, pr.draws
       FROM players p
       JOIN player_ratings pr ON p.id = pr.player_id
@@ -220,4 +220,37 @@ export const dbHelpers = {
       ORDER BY pr.rating DESC
       LIMIT ?
     `).all(leagueId, limit)
+  },
+  
+  getPlayerWithStats: (playerId: string) => {
+    const player = db.prepare('SELECT * FROM players WHERE id = ?').get(playerId)
+    if (!player) return null
+    
+    const ratings = db.prepare(`
+      SELECT pr.*, l.name as league_name
+      FROM player_ratings pr
+      JOIN leagues l ON pr.league_id = l.id
+      WHERE pr.player_id = ?
+    `).all(playerId)
+    
+    return { player, ratings }
+  },
+  
+  getPlayerMatches: (playerId: string, limit: number = 10) => {
+    return db.prepare(`
+      SELECT 
+        m.*,
+        l.name as league_name,
+        p1.name as player1_name,
+        p2.name as player2_name
+      FROM matches m
+      JOIN leagues l ON m.league_id = l.id
+      JOIN players p1 ON m.player1_id = p1.id
+      JOIN players p2 ON m.player2_id = p2.id
+      WHERE (m.player1_id = ? OR m.player2_id = ?)
+        AND m.status = 'completed'
+      ORDER BY m.played_at DESC
+      LIMIT ?
+    `).all(playerId, playerId, limit)
+  }
 }

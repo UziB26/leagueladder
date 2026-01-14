@@ -54,6 +54,7 @@ export interface Player {
     id: string
     name: string
     avatar?: string
+    email?: string
     rating: number
     games_played: number
     wins: number

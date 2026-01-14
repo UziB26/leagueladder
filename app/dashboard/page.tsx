@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
+import Link from "next/link"
 
 interface League {
   id: string
@@ -11,10 +12,14 @@ interface League {
   game_type: string
 }
 
+interface LeagueWithMembership extends League {
+  isMember: boolean
+}
+
 export default function DashboardPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const [leagues, setLeagues] = useState<League[]>([])
+  const [leagues, setLeagues] = useState<LeagueWithMembership[]>([])
   const [loading, setLoading] = useState(true)
   const [joining, setJoining] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
@@ -32,7 +37,28 @@ export default function DashboardPage() {
       const response = await fetch('/api/leagues')
       const data = await response.json()
       if (data.leagues) {
-        setLeagues(data.leagues)
+        // Check membership status for each league
+        const leaguesWithMembership = await Promise.all(
+          data.leagues.map(async (league: League) => {
+            let isMember = false
+            
+            try {
+              const membershipResponse = await fetch(`/api/leagues/${league.id}/membership`)
+              if (membershipResponse.ok) {
+                const membershipData = await membershipResponse.json()
+                isMember = membershipData.isMember || false
+              }
+            } catch (error) {
+              console.error(`Error checking membership for ${league.id}:`, error)
+            }
+
+            return {
+              ...league,
+              isMember
+            }
+          })
+        )
+        setLeagues(leaguesWithMembership)
       }
     } catch (error) {
       console.error('Error fetching leagues:', error)
@@ -64,7 +90,9 @@ export default function DashboardPage() {
       if (response.ok) {
         setMessage({ type: 'success', text: data.message || 'Successfully joined league!' })
         // Refresh leagues to show updated status
-        fetchLeagues()
+        setTimeout(() => {
+          fetchLeagues()
+        }, 500)
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to join league' })
       }
@@ -78,9 +106,6 @@ export default function DashboardPage() {
   if (!session) {
     return null
   }
-
-  const fifaLeague = leagues.find(l => l.game_type === 'fifa')
-  const tableTennisLeague = leagues.find(l => l.game_type === 'table-tennis')
 
   return (
     <main className="min-h-screen p-8 bg-gray-50">
@@ -101,31 +126,48 @@ export default function DashboardPage() {
         )}
         
         <div className="grid md:grid-cols-2 gap-8">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-semibold mb-4">🎮 FIFA League</h2>
-            <p className="text-gray-600 mb-4">Challenge players, record matches, climb the FIFA rankings</p>
-            <Button 
-              onClick={() => fifaLeague && handleJoinLeague(fifaLeague.id)}
-              disabled={loading || joining === (fifaLeague?.id)}
-            >
-              {joining === (fifaLeague?.id) ? 'Joining...' : 'Join FIFA League'}
-            </Button>
-          </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-semibold mb-4">🏓 Table Tennis</h2>
-            <p className="text-gray-600 mb-4">Compete in table tennis matches with Elo-based rankings</p>
-            <Button 
-              onClick={() => tableTennisLeague && handleJoinLeague(tableTennisLeague.id)}
-              disabled={loading || joining === (tableTennisLeague?.id)}
-            >
-              {joining === (tableTennisLeague?.id) ? 'Joining...' : 'Join Table Tennis'}
-            </Button>
-          </div>
+          {leagues.map((league) => {
+            const isJoining = joining === league.id
+            
+            return (
+              <div key={league.id} className="bg-white p-6 rounded-lg shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-semibold text-black">
+                    {league.game_type === 'fifa' ? '🎮' : '🏓'} {league.name}
+                  </h2>
+                  {league.isMember && (
+                    <span className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
+                      Member
+                    </span>
+                  )}
+                </div>
+                <p className="text-gray-600 mb-4">
+                  {league.game_type === 'fifa' 
+                    ? 'Challenge players, record matches, climb the FIFA rankings'
+                    : 'Compete in table tennis matches with Elo-based rankings'}
+                </p>
+                {league.isMember ? (
+                  <Link href={`/leaderboard/${league.id}`}>
+                    <Button className="w-full text-blue-600 hover:text-blue-700" variant="outline">
+                      View Leaderboard
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button 
+                    onClick={() => handleJoinLeague(league.id)}
+                    disabled={loading || isJoining}
+                    className="w-full"
+                  >
+                    {isJoining ? 'Joining...' : `Join ${league.name}`}
+                  </Button>
+                )}
+              </div>
+            )
+          })}
         </div>
         
         <div className="mt-12">
-          <h3 className="text-xl font-semibold mb-4">How it works</h3>
+          <h3 className="text-xl font-semibold mb-4 text-black">How it works</h3>
           <ol className="list-decimal pl-5 space-y-2 text-gray-700">
             <li>Register and create your player profile</li>
             <li>Join either FIFA or Table Tennis league (or both!)</li>
