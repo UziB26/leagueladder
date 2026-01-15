@@ -135,3 +135,61 @@ Match reporting and Elo rating updates in Day 5!
 
 ## 📁 Files to Commit: 
 All Day 4 files are ready for GitHub Desktop commit.
+
+---
+
+## **Day 5 Summary**
+
+## 📊 Status:  
+**Complete and Functional** ✅
+
+## ✅ What Works:
+- Match reporting system from accepted challenges
+- Dedicated API endpoint for reporting scores from specific challenges (`/api/matches/from-challenge/[challengeId]`)
+- Challenge cards with inline "Report Score" button for accepted challenges
+- Automatic Elo rating updates after match completion
+- Enhanced Elo calculator with margin of victory and score-based scoring
+- Real-time leaderboard updates using custom DOM events
+- Match history views:
+  - Player match history (per player profile)
+  - League match history (per league)
+  - Rating change history with timeline
+- Navigation badge showing count of pending matches to report
+- Automatic player stats updates (wins, losses, draws, games_played) via database triggers
+- Challenge status automatically updated to 'completed' after match reporting
+- Fixed duplicate stat counting issues (matches now counted correctly)
+- Fixed unique player count across all leagues
+- Fixed match count calculation (counts actual matches, not sum of games_played)
+- Fixed average Elo calculation
+- Player profiles showing stats across all leagues
+- Top 3 players section on league leaderboard pages
+- Fixed controlled/uncontrolled input errors in match report forms
+- Fixed join league error messages (handles duplicate entries gracefully)
+- Fixed SQL parameter count errors
+- API endpoints for match history:
+  - `GET /api/matches/history` - Get current player's match history
+  - `GET /api/players/[playerId]/matches` - Get specific player's match history
+  - `GET /api/leagues/[leagueId]/matches` - Get league match history
+  - `GET /api/players/[playerId]/rating-history` - Get player's rating change history
+  - `GET /api/matches/count` - Get total completed matches count
+  - `GET /api/leagues/[leagueId]/matches/count` - Get league-specific match count
+  - `GET /api/matches/pending-count` - Get count of pending matches to report
+
+## 🧪 Ready for Testing:
+1. Report match scores from accepted challenges on challenges page
+2. View real-time leaderboard updates after match reporting
+3. Check player profiles for match history and rating changes
+4. View league match history on league leaderboard pages
+5. Verify navigation badge updates when matches are reported
+6. Test match counting (should count once per match, not per player)
+7. Verify unique player count across all leagues
+8. Check average Elo calculation accuracy
+9. View top 3 players on individual league leaderboard pages
+10. Test background image display on all pages
+11. Verify all visual styling changes (black backgrounds, white text, etc.)
+
+## 🚀 Next Steps: 
+Week 1 demo-ready MVP complete! Ready for internal sharing and feedback.
+
+## 📁 Files to Commit: 
+All Day 5 files are ready for GitHub Desktop commit.
