@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { db, dbHelpers } from '@/lib/db'
+import { db, dbHelpers, DatabaseTransaction, validateMatchData, createBackup, restoreBackup } from '@/lib/db'
 import { elo } from '@/lib/elo'
+import { sanitizeUUID, sanitizeInteger } from '@/lib/sanitize'
+import crypto from 'crypto'
 
 interface User {
   id: string
@@ -142,7 +144,7 @@ export async function GET(
  */
 export async function PUT(
   request: Request,
-  { params }: { params: { matchId: string } }
+  { params }: { params: Promise<{ matchId: string }> }
 ) {
   try {
     const session = await auth()
@@ -162,12 +164,22 @@ export async function PUT(
     //   return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     // }
 
-    const { matchId } = params
+    const { matchId } = await params
+    
+    // Sanitize match ID
+    const sanitizedMatchId = sanitizeUUID(matchId)
+    if (!sanitizedMatchId) {
+      return NextResponse.json(
+        { error: 'Invalid match ID format' },
+        { status: 400 }
+      )
+    }
+
     const body = await request.json()
     const { player1Score, player2Score, status, winnerId } = body
 
     // Get existing match
-    const existingMatch = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId) as any
+    const existingMatch = db.prepare('SELECT * FROM matches WHERE id = ?').get(sanitizedMatchId) as any
 
     if (!existingMatch) {
       return NextResponse.json(
@@ -176,121 +188,354 @@ export async function PUT(
       )
     }
 
-    const wasCompleted = existingMatch.status === 'completed'
-    const willBeCompleted = status === 'completed' || (status === undefined && wasCompleted)
+    // Validate input data
+    const finalPlayer1Score = player1Score !== undefined ? player1Score : existingMatch.player1_score
+    const finalPlayer2Score = player2Score !== undefined ? player2Score : existingMatch.player2_score
+    const finalStatus = status !== undefined ? status : existingMatch.status
 
-    // Get challenge_id before update (if exists)
-    const challengeId = existingMatch.challenge_id
+    // Validate match data if scores are being updated
+    if (player1Score !== undefined || player2Score !== undefined) {
+      const matchValidation = validateMatchData({
+        player1Id: existingMatch.player1_id,
+        player2Id: existingMatch.player2_id,
+        leagueId: existingMatch.league_id,
+        player1Score: finalPlayer1Score,
+        player2Score: finalPlayer2Score,
+        challengeId: existingMatch.challenge_id,
+        status: finalStatus,
+      })
 
-    // If match was completed and we're changing scores or status, revert ratings
-    if (wasCompleted && (player1Score !== undefined || player2Score !== undefined || status !== undefined)) {
-      try {
-        dbHelpers.revertEloRatings(matchId)
-      } catch (error: any) {
-        console.error('Error reverting Elo ratings:', error)
-        // Continue with update even if revert fails
-      }
-    }
-
-    // Build update query dynamically
-    const updates: string[] = []
-    const values: any[] = []
-
-    if (player1Score !== undefined) {
-      if (player1Score < 0) {
+      if (!matchValidation.valid) {
         return NextResponse.json(
-          { error: 'Player 1 score must be non-negative' },
+          { error: 'Invalid match data', details: matchValidation.errors },
           { status: 400 }
         )
       }
-      updates.push('player1_score = ?')
-      values.push(player1Score)
     }
 
-    if (player2Score !== undefined) {
-      if (player2Score < 0) {
-        return NextResponse.json(
-          { error: 'Player 2 score must be non-negative' },
-          { status: 400 }
-        )
-      }
-      updates.push('player2_score = ?')
-      values.push(player2Score)
-    }
+    // Sanitize inputs
+    const sanitizedPlayer1Score = player1Score !== undefined 
+      ? sanitizeInteger(player1Score, 0, 1000) 
+      : existingMatch.player1_score
+    const sanitizedPlayer2Score = player2Score !== undefined 
+      ? sanitizeInteger(player2Score, 0, 1000) 
+      : existingMatch.player2_score
 
-    if (status !== undefined) {
-      updates.push('status = ?')
-      values.push(status)
-    }
-
-    if (winnerId !== undefined) {
-      // Validate winnerId is one of the players or null
-      if (winnerId !== null && winnerId !== existingMatch.player1_id && winnerId !== existingMatch.player2_id) {
-        return NextResponse.json(
-          { error: 'Winner ID must be one of the players or null' },
-          { status: 400 }
-        )
-      }
-      updates.push('winner_id = ?')
-      values.push(winnerId)
-    } else if ((player1Score !== undefined || player2Score !== undefined) && willBeCompleted) {
-      // Auto-calculate winner if scores changed and match is completed
-      const finalPlayer1Score = player1Score !== undefined ? player1Score : existingMatch.player1_score
-      const finalPlayer2Score = player2Score !== undefined ? player2Score : existingMatch.player2_score
-      
-      if (finalPlayer1Score > finalPlayer2Score) {
-        updates.push('winner_id = ?')
-        values.push(existingMatch.player1_id)
-      } else if (finalPlayer2Score > finalPlayer1Score) {
-        updates.push('winner_id = ?')
-        values.push(existingMatch.player2_id)
-      } else {
-        updates.push('winner_id = ?')
-        values.push(null)
-      }
-    }
-
-    if (updates.length === 0) {
+    if (sanitizedPlayer1Score === null || sanitizedPlayer2Score === null) {
       return NextResponse.json(
-        { error: 'No fields to update' },
+        { error: 'Invalid score values' },
         { status: 400 }
       )
     }
 
-    // Add matchId to values for WHERE clause
-    values.push(matchId)
+    const wasCompleted = existingMatch.status === 'completed'
+    const willBeCompleted = finalStatus === 'completed'
 
-    // Execute update
-    db.prepare(`
-      UPDATE matches
-      SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(...values)
+    // Get challenge_id before update (if exists)
+    const challengeId = existingMatch.challenge_id
 
-    // If match is now completed, calculate new ratings
-    if (willBeCompleted && !wasCompleted) {
+    // Create backup of player ratings and match before making changes
+    const backup = createBackup({
+      matchIds: [sanitizedMatchId],
+      playerIds: [existingMatch.player1_id, existingMatch.player2_id],
+      challengeIds: challengeId ? [challengeId] : undefined,
+    })
+
+    // Use transaction for atomic match update with backup/rollback support
+    try {
+      DatabaseTransaction.execute((tx) => {
+        // If match was completed and we're changing scores or status, revert ratings
+        if (wasCompleted && (player1Score !== undefined || player2Score !== undefined || status !== undefined)) {
+          // Get the most recent rating updates for this match
+          const updates = tx.all(
+            db.prepare(`
+              SELECT player_id, league_id, old_rating
+              FROM rating_updates
+              WHERE match_id = ?
+              ORDER BY created_at DESC
+              LIMIT 2
+            `),
+            sanitizedMatchId
+          ) as any[]
+          
+          if (updates.length === 2) {
+            // Revert ratings to old values
+            const revertRating = db.prepare(`
+              UPDATE player_ratings
+              SET rating = ?, updated_at = CURRENT_TIMESTAMP
+              WHERE player_id = ? AND league_id = ?
+            `)
+            updates.forEach((update) => {
+              tx.run(revertRating, update.old_rating, update.player_id, update.league_id)
+            })
+            
+            // Delete rating update records
+            const deleteUpdates = db.prepare(`
+              DELETE FROM rating_updates WHERE match_id = ?
+            `)
+            tx.run(deleteUpdates, sanitizedMatchId)
+          }
+        }
+
+        // Build update query dynamically
+        const updates: string[] = []
+        const values: any[] = []
+
+        if (player1Score !== undefined) {
+          updates.push('player1_score = ?')
+          values.push(sanitizedPlayer1Score)
+        }
+
+        if (player2Score !== undefined) {
+          updates.push('player2_score = ?')
+          values.push(sanitizedPlayer2Score)
+        }
+
+        if (status !== undefined) {
+          if (!['pending', 'completed', 'voided'].includes(status)) {
+            throw new Error('Invalid match status')
+          }
+          updates.push('status = ?')
+          values.push(status)
+        }
+
+        if (winnerId !== undefined) {
+          // Validate winnerId is one of the players or null
+          if (winnerId !== null && winnerId !== existingMatch.player1_id && winnerId !== existingMatch.player2_id) {
+            throw new Error('Winner ID must be one of the players or null')
+          }
+          const sanitizedWinnerId = winnerId ? sanitizeUUID(winnerId) : null
+          if (winnerId !== null && !sanitizedWinnerId) {
+            throw new Error('Invalid winner ID format')
+          }
+          updates.push('winner_id = ?')
+          values.push(sanitizedWinnerId)
+        } else if ((player1Score !== undefined || player2Score !== undefined) && willBeCompleted) {
+          // Auto-calculate winner if scores changed and match is completed
+          const finalP1Score = player1Score !== undefined ? sanitizedPlayer1Score : existingMatch.player1_score
+          const finalP2Score = player2Score !== undefined ? sanitizedPlayer2Score : existingMatch.player2_score
+          
+          if (finalP1Score > finalP2Score) {
+            updates.push('winner_id = ?')
+            values.push(existingMatch.player1_id)
+          } else if (finalP2Score > finalP1Score) {
+            updates.push('winner_id = ?')
+            values.push(existingMatch.player2_id)
+          } else {
+            updates.push('winner_id = ?')
+            values.push(null)
+          }
+        }
+
+        if (updates.length === 0) {
+          throw new Error('No fields to update')
+        }
+
+        // Add matchId to values for WHERE clause
+        values.push(sanitizedMatchId)
+
+        // Execute update
+        tx.run(
+          db.prepare(`
+            UPDATE matches
+            SET ${updates.join(', ')}
+            WHERE id = ?
+          `),
+          ...values
+        )
+
+        // If match is now completed, calculate new ratings
+        if (willBeCompleted && !wasCompleted) {
+          // Get current ratings for both players within transaction
+          const rating1 = tx.get(
+            db.prepare(`
+              SELECT rating FROM player_ratings
+              WHERE player_id = ? AND league_id = ?
+            `),
+            existingMatch.player1_id,
+            existingMatch.league_id
+          ) as any
+          
+          const rating2 = tx.get(
+            db.prepare(`
+              SELECT rating FROM player_ratings
+              WHERE player_id = ? AND league_id = ?
+            `),
+            existingMatch.player2_id,
+            existingMatch.league_id
+          ) as any
+          
+          if (!rating1 || !rating2) {
+            throw new Error('Player ratings not found')
+          }
+          
+          // Calculate new ratings using Elo system
+          const finalP1Score = player1Score !== undefined ? sanitizedPlayer1Score : existingMatch.player1_score
+          const finalP2Score = player2Score !== undefined ? sanitizedPlayer2Score : existingMatch.player2_score
+          const result = elo.calculateForMatch(
+            rating1.rating,
+            rating2.rating,
+            finalP1Score,
+            finalP2Score
+          )
+          
+          // Update player 1 rating
+          const updateRating1 = db.prepare(`
+            UPDATE player_ratings
+            SET rating = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE player_id = ? AND league_id = ?
+          `)
+          tx.run(updateRating1, result.newRatingA, existingMatch.player1_id, existingMatch.league_id)
+          
+          // Update player 2 rating
+          const updateRating2 = db.prepare(`
+            UPDATE player_ratings
+            SET rating = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE player_id = ? AND league_id = ?
+          `)
+          tx.run(updateRating2, result.newRatingB, existingMatch.player2_id, existingMatch.league_id)
+          
+          // Record rating updates for history
+          const insertUpdate1 = db.prepare(`
+            INSERT INTO rating_updates (id, match_id, player_id, league_id, old_rating, new_rating, change)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `)
+          tx.run(
+            insertUpdate1,
+            crypto.randomUUID(),
+            sanitizedMatchId,
+            existingMatch.player1_id,
+            existingMatch.league_id,
+            rating1.rating,
+            result.newRatingA,
+            result.changeA
+          )
+          
+          const insertUpdate2 = db.prepare(`
+            INSERT INTO rating_updates (id, match_id, player_id, league_id, old_rating, new_rating, change)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `)
+          tx.run(
+            insertUpdate2,
+            crypto.randomUUID(),
+            sanitizedMatchId,
+            existingMatch.player2_id,
+            existingMatch.league_id,
+            rating2.rating,
+            result.newRatingB,
+            result.changeB
+          )
+          
+          // Mark challenge as completed if match is now completed and challenge exists
+          if (challengeId) {
+            const updateChallenge = db.prepare(`
+              UPDATE challenges
+              SET status = 'completed'
+              WHERE id = ? AND status = 'accepted'
+            `)
+            tx.run(updateChallenge, challengeId)
+          }
+        } else if (willBeCompleted && wasCompleted && (player1Score !== undefined || player2Score !== undefined)) {
+          // Recalculate ratings if scores changed on a completed match
+          // Get current ratings for both players within transaction
+          const rating1 = tx.get(
+            db.prepare(`
+              SELECT rating FROM player_ratings
+              WHERE player_id = ? AND league_id = ?
+            `),
+            existingMatch.player1_id,
+            existingMatch.league_id
+          ) as any
+          
+          const rating2 = tx.get(
+            db.prepare(`
+              SELECT rating FROM player_ratings
+              WHERE player_id = ? AND league_id = ?
+            `),
+            existingMatch.player2_id,
+            existingMatch.league_id
+          ) as any
+          
+          if (!rating1 || !rating2) {
+            throw new Error('Player ratings not found')
+          }
+          
+          // Calculate new ratings using Elo system
+          const finalP1Score = player1Score !== undefined ? sanitizedPlayer1Score : existingMatch.player1_score
+          const finalP2Score = player2Score !== undefined ? sanitizedPlayer2Score : existingMatch.player2_score
+          const result = elo.calculateForMatch(
+            rating1.rating,
+            rating2.rating,
+            finalP1Score,
+            finalP2Score
+          )
+          
+          // Update player 1 rating
+          const updateRating1 = db.prepare(`
+            UPDATE player_ratings
+            SET rating = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE player_id = ? AND league_id = ?
+          `)
+          tx.run(updateRating1, result.newRatingA, existingMatch.player1_id, existingMatch.league_id)
+          
+          // Update player 2 rating
+          const updateRating2 = db.prepare(`
+            UPDATE player_ratings
+            SET rating = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE player_id = ? AND league_id = ?
+          `)
+          tx.run(updateRating2, result.newRatingB, existingMatch.player2_id, existingMatch.league_id)
+          
+          // Delete old rating updates and insert new ones
+          const deleteUpdates = db.prepare(`
+            DELETE FROM rating_updates WHERE match_id = ?
+          `)
+          tx.run(deleteUpdates, sanitizedMatchId)
+          
+          // Record new rating updates for history
+          const insertUpdate1 = db.prepare(`
+            INSERT INTO rating_updates (id, match_id, player_id, league_id, old_rating, new_rating, change)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `)
+          tx.run(
+            insertUpdate1,
+            crypto.randomUUID(),
+            sanitizedMatchId,
+            existingMatch.player1_id,
+            existingMatch.league_id,
+            rating1.rating,
+            result.newRatingA,
+            result.changeA
+          )
+          
+          const insertUpdate2 = db.prepare(`
+            INSERT INTO rating_updates (id, match_id, player_id, league_id, old_rating, new_rating, change)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `)
+          tx.run(
+            insertUpdate2,
+            crypto.randomUUID(),
+            sanitizedMatchId,
+            existingMatch.player2_id,
+            existingMatch.league_id,
+            rating2.rating,
+            result.newRatingB,
+            result.changeB
+          )
+        }
+      })
+    } catch (error: any) {
+      // Rollback using backup if transaction fails
+      console.error('Error in match update transaction:', error)
       try {
-        dbHelpers.updateEloRatings(matchId, elo)
-      } catch (error: any) {
-        console.error('Error updating Elo ratings:', error)
-        // Continue even if rating update fails
+        restoreBackup(backup)
+      } catch (restoreError) {
+        console.error('Error restoring backup:', restoreError)
       }
-      
-      // Mark challenge as completed if match is now completed and challenge exists
-      if (challengeId) {
-        db.prepare(`
-          UPDATE challenges
-          SET status = 'completed'
-          WHERE id = ? AND status = 'accepted'
-        `).run(challengeId)
-      }
-    } else if (willBeCompleted && wasCompleted && (player1Score !== undefined || player2Score !== undefined)) {
-      // Recalculate ratings if scores changed on a completed match
-      try {
-        dbHelpers.updateEloRatings(matchId, elo)
-      } catch (error: any) {
-        console.error('Error recalculating Elo ratings:', error)
-      }
+      return NextResponse.json(
+        { error: error.message || 'Failed to update match' },
+        { status: 500 }
+      )
     }
 
     // Get updated match
@@ -305,7 +550,7 @@ export async function PUT(
       JOIN players p1 ON m.player1_id = p1.id
       JOIN players p2 ON m.player2_id = p2.id
       WHERE m.id = ?
-    `).get(matchId) as any
+    `).get(sanitizedMatchId) as any
 
     return NextResponse.json({
       success: true,

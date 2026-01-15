@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/loading-state"
 import Select from 'react-select'
 
 interface Player {
@@ -70,7 +71,11 @@ export function CreateChallengeForm({ currentPlayerId, onSuccess }: CreateChalle
       setError("") // Clear any previous errors
     } catch (error: any) {
       console.error('Error fetching players:', error)
-      setError(`Error: ${error.message || 'Failed to fetch players'}`)
+      if (error.message?.includes('fetch') || error.message?.includes('network')) {
+        setError('Network error. Please check your connection and try again.')
+      } else {
+        setError(`Error: ${error.message || 'Failed to fetch players'}`)
+      }
       setPlayers([])
     }
   }
@@ -106,6 +111,12 @@ export function CreateChallengeForm({ currentPlayerId, onSuccess }: CreateChalle
       return
     }
 
+    // Validate can't challenge yourself
+    if (selectedPlayer.value === currentPlayerId) {
+      setError("You cannot challenge yourself")
+      return
+    }
+
     setLoading(true)
     setError("")
     setSuccess("")
@@ -134,7 +145,11 @@ export function CreateChallengeForm({ currentPlayerId, onSuccess }: CreateChalle
         onSuccess()
       }
     } catch (error: any) {
-      setError(error.message)
+      if (error.message?.includes('fetch') || error.message?.includes('network')) {
+        setError('Network error. Please check your connection and try again.')
+      } else {
+        setError(error.message || 'Failed to create challenge. Please try again.')
+      }
     } finally {
       setLoading(false)
     }
@@ -216,7 +231,14 @@ export function CreateChallengeForm({ currentPlayerId, onSuccess }: CreateChalle
             className="w-full"
             disabled={loading || !selectedPlayer || !selectedLeague}
           >
-            {loading ? 'Creating Challenge...' : 'Send Challenge'}
+            {loading ? (
+              <>
+                <Spinner size="sm" className="mr-2" />
+                Creating Challenge...
+              </>
+            ) : (
+              'Send Challenge'
+            )}
           </Button>
         </div>
       </form>

@@ -1,6 +1,9 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { apiRateLimit } from '@/lib/rate-limit'
+import { validateRequest, requestSchemas } from '@/lib/validation'
+import { sanitizeString } from '@/lib/sanitize'
 import crypto from 'crypto'
 
 interface User {
@@ -16,8 +19,35 @@ interface Player {
   email: string | null;
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Apply rate limiting
+    const rateLimitResponse = await apiRateLimit(request)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
+
+    // Validate request
+    const validator = validateRequest({
+      schema: requestSchemas.joinLeague,
+      errorMessage: 'Invalid league join request',
+    })
+    const { data, error } = await validator(request)
+    if (error) {
+      return error
+    }
+
+    const { leagueId } = data
+
+    // Sanitize league ID (leagues use string IDs like 'tt_league', 'fifa_league', not UUIDs)
+    const sanitizedLeagueId = sanitizeString(leagueId)
+    if (!sanitizedLeagueId || sanitizedLeagueId.length === 0) {
+      return NextResponse.json(
+        { error: 'Invalid league ID format' },
+        { status: 400 }
+      )
+    }
+
     // Get authenticated user
     const session = await auth()
     
@@ -25,15 +55,6 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
-      )
-    }
-
-    const { leagueId } = await request.json()
-    
-    if (!leagueId) {
-      return NextResponse.json(
-        { error: 'League ID is required' },
-        { status: 400 }
       )
     }
 
@@ -64,7 +85,7 @@ export async function POST(request: Request) {
     const existingMembership = db.prepare(`
       SELECT * FROM league_memberships 
       WHERE player_id = ? AND league_id = ?
-    `).get(player.id, leagueId)
+    `).get(player.id, sanitizedLeagueId)
 
     if (existingMembership) {
       return NextResponse.json(
@@ -77,7 +98,7 @@ export async function POST(request: Request) {
     const existingRating = db.prepare(`
       SELECT * FROM player_ratings 
       WHERE player_id = ? AND league_id = ?
-    `).get(player.id, leagueId)
+    `).get(player.id, sanitizedLeagueId)
 
     // Join league
     const membershipId = crypto.randomUUID()
@@ -85,7 +106,7 @@ export async function POST(request: Request) {
       db.prepare(`
         INSERT INTO league_memberships (id, player_id, league_id) 
         VALUES (?, ?, ?)
-      `).run(membershipId, player.id, leagueId)
+      `).run(membershipId, player.id, sanitizedLeagueId)
     } catch (error: any) {
       // If membership insert fails due to unique constraint, check if it already exists
       if (error?.code === 'SQLITE_CONSTRAINT_UNIQUE' || error?.message?.includes('UNIQUE constraint')) {
@@ -108,7 +129,7 @@ export async function POST(request: Request) {
             games_played, wins, losses, draws
           ) 
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(ratingId, player.id, leagueId, 1000, 0, 0, 0, 0)
+        `).run(ratingId, player.id, sanitizedLeagueId, 1000, 0, 0, 0, 0)
       } catch (error: any) {
         // If rating insert fails due to unique constraint, it's okay - rating already exists
         // This can happen in race conditions or if the rating was created elsewhere

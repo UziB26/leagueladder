@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { Challenge } from '@/types/database'
+import { apiRateLimit } from '@/lib/rate-limit'
+import { sanitizeUUID } from '@/lib/sanitize'
 
 interface User {
   id: string;
@@ -14,11 +16,26 @@ interface Player {
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ challengeId: string }> }
 ) {
   try {
+    // Apply rate limiting
+    const rateLimitResponse = await apiRateLimit(request)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
+
     const { challengeId } = await params
+
+    // Sanitize challenge ID
+    const sanitizedChallengeId = sanitizeUUID(challengeId)
+    if (!sanitizedChallengeId) {
+      return NextResponse.json(
+        { error: 'Invalid challenge ID format' },
+        { status: 400 }
+      )
+    }
     
     const session = await auth()
     
@@ -50,7 +67,7 @@ export async function POST(
     // Check if challenge exists and user is the challenger
     const challenge = db.prepare(`
       SELECT * FROM challenges WHERE id = ? AND challenger_id = ?
-    `).get(challengeId, player.id) as Challenge | undefined
+    `).get(sanitizedChallengeId, player.id) as Challenge | undefined
     
     if (!challenge) {
       return NextResponse.json(
@@ -69,7 +86,7 @@ export async function POST(
     // Delete challenge (or mark as cancelled)
     db.prepare(`
       DELETE FROM challenges WHERE id = ?
-    `).run(challengeId)
+    `).run(sanitizedChallengeId)
     
     return NextResponse.json({ 
       success: true,

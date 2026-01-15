@@ -2,6 +2,8 @@
 
 import { Challenge } from "@/types/database"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/loading-state"
+import { ConfirmationDialog, useConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { formatDistanceToNow } from "date-fns"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -30,19 +32,40 @@ export function ChallengeCard({
   const [player2Score, setPlayer2Score] = useState("")
   const [reportError, setReportError] = useState("")
   const router = useRouter()
+  const confirmationDialog = useConfirmationDialog()
   
   const isChallenger = challenge.challenger_id === currentPlayerId
   const isChallengee = challenge.challengee_id === currentPlayerId
   
   const handleAction = async (action: 'accept' | 'decline' | 'cancel') => {
+    // Show confirmation for cancel action
+    if (action === 'cancel') {
+      confirmationDialog.openDialog({
+        title: "Cancel Challenge",
+        message: "Are you sure you want to cancel this challenge? This action cannot be undone.",
+        confirmText: "Cancel Challenge",
+        cancelText: "Keep Challenge",
+        variant: "destructive",
+        onConfirm: async () => {
+          setLoading(true)
+          try {
+            if (onCancel) {
+              await onCancel(challenge.id)
+            }
+          } finally {
+            setLoading(false)
+          }
+        },
+      })
+      return
+    }
+
     setLoading(true)
     try {
       if (action === 'accept' && onAccept) {
         await onAccept(challenge.id)
       } else if (action === 'decline' && onDecline) {
         await onDecline(challenge.id)
-      } else if (action === 'cancel' && onCancel) {
-        await onCancel(challenge.id)
       }
     } finally {
       setLoading(false)
@@ -59,7 +82,20 @@ export function ChallengeCard({
     }
 
     if (p1Score < 0 || p2Score < 0) {
-      setReportError('Scores must be non-negative')
+      setReportError('Scores must be positive numbers')
+      return
+    }
+
+    // Validate reasonable score limits
+    const MAX_REASONABLE_SCORE = 1000
+    if (p1Score > MAX_REASONABLE_SCORE || p2Score > MAX_REASONABLE_SCORE) {
+      setReportError(`Scores must be reasonable numbers (max ${MAX_REASONABLE_SCORE})`)
+      return
+    }
+
+    // Ensure at least one score is greater than 0
+    if (p1Score === 0 && p2Score === 0) {
+      setReportError('At least one player must have a score greater than 0')
       return
     }
 
@@ -103,7 +139,11 @@ export function ChallengeCard({
       }
     } catch (error: any) {
       console.error('Error reporting match:', error)
-      setReportError(error.message || 'Failed to report match. Please try again.')
+      if (error.message?.includes('fetch') || error.message?.includes('network')) {
+        setReportError('Network error. Please check your connection and try again.')
+      } else {
+        setReportError(error.message || 'Failed to report match. Please try again.')
+      }
     } finally {
       setReporting(false)
     }
@@ -130,7 +170,19 @@ export function ChallengeCard({
   }
   
   return (
-    <div className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow">
+    <>
+      <ConfirmationDialog
+        isOpen={confirmationDialog.isOpen}
+        onClose={confirmationDialog.closeDialog}
+        onConfirm={confirmationDialog.handleConfirm}
+        title={confirmationDialog.config?.title || ""}
+        message={confirmationDialog.config?.message || ""}
+        confirmText={confirmationDialog.config?.confirmText}
+        cancelText={confirmationDialog.config?.cancelText}
+        variant={confirmationDialog.config?.variant}
+        isLoading={loading}
+      />
+      <div className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start mb-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -166,7 +218,14 @@ export function ChallengeCard({
                 disabled={loading}
                 className="flex-1"
               >
-                {loading ? 'Accepting...' : 'Accept Challenge'}
+                {loading ? (
+                  <>
+                    <Spinner size="sm" className="mr-2" />
+                    Accepting...
+                  </>
+                ) : (
+                  'Accept Challenge'
+                )}
               </Button>
               <Button
                 size="sm"
@@ -174,7 +233,14 @@ export function ChallengeCard({
                 onClick={() => handleAction('decline')}
                 disabled={loading}
               >
-                Decline
+                {loading ? (
+                  <>
+                    <Spinner size="sm" className="mr-2" />
+                    Declining...
+                  </>
+                ) : (
+                  'Decline'
+                )}
               </Button>
             </>
           )}
@@ -186,7 +252,14 @@ export function ChallengeCard({
               disabled={loading}
               className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
             >
-              {loading ? 'Cancelling...' : 'Cancel Challenge'}
+              {loading ? (
+                <>
+                  <Spinner size="sm" className="mr-2" />
+                  Cancelling...
+                </>
+              ) : (
+                'Cancel Challenge'
+              )}
             </Button>
           )}
         </div>
@@ -277,7 +350,14 @@ export function ChallengeCard({
                   disabled={reporting || !player1Score || !player2Score}
                   className="flex-1 bg-blue-600 hover:bg-blue-700"
                 >
-                  {reporting ? 'Reporting...' : 'Submit Score'}
+                  {reporting ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />
+                      Reporting...
+                    </>
+                  ) : (
+                    'Submit Score'
+                  )}
                 </Button>
                 <Button
                   size="sm"
@@ -298,5 +378,6 @@ export function ChallengeCard({
         </div>
       )}
     </div>
+    </>
   )
 }

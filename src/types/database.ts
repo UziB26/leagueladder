@@ -48,9 +48,26 @@ export interface Player {
     player1_score: number
     player2_score: number
     winner_id?: string
-    status: 'pending' | 'completed' | 'voided'
+    status: 'pending' | 'pending_confirmation' | 'completed' | 'voided' | 'disputed'
+    reported_by?: string
     played_at: string
     confirmed_at?: string
+    player1_name?: string
+    player2_name?: string
+    league_name?: string
+    reporter_name?: string
+  }
+  
+  export interface MatchConfirmation {
+    id: string
+    match_id: string
+    player_id: string
+    action: 'confirmed' | 'disputed'
+    confirmed_score1?: number
+    confirmed_score2?: number
+    dispute_reason?: string
+    created_at: string
+    player_name?: string
   }
   
   export interface LeaderboardEntry {

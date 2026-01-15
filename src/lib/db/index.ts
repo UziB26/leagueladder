@@ -22,10 +22,18 @@ export function initializeDatabase() {
         email TEXT UNIQUE NOT NULL,
         emailVerified DATETIME,
         image TEXT,
+        is_admin BOOLEAN DEFAULT FALSE,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `)
+    
+    // Add is_admin column if it doesn't exist (for existing databases)
+    try {
+      db.exec(`ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE`)
+    } catch (e) {
+      // Column already exists, ignore
+    }
   
     // Accounts table (for NextAuth)
     db.exec(`
@@ -143,16 +151,43 @@ export function initializeDatabase() {
         player2_score INTEGER NOT NULL,
         winner_id TEXT,
         status TEXT DEFAULT 'pending',
+        reported_by TEXT,
         played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         confirmed_at DATETIME,
         FOREIGN KEY (challenge_id) REFERENCES challenges(id),
         FOREIGN KEY (player1_id) REFERENCES players(id),
         FOREIGN KEY (player2_id) REFERENCES players(id),
         FOREIGN KEY (winner_id) REFERENCES players(id),
+        FOREIGN KEY (reported_by) REFERENCES players(id),
         FOREIGN KEY (league_id) REFERENCES leagues(id),
         CHECK (player1_id != player2_id),
         CHECK (player1_score >= 0),
         CHECK (player2_score >= 0)
+      )
+    `)
+    
+    // Add reported_by column if it doesn't exist (for existing databases)
+    try {
+      db.exec(`ALTER TABLE matches ADD COLUMN reported_by TEXT`)
+    } catch (e) {
+      // Column already exists, ignore
+    }
+    
+    // Match confirmations table - tracks who confirmed/disputed matches
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS match_confirmations (
+        id TEXT PRIMARY KEY,
+        match_id TEXT NOT NULL,
+        player_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        confirmed_score1 INTEGER,
+        confirmed_score2 INTEGER,
+        dispute_reason TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+        FOREIGN KEY (player_id) REFERENCES players(id),
+        CHECK (action IN ('confirmed', 'disputed')),
+        UNIQUE(match_id, player_id)
       )
     `)
   
@@ -214,12 +249,12 @@ export function initializeDatabase() {
       END
     `)
     
-    // Trigger 2a: Set winner_id and confirmed_at automatically when match is INSERTED with 'completed' status
+    // Trigger 2a: Set winner_id automatically when match is INSERTED (for any status)
     // This trigger runs FIRST to set winner_id before stats are updated
     db.exec(`
       CREATE TRIGGER IF NOT EXISTS set_match_winner_on_insert
       AFTER INSERT ON matches
-      WHEN NEW.status = 'completed' AND NEW.winner_id IS NULL
+      WHEN NEW.winner_id IS NULL
       BEGIN
         UPDATE matches
         SET winner_id = CASE
@@ -256,6 +291,7 @@ export function initializeDatabase() {
     `)
     
     // Trigger 3a: Update player_ratings stats when match is INSERTED with 'completed' status
+    // Note: Only update stats when match is completed (not pending_confirmation)
     // Note: winner_id should be set in the INSERT statement or by set_match_winner_on_insert trigger
     // This trigger uses a subquery to get the current winner_id (which may have been set by another trigger)
     db.exec(`
@@ -403,6 +439,10 @@ export function initializeDatabase() {
 // Run initialization
 initializeDatabase()
 
+// Export transaction utilities
+export { DatabaseTransaction, createBackup, restoreBackup } from './transactions'
+export { validateMatchData, validateChallengeData, validatePlayerLeagueMembership } from './validation'
+
 // Helper functions
 export const dbHelpers = {
   generateId: () => uuidv4(),
@@ -461,134 +501,158 @@ export const dbHelpers = {
    * Update Elo ratings for both players after a match is completed.
    * This function should be called from API routes when a match status changes to 'completed'.
    * The triggers handle basic stats (wins/losses/draws), but Elo calculation requires JavaScript.
+   * Now uses transactions for atomicity.
    * 
    * @param matchId - The ID of the completed match
    * @param eloCalculator - Instance of EloCalculator (import from '@/lib/elo')
    */
   updateEloRatings: (matchId: string, eloCalculator: any) => {
-    const match = db.prepare(`
-      SELECT player1_id, player2_id, player1_score, player2_score, league_id, winner_id
-      FROM matches
-      WHERE id = ? AND status = 'completed'
-    `).get(matchId) as any
-    
-    if (!match) {
-      throw new Error(`Match ${matchId} not found or not completed`)
-    }
-    
-    // Get current ratings for both players
-    const rating1 = db.prepare(`
-      SELECT rating FROM player_ratings
-      WHERE player_id = ? AND league_id = ?
-    `).get(match.player1_id, match.league_id) as any
-    
-    const rating2 = db.prepare(`
-      SELECT rating FROM player_ratings
-      WHERE player_id = ? AND league_id = ?
-    `).get(match.player2_id, match.league_id) as any
-    
-    if (!rating1 || !rating2) {
-      throw new Error('Player ratings not found')
-    }
-    
-    // Calculate new ratings using Elo system
-    const result = eloCalculator.calculateForMatch(
-      rating1.rating,
-      rating2.rating,
-      match.player1_score,
-      match.player2_score
-    )
-    
-    // Update player 1 rating
-    const updateRating1 = db.prepare(`
-      UPDATE player_ratings
-      SET rating = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE player_id = ? AND league_id = ?
-    `)
-    updateRating1.run(result.newRatingA, match.player1_id, match.league_id)
-    
-    // Update player 2 rating
-    const updateRating2 = db.prepare(`
-      UPDATE player_ratings
-      SET rating = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE player_id = ? AND league_id = ?
-    `)
-    updateRating2.run(result.newRatingB, match.player2_id, match.league_id)
-    
-    // Record rating updates for history
-    const insertUpdate1 = db.prepare(`
-      INSERT INTO rating_updates (id, match_id, player_id, league_id, old_rating, new_rating, change)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `)
-    insertUpdate1.run(
-      uuidv4(),
-      matchId,
-      match.player1_id,
-      match.league_id,
-      rating1.rating,
-      result.newRatingA,
-      result.changeA
-    )
-    
-    const insertUpdate2 = db.prepare(`
-      INSERT INTO rating_updates (id, match_id, player_id, league_id, old_rating, new_rating, change)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `)
-    insertUpdate2.run(
-      uuidv4(),
-      matchId,
-      match.player2_id,
-      match.league_id,
-      rating2.rating,
-      result.newRatingB,
-      result.changeB
-    )
-    
-    return {
-      player1: {
-        oldRating: rating1.rating,
-        newRating: result.newRatingA,
-        change: result.changeA
-      },
-      player2: {
-        oldRating: rating2.rating,
-        newRating: result.newRatingB,
-        change: result.changeB
+    return DatabaseTransaction.execute((tx) => {
+      const match = tx.get(
+        db.prepare(`
+          SELECT player1_id, player2_id, player1_score, player2_score, league_id, winner_id
+          FROM matches
+          WHERE id = ? AND status = 'completed'
+        `),
+        matchId
+      ) as any
+      
+      if (!match) {
+        throw new Error(`Match ${matchId} not found or not completed`)
       }
-    }
+      
+      // Get current ratings for both players
+      const rating1 = tx.get(
+        db.prepare(`
+          SELECT rating FROM player_ratings
+          WHERE player_id = ? AND league_id = ?
+        `),
+        match.player1_id,
+        match.league_id
+      ) as any
+      
+      const rating2 = tx.get(
+        db.prepare(`
+          SELECT rating FROM player_ratings
+          WHERE player_id = ? AND league_id = ?
+        `),
+        match.player2_id,
+        match.league_id
+      ) as any
+      
+      if (!rating1 || !rating2) {
+        throw new Error('Player ratings not found')
+      }
+      
+      // Calculate new ratings using Elo system
+      const result = eloCalculator.calculateForMatch(
+        rating1.rating,
+        rating2.rating,
+        match.player1_score,
+        match.player2_score
+      )
+      
+      // Update player 1 rating
+      const updateRating1 = db.prepare(`
+        UPDATE player_ratings
+        SET rating = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE player_id = ? AND league_id = ?
+      `)
+      tx.run(updateRating1, result.newRatingA, match.player1_id, match.league_id)
+      
+      // Update player 2 rating
+      const updateRating2 = db.prepare(`
+        UPDATE player_ratings
+        SET rating = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE player_id = ? AND league_id = ?
+      `)
+      tx.run(updateRating2, result.newRatingB, match.player2_id, match.league_id)
+      
+      // Record rating updates for history
+      const insertUpdate1 = db.prepare(`
+        INSERT INTO rating_updates (id, match_id, player_id, league_id, old_rating, new_rating, change)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `)
+      tx.run(
+        insertUpdate1,
+        uuidv4(),
+        matchId,
+        match.player1_id,
+        match.league_id,
+        rating1.rating,
+        result.newRatingA,
+        result.changeA
+      )
+      
+      const insertUpdate2 = db.prepare(`
+        INSERT INTO rating_updates (id, match_id, player_id, league_id, old_rating, new_rating, change)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `)
+      tx.run(
+        insertUpdate2,
+        uuidv4(),
+        matchId,
+        match.player2_id,
+        match.league_id,
+        rating2.rating,
+        result.newRatingB,
+        result.changeB
+      )
+      
+      return {
+        player1: {
+          oldRating: rating1.rating,
+          newRating: result.newRatingA,
+          change: result.changeA
+        },
+        player2: {
+          oldRating: rating2.rating,
+          newRating: result.newRatingB,
+          change: result.changeB
+        }
+      }
+    })
   },
   
   /**
    * Revert Elo ratings when a match is voided/cancelled.
    * This should be called when a match status changes from 'completed' to another status.
+   * Now uses transactions for atomicity.
    */
   revertEloRatings: (matchId: string) => {
-    // Get the most recent rating updates for this match
-    const updates = db.prepare(`
-      SELECT player_id, league_id, old_rating
-      FROM rating_updates
-      WHERE match_id = ?
-      ORDER BY created_at DESC
-      LIMIT 2
-    `).all(matchId) as any[]
-    
-    if (updates.length !== 2) {
-      // No rating updates to revert
-      return
-    }
-    
-    // Revert ratings to old values
-    updates.forEach(update => {
-      db.prepare(`
+    return DatabaseTransaction.execute((tx) => {
+      // Get the most recent rating updates for this match
+      const updates = tx.all(
+        db.prepare(`
+          SELECT player_id, league_id, old_rating
+          FROM rating_updates
+          WHERE match_id = ?
+          ORDER BY created_at DESC
+          LIMIT 2
+        `),
+        matchId
+      ) as any[]
+      
+      if (updates.length !== 2) {
+        // No rating updates to revert
+        return
+      }
+      
+      // Revert ratings to old values
+      const revertRating = db.prepare(`
         UPDATE player_ratings
         SET rating = ?, updated_at = CURRENT_TIMESTAMP
         WHERE player_id = ? AND league_id = ?
-      `).run(update.old_rating, update.player_id, update.league_id)
+      `)
+      updates.forEach((update) => {
+        tx.run(revertRating, update.old_rating, update.player_id, update.league_id)
+      })
+      
+      // Delete rating update records
+      const deleteUpdates = db.prepare(`
+        DELETE FROM rating_updates WHERE match_id = ?
+      `)
+      tx.run(deleteUpdates, matchId)
     })
-    
-    // Delete rating update records
-    db.prepare(`
-      DELETE FROM rating_updates WHERE match_id = ?
-    `).run(matchId)
   }
 }

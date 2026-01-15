@@ -15,6 +15,8 @@ interface MatchWithRatings {
   league_name: string
   played_at: string
   status: string
+  reported_by?: string
+  confirmed_at?: string
   rating_updates?: {
     player1?: {
       old_rating: number
@@ -174,6 +176,16 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
                     <span className="text-xs px-2 py-1 rounded-full bg-gray-200 text-gray-700">
                       {match.league_name}
                     </span>
+                    {match.status === 'pending_confirmation' && (
+                      <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300">
+                        Awaiting Confirmation
+                      </span>
+                    )}
+                    {match.status === 'disputed' && (
+                      <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-800 border border-red-300">
+                        Disputed
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm text-gray-500">
                     {format(new Date(match.played_at), 'MMM d, yyyy')} •{' '}

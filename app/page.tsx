@@ -1,13 +1,24 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { LoadingState } from "@/components/ui/loading-state"
+import { ErrorState } from "@/components/ui/error-state"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { useState, useEffect } from "react"
 
 export default function Home() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const router = useRouter()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // Small delay to show loading state if session is being checked
+    if (status !== 'loading') {
+      setLoading(false)
+    }
+  }, [status])
 
   const handleJoinLeague = (gameType: 'fifa' | 'table-tennis') => {
     if (!session) {
@@ -16,6 +27,16 @@ export default function Home() {
     }
     
     router.push('/dashboard')
+  }
+
+  if (loading || status === 'loading') {
+    return (
+      <main className="min-h-screen p-8">
+        <div className="max-w-6xl mx-auto">
+          <LoadingState text="Loading..." fullScreen />
+        </div>
+      </main>
+    )
   }
 
   return (

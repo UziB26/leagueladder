@@ -1,6 +1,10 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { LoadingState } from "@/components/ui/loading-state"
+import { ErrorState, ErrorMessage } from "@/components/ui/error-state"
+import { SuccessMessage } from "@/components/ui/success-state"
+import { EmptyState } from "@/components/ui/empty-state"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
@@ -21,6 +25,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [leagues, setLeagues] = useState<LeagueWithMembership[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [joining, setJoining] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
@@ -33,8 +38,13 @@ export default function DashboardPage() {
   }, [session, router])
 
   const fetchLeagues = async () => {
+    setLoading(true)
+    setError(null)
     try {
       const response = await fetch('/api/leagues')
+      if (!response.ok) {
+        throw new Error('Failed to fetch leagues')
+      }
       const data = await response.json()
       if (data.leagues) {
         // Check membership status for each league
@@ -60,8 +70,9 @@ export default function DashboardPage() {
         )
         setLeagues(leaguesWithMembership)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching leagues:', error)
+      setError(error.message || 'Failed to load leagues. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -107,6 +118,31 @@ export default function DashboardPage() {
     return null
   }
 
+  if (loading) {
+    return (
+      <main className="min-h-screen p-8">
+        <div className="max-w-6xl mx-auto">
+          <LoadingState text="Loading your dashboard..." fullScreen />
+        </div>
+      </main>
+    )
+  }
+
+  if (error && leagues.length === 0) {
+    return (
+      <main className="min-h-screen p-8">
+        <div className="max-w-6xl mx-auto">
+          <ErrorState
+            title="Failed to load dashboard"
+            message={error}
+            onRetry={fetchLeagues}
+            fullScreen
+          />
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-6xl mx-auto">
@@ -116,17 +152,42 @@ export default function DashboardPage() {
         </header>
 
         {message && (
-          <div className={`mb-6 px-4 py-3 rounded ${
-            message.type === 'success' 
-              ? 'bg-green-900 border border-green-700 text-green-100' 
-              : 'bg-red-900 border border-red-700 text-red-100'
-          }`}>
-            {message.text}
+          <div className="mb-6">
+            {message.type === 'success' ? (
+              <SuccessMessage 
+                message={message.text}
+                onDismiss={() => setMessage(null)}
+              />
+            ) : (
+              <ErrorMessage 
+                message={message.text}
+                onDismiss={() => setMessage(null)}
+              />
+            )}
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-6">
+            <ErrorMessage 
+              message={error}
+              onDismiss={() => setError(null)}
+            />
           </div>
         )}
         
-        <div className="grid md:grid-cols-2 gap-8">
-          {leagues.map((league) => {
+        {leagues.length === 0 ? (
+          <EmptyState
+            title="No leagues available"
+            description="There are currently no leagues to join. Please check back later."
+            action={{
+              label: "Refresh",
+              onClick: fetchLeagues
+            }}
+          />
+        ) : (
+          <div className="grid md:grid-cols-2 gap-8">
+            {leagues.map((league) => {
             const isJoining = joining === league.id
             
             return (
@@ -164,7 +225,8 @@ export default function DashboardPage() {
               </div>
             )
           })}
-        </div>
+          </div>
+        )}
         
         <div className="mt-12">
           <h3 className="text-xl font-semibold mb-4 text-white">How it works</h3>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { LoadingState, Spinner } from "@/components/ui/loading-state"
 import { Challenge } from "@/types/database"
 import { formatDistanceToNow } from "date-fns"
 
@@ -48,7 +49,11 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
       setAcceptedChallenges(accepted)
     } catch (error: any) {
       console.error('Error fetching accepted challenges:', error)
-      setError('Failed to load accepted challenges')
+      if (error.message?.includes('fetch')) {
+        setError('Network error. Please check your connection and try again.')
+      } else {
+        setError('Failed to load accepted challenges. Please refresh the page.')
+      }
     } finally {
       setLoading(false)
     }
@@ -96,7 +101,20 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
     }
 
     if (player1Score < 0 || player2Score < 0) {
-      setError('Scores must be non-negative')
+      setError('Scores must be positive numbers')
+      return
+    }
+
+    // Validate reasonable score limits (e.g., max 1000 for most sports)
+    const MAX_REASONABLE_SCORE = 1000
+    if (player1Score > MAX_REASONABLE_SCORE || player2Score > MAX_REASONABLE_SCORE) {
+      setError(`Scores must be reasonable numbers (max ${MAX_REASONABLE_SCORE})`)
+      return
+    }
+
+    // Ensure at least one score is greater than 0 (can't both be 0)
+    if (player1Score === 0 && player2Score === 0) {
+      setError('At least one player must have a score greater than 0')
       return
     }
 
@@ -112,14 +130,14 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
+          body: JSON.stringify({
           challengeId: challenge.id,
           player1Id,
           player2Id,
           leagueId: challenge.league_id,
           player1Score,
-          player2Score,
-          status: 'completed'
+          player2Score
+          // Status will be set to 'pending_confirmation' automatically
         }),
       })
 
@@ -129,7 +147,7 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
         throw new Error(data.error || 'Failed to report match')
       }
 
-      setSuccess('Match reported successfully! Ratings will be updated.')
+      setSuccess('Match reported successfully! Waiting for opponent confirmation. Ratings will be updated once confirmed.')
       
       // Trigger leaderboard refresh event
       window.dispatchEvent(new CustomEvent('leaderboard:refresh'))
@@ -153,7 +171,11 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
 
     } catch (error: any) {
       console.error('Error reporting match:', error)
-      setError(error.message || 'Failed to report match. Please try again.')
+      if (error.message?.includes('fetch') || error.message?.includes('network')) {
+        setError('Network error. Please check your connection and try again.')
+      } else {
+        setError(error.message || 'Failed to report match. Please try again.')
+      }
     } finally {
       setSubmitting(null)
     }
@@ -163,7 +185,7 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
     return (
       <div className="bg-white p-6 rounded-lg shadow">
         <h3 className="text-lg font-semibold mb-4 text-blue-600">Report Match Results</h3>
-        <div className="text-center py-8 text-gray-500">Loading accepted challenges...</div>
+        <LoadingState text="Loading accepted challenges..." />
       </div>
     )
   }
@@ -261,7 +283,14 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
                 disabled={isSubmitting || !player1ScoreValue || !player2ScoreValue}
                 className="w-full"
               >
-                {isSubmitting ? 'Reporting Match...' : 'Report Match Result'}
+                {isSubmitting ? (
+                  <>
+                    <Spinner size="sm" className="mr-2" />
+                    Reporting Match...
+                  </>
+                ) : (
+                  'Report Match Result'
+                )}
               </Button>
             </div>
           )

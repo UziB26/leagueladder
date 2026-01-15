@@ -4,11 +4,13 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import crypto from "crypto"
 
 import { db } from "@/lib/db"
+import { sanitizeEmail, sanitizeString } from "@/lib/sanitize"
 
 type DBUser = {
   id: string
   email: string
   name?: string
+  is_admin?: boolean
 }
 
 export const authOptions = {
@@ -27,17 +29,41 @@ export const authOptions = {
           return null
         }
 
+        // Sanitize email input
+        const sanitizedEmail = sanitizeEmail(email)
+        if (!sanitizedEmail) {
+          return null
+        }
+
+        // Validate email format more strictly
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+        if (!emailRegex.test(sanitizedEmail)) {
+          return null
+        }
+
+        // Sanitize password (basic sanitization)
+        const sanitizedPassword = sanitizeString(password)
+        if (!sanitizedPassword || sanitizedPassword.length < 8) {
+          return null
+        }
+
+        // Additional password validation
+        if (sanitizedPassword.length > 128) {
+          return null // Prevent extremely long passwords
+        }
+
         // Check if user exists
-        const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as DBUser | undefined
+        const user = db.prepare('SELECT id, email, name, is_admin FROM users WHERE email = ?').get(sanitizedEmail) as DBUser | undefined
         
         if (!user) {
           // Create new user
           const userId = crypto.randomUUID()
+          const sanitizedName = sanitizeString(email.split('@')[0]) || 'User'
           
           db.prepare(`
             INSERT INTO users (id, email, name, created_at) 
             VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-          `).run(userId, email, email.split('@')[0])
+          `).run(userId, sanitizedEmail, sanitizedName)
           
           // Store password (in real app, use separate table)
           db.prepare(`
@@ -47,8 +73,9 @@ export const authOptions = {
           
           return {
             id: userId,
-            email,
-            name: email.split('@')[0]
+            email: sanitizedEmail,
+            name: sanitizedName,
+            is_admin: false
           }
         }
         
@@ -56,7 +83,8 @@ export const authOptions = {
         return {
           id: user.id!,
           email: user.email,
-          name: user.name
+          name: user.name,
+          is_admin: user.is_admin || false
         }
       }
     })
@@ -72,13 +100,15 @@ export const authOptions = {
       if (user) {
         token.id = (user as DBUser).id
         token.email = (user as DBUser).email
+        token.is_admin = (user as DBUser).is_admin || false
       }
       return token
     },
     async session({ session, token }) {
       if (session.user) {
-        ;(session.user as typeof session.user & { id?: string; email?: string }).id = token.id as string
-        ;(session.user as typeof session.user & { id?: string; email?: string }).email = token.email as string
+        ;(session.user as typeof session.user & { id?: string; email?: string; is_admin?: boolean }).id = token.id as string
+        ;(session.user as typeof session.user & { id?: string; email?: string; is_admin?: boolean }).email = token.email as string
+        ;(session.user as typeof session.user & { id?: string; email?: string; is_admin?: boolean }).is_admin = token.is_admin as boolean
       }
       return session
     }

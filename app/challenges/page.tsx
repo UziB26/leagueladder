@@ -4,6 +4,10 @@ import { useState, useEffect } from "react"
 import { ChallengeCard } from "@/components/challenge/challenge-card"
 import { CreateChallengeForm } from "@/components/challenge/create-challenge-form"
 import { Button } from "@/components/ui/button"
+import { LoadingState } from "@/components/ui/loading-state"
+import { ErrorState, ErrorMessage } from "@/components/ui/error-state"
+import { SuccessMessage } from "@/components/ui/success-state"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
@@ -15,6 +19,7 @@ export default function ChallengesPage() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [currentPlayerId, setCurrentPlayerId] = useState<string>("")
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("incoming")
 
   useEffect(() => {
@@ -43,6 +48,7 @@ export default function ChallengesPage() {
 
   const fetchChallenges = async () => {
     setLoading(true)
+    setFetchError(null)
     try {
       let endpoint = '/api/challenges/incoming'
       if (activeTab === 'outgoing') {
@@ -52,63 +58,106 @@ export default function ChallengesPage() {
       }
       
       const response = await fetch(endpoint)
+      if (!response.ok) {
+        throw new Error('Failed to fetch challenges')
+      }
       const data = await response.json()
       setChallenges(data.challenges || [])
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching challenges:', error)
+      setFetchError(error.message || 'Failed to load challenges. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
+
   const handleAccept = async (challengeId: string) => {
     try {
+      setError("")
       const response = await fetch(`/api/challenges/${challengeId}/accept`, {
         method: 'POST'
       })
       
+      const data = await response.json()
+      
       if (response.ok) {
+        setSuccess('Challenge accepted successfully!')
+        setTimeout(() => setSuccess(""), 3000)
         fetchChallenges()
+      } else {
+        setError(data.error || 'Failed to accept challenge')
+        setTimeout(() => setError(""), 5000)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error accepting challenge:', error)
+      setError('Network error. Please try again.')
+      setTimeout(() => setError(""), 5000)
     }
   }
 
   const handleDecline = async (challengeId: string) => {
     try {
+      setError("")
       const response = await fetch(`/api/challenges/${challengeId}/decline`, {
         method: 'POST'
       })
       
+      const data = await response.json()
+      
       if (response.ok) {
+        setSuccess('Challenge declined')
+        setTimeout(() => setSuccess(""), 3000)
         fetchChallenges()
+      } else {
+        setError(data.error || 'Failed to decline challenge')
+        setTimeout(() => setError(""), 5000)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error declining challenge:', error)
+      setError('Network error. Please try again.')
+      setTimeout(() => setError(""), 5000)
     }
   }
 
   const handleCancel = async (challengeId: string) => {
     try {
+      setError("")
       const response = await fetch(`/api/challenges/${challengeId}/cancel`, {
         method: 'POST'
       })
       
+      const data = await response.json()
+      
       if (response.ok) {
+        setSuccess('Challenge cancelled')
+        setTimeout(() => setSuccess(""), 3000)
         fetchChallenges()
+      } else {
+        setError(data.error || 'Failed to cancel challenge')
+        setTimeout(() => setError(""), 5000)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error cancelling challenge:', error)
+      setError('Network error. Please try again.')
+      setTimeout(() => setError(""), 5000)
     }
   }
 
   if (!session) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900">Please login to view challenges</h2>
-        </div>
+        <ErrorState
+          title="Authentication required"
+          message="Please login to view challenges"
+          action={{
+            label: "Go to Login",
+            onClick: () => router.push('/auth/login')
+          }}
+          fullScreen
+        />
       </div>
     )
   }
@@ -116,9 +165,27 @@ export default function ChallengesPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-blue-600">Challenges</h1>
-        <p className="text-white font-medium mt-2">Challenge other players and manage your match requests</p>
+        <h1 className="text-3xl font-bold text-white">Challenges</h1>
+        <p className="text-gray-300 font-medium mt-2">Challenge other players and manage your match requests</p>
       </div>
+
+      {fetchError && (
+        <div className="mb-4">
+          <ErrorMessage message={fetchError} onDismiss={() => setFetchError(null)} />
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4">
+          <ErrorMessage message={error} onDismiss={() => setError("")} />
+        </div>
+      )}
+
+      {success && (
+        <div className="mb-4">
+          <SuccessMessage message={success} onDismiss={() => setSuccess("")} />
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-8">
         {/* Left Column - Create Challenge */}
@@ -159,12 +226,12 @@ export default function ChallengesPage() {
             
             <TabsContent value="incoming" className="mt-4">
               {loading ? (
-                <div className="text-center py-12">Loading challenges...</div>
+                <LoadingState text="Loading challenges..." />
               ) : challenges.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-lg">
-                  <div className="text-black mb-2">No incoming challenges</div>
-                  <p className="text-black">Other players can challenge you from your profile</p>
-                </div>
+                <EmptyState
+                  title="No incoming challenges"
+                  description="Other players can challenge you from your profile"
+                />
               ) : (
                 <div className="space-y-4">
                   {challenges.map(challenge => (
@@ -184,12 +251,12 @@ export default function ChallengesPage() {
             
             <TabsContent value="outgoing" className="mt-4">
               {loading ? (
-                <div className="text-center py-12">Loading challenges...</div>
+                <LoadingState text="Loading challenges..." />
               ) : challenges.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-lg">
-                  <div className="text-black mb-2">No outgoing challenges</div>
-                  <p className="text-black">Create a challenge using the form on the left</p>
-                </div>
+                <EmptyState
+                  title="No outgoing challenges"
+                  description="Create a challenge using the form on the left"
+                />
               ) : (
                 <div className="space-y-4">
                   {challenges.map(challenge => (
@@ -209,12 +276,12 @@ export default function ChallengesPage() {
             
             <TabsContent value="all" className="mt-4">
               {loading ? (
-                <div className="text-center py-12">Loading challenges...</div>
+                <LoadingState text="Loading challenges..." />
               ) : challenges.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-lg">
-                  <div className="text-black mb-2">No challenges yet</div>
-                  <p className="text-black">Be the first to create a challenge!</p>
-                </div>
+                <EmptyState
+                  title="No challenges yet"
+                  description="Be the first to create a challenge!"
+                />
               ) : (
                 <div className="space-y-4">
                   {challenges.map(challenge => (

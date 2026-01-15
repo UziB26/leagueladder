@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { MatchReportForm } from "@/components/match/match-report-form"
+import { LoadingState } from "@/components/ui/loading-state"
+import { ErrorState } from "@/components/ui/error-state"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 
@@ -10,6 +12,7 @@ export default function ReportMatchPage() {
   const router = useRouter()
   const [currentPlayerId, setCurrentPlayerId] = useState<string>("")
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!session) {
@@ -20,12 +23,21 @@ export default function ReportMatchPage() {
   }, [session, router])
 
   const fetchCurrentPlayer = async () => {
+    setLoading(true)
+    setError(null)
     try {
       const response = await fetch('/api/players/me')
+      if (!response.ok) {
+        throw new Error('Failed to fetch player information')
+      }
       const data = await response.json()
-      setCurrentPlayerId(data.player?.id || "")
-    } catch (error) {
+      if (!data.player?.id) {
+        throw new Error('Player profile not found')
+      }
+      setCurrentPlayerId(data.player.id)
+    } catch (error: any) {
       console.error('Error fetching current player:', error)
+      setError(error.message || 'Failed to load player information. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -43,7 +55,20 @@ export default function ReportMatchPage() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="text-center py-12">Loading...</div>
+        <LoadingState text="Loading match report form..." fullScreen />
+      </div>
+    )
+  }
+
+  if (error && !currentPlayerId) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <ErrorState
+          title="Failed to load match report"
+          message={error}
+          onRetry={fetchCurrentPlayer}
+          fullScreen
+        />
       </div>
     )
   }
@@ -51,11 +76,21 @@ export default function ReportMatchPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-blue-600">Report Match</h1>
-        <p className="text-gray-900 font-medium mt-2">
+        <h1 className="text-3xl font-bold text-white">Report Match</h1>
+        <p className="text-gray-300 font-medium mt-2">
           Enter the final scores for your accepted challenges. Ratings will be updated automatically.
         </p>
       </div>
+
+      {error && (
+        <div className="mb-6">
+          <ErrorState
+            title="Error"
+            message={error}
+            onRetry={fetchCurrentPlayer}
+          />
+        </div>
+      )}
 
       <div className="max-w-4xl">
         {currentPlayerId ? (
@@ -64,11 +99,7 @@ export default function ReportMatchPage() {
             onSuccess={handleMatchReported}
           />
         ) : (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-center py-8 text-black-500">
-              Loading player information...
-            </div>
-          </div>
+          <LoadingState text="Loading player information..." />
         )}
       </div>
     </div>

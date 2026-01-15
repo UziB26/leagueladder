@@ -21,15 +21,20 @@ export function Navigation() {
       // Refresh count periodically
       const interval = setInterval(fetchPendingMatchesCount, 30000) // Every 30 seconds
       
-      // Listen for match reporting events to refresh count
+      // Listen for match reporting and confirmation events to refresh count
       const handleMatchReported = () => {
         fetchPendingMatchesCount()
       }
+      const handleMatchConfirmed = () => {
+        fetchPendingMatchesCount()
+      }
       window.addEventListener('match:reported', handleMatchReported)
+      window.addEventListener('match:confirmed', handleMatchConfirmed)
       
       return () => {
         clearInterval(interval)
         window.removeEventListener('match:reported', handleMatchReported)
+        window.removeEventListener('match:confirmed', handleMatchConfirmed)
       }
     } else {
       setPendingMatchesCount(0)
@@ -105,6 +110,18 @@ export function Navigation() {
                 </span>
               )}
             </Link>
+            {session?.user && (session.user as { is_admin?: boolean }).is_admin && (
+              <Link 
+                href="/admin" 
+                className={`text-sm font-medium transition-colors ${
+                  isActive('/admin') 
+                    ? 'text-blue-600' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Admin
+              </Link>
+            )}
           </div>
         </div>
         

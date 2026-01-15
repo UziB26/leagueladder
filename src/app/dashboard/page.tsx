@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { LoadingState, Spinner } from "@/components/ui/loading-state"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
@@ -60,8 +61,13 @@ export default function DashboardPage() {
         )
         setLeagues(leaguesWithMembership)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching leagues:', error)
+      if (error.message?.includes('fetch') || error.message?.includes('network')) {
+        setMessage({ type: 'error', text: 'Network error. Please check your connection and refresh the page.' })
+      } else {
+        setMessage({ type: 'error', text: 'Failed to load leagues. Please refresh the page.' })
+      }
     } finally {
       setLoading(false)
     }
@@ -96,8 +102,12 @@ export default function DashboardPage() {
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to join league' })
       }
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Something went wrong. Please try again.' })
+    } catch (error: any) {
+      if (error.message?.includes('fetch') || error.message?.includes('network')) {
+        setMessage({ type: 'error', text: 'Network error. Please check your connection and try again.' })
+      } else {
+        setMessage({ type: 'error', text: 'Something went wrong. Please try again.' })
+      }
     } finally {
       setJoining(null)
     }
@@ -105,6 +115,16 @@ export default function DashboardPage() {
 
   if (!session) {
     return null
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen p-8 bg-gray-50">
+        <div className="max-w-6xl mx-auto">
+          <LoadingState text="Loading your dashboard..." />
+        </div>
+      </main>
+    )
   }
 
   return (
@@ -158,7 +178,14 @@ export default function DashboardPage() {
                     disabled={loading || isJoining}
                     className="w-full"
                   >
-                    {isJoining ? 'Joining...' : `Join ${league.name}`}
+                    {isJoining ? (
+                      <>
+                        <Spinner size="sm" className="mr-2" />
+                        Joining...
+                      </>
+                    ) : (
+                      `Join ${league.name}`
+                    )}
                   </Button>
                 )}
               </div>

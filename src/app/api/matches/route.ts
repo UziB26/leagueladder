@@ -1,7 +1,10 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { db, dbHelpers } from '@/lib/db'
+import { db, dbHelpers, DatabaseTransaction, validateMatchData, validatePlayerLeagueMembership, createBackup, restoreBackup } from '@/lib/db'
 import { elo } from '@/lib/elo'
+import { apiRateLimit } from '@/lib/rate-limit'
+import { validateRequest, requestSchemas } from '@/lib/validation'
+import { sanitizeUUID, sanitizeInteger, sanitizeString } from '@/lib/sanitize'
 import crypto from 'crypto'
 
 interface User {
@@ -35,8 +38,55 @@ interface Player {
  *   match: { id, challengeId, player1Id, player2Id, leagueId, player1Score, player2Score, status }
  * }
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Apply rate limiting
+    const rateLimitResponse = await apiRateLimit(request)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
+
+    // Validate request
+    const validator = validateRequest({
+      schema: requestSchemas.reportMatch,
+      errorMessage: 'Invalid match data',
+    })
+    const { data, error } = await validator(request)
+    if (error) {
+      return error
+    }
+
+    const { player1Id, player2Id, leagueId, player1Score, player2Score, status } = data
+
+    // Sanitize inputs
+    const sanitizedPlayer1Id = sanitizeUUID(player1Id)
+    const sanitizedPlayer2Id = sanitizeUUID(player2Id)
+    // League IDs are strings like 'tt_league', 'fifa_league', not UUIDs
+    const sanitizedLeagueId = sanitizeString(leagueId)
+    const sanitizedPlayer1Score = sanitizeInteger(player1Score, 0, 1000)
+    const sanitizedPlayer2Score = sanitizeInteger(player2Score, 0, 1000)
+
+    if (!sanitizedPlayer1Id || !sanitizedPlayer2Id) {
+      return NextResponse.json(
+        { error: 'Invalid player ID format' },
+        { status: 400 }
+      )
+    }
+    
+    if (!sanitizedLeagueId || sanitizedLeagueId.length === 0) {
+      return NextResponse.json(
+        { error: 'Invalid league ID format' },
+        { status: 400 }
+      )
+    }
+
+    if (sanitizedPlayer1Score === null || sanitizedPlayer2Score === null) {
+      return NextResponse.json(
+        { error: 'Invalid score values' },
+        { status: 400 }
+      )
+    }
+
     const session = await auth()
     
     if (!session?.user?.email) {
@@ -64,32 +114,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const body = await request.json()
-    const { challengeId, player1Id, player2Id, leagueId, player1Score, player2Score, status } = body
-
-    // Validation
-    if (!player1Id || !player2Id || !leagueId) {
-      return NextResponse.json(
-        { error: 'Player IDs and league ID are required' },
-        { status: 400 }
-      )
-    }
-
-    if (player1Score === undefined || player2Score === undefined) {
-      return NextResponse.json(
-        { error: 'Scores are required' },
-        { status: 400 }
-      )
-    }
-
-    if (player1Score < 0 || player2Score < 0) {
-      return NextResponse.json(
-        { error: 'Scores must be non-negative' },
-        { status: 400 }
-      )
-    }
-
-    if (player1Id === player2Id) {
+    if (sanitizedPlayer1Id === sanitizedPlayer2Id) {
       return NextResponse.json(
         { error: 'Players cannot play against themselves' },
         { status: 400 }
@@ -97,7 +122,7 @@ export async function POST(request: Request) {
     }
 
     // Verify the current player is one of the players
-    if (player.id !== player1Id && player.id !== player2Id) {
+    if (player.id !== sanitizedPlayer1Id && player.id !== sanitizedPlayer2Id) {
       return NextResponse.json(
         { error: 'You can only report matches you participated in' },
         { status: 403 }
@@ -105,8 +130,17 @@ export async function POST(request: Request) {
     }
 
     // If challengeId is provided, verify the challenge exists and is accepted
+    const challengeId = (data as any).challengeId
     if (challengeId) {
-      const challenge = db.prepare('SELECT * FROM challenges WHERE id = ?').get(challengeId) as any
+      const sanitizedChallengeId = sanitizeUUID(challengeId)
+      if (!sanitizedChallengeId) {
+        return NextResponse.json(
+          { error: 'Invalid challenge ID format' },
+          { status: 400 }
+        )
+      }
+
+      const challenge = db.prepare('SELECT * FROM challenges WHERE id = ?').get(sanitizedChallengeId) as any
       
       if (!challenge) {
         return NextResponse.json(
@@ -124,8 +158,8 @@ export async function POST(request: Request) {
 
       // Verify players match the challenge
       if (
-        (challenge.challenger_id !== player1Id || challenge.challengee_id !== player2Id) &&
-        (challenge.challenger_id !== player2Id || challenge.challengee_id !== player1Id)
+        (challenge.challenger_id !== sanitizedPlayer1Id || challenge.challengee_id !== sanitizedPlayer2Id) &&
+        (challenge.challenger_id !== sanitizedPlayer2Id || challenge.challengee_id !== sanitizedPlayer1Id)
       ) {
         return NextResponse.json(
           { error: 'Players do not match the challenge' },
@@ -136,75 +170,130 @@ export async function POST(request: Request) {
 
     // Check if a match already exists for this challenge
     if (challengeId) {
-      const existingMatch = db.prepare('SELECT * FROM matches WHERE challenge_id = ?').get(challengeId) as any
-      if (existingMatch) {
-        return NextResponse.json(
-          { error: 'A match already exists for this challenge' },
-          { status: 400 }
-        )
+      const sanitizedChallengeId = sanitizeUUID(challengeId)
+      if (sanitizedChallengeId) {
+        const existingMatch = db.prepare('SELECT * FROM matches WHERE challenge_id = ?').get(sanitizedChallengeId) as any
+        if (existingMatch) {
+          return NextResponse.json(
+            { error: 'A match already exists for this challenge' },
+            { status: 400 }
+          )
+        }
       }
     }
 
-    // Create the match
-    const matchId = crypto.randomUUID()
-    const matchStatus = status || 'completed'
-    
-    // Determine winner_id before inserting
-    const winnerId = player1Score > player2Score 
-      ? player1Id 
-      : player2Score > player1Score 
-      ? player2Id 
-      : null
-    
-    // Insert match with winner_id set
-    db.prepare(`
-      INSERT INTO matches (
-        id, challenge_id, player1_id, player2_id, league_id,
-        player1_score, player2_score, status, winner_id, confirmed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(
-      matchId,
-      challengeId || null,
-      player1Id,
-      player2Id,
-      leagueId,
-      player1Score,
-      player2Score,
-      matchStatus,
-      winnerId
+    // Validate match data before proceeding
+    const matchValidation = validateMatchData({
+      player1Id: sanitizedPlayer1Id,
+      player2Id: sanitizedPlayer2Id,
+      leagueId: sanitizedLeagueId,
+      player1Score: sanitizedPlayer1Score,
+      player2Score: sanitizedPlayer2Score,
+      challengeId: challengeId ? sanitizeUUID(challengeId) : undefined,
+      status: status || 'completed',
+    })
+
+    if (!matchValidation.valid) {
+      return NextResponse.json(
+        { error: 'Invalid match data', details: matchValidation.errors },
+        { status: 400 }
+      )
+    }
+
+    // Validate player league memberships
+    const player1Validation = validatePlayerLeagueMembership(
+      sanitizedPlayer1Id,
+      sanitizedLeagueId,
+      db
     )
-
-    // Mark challenge as completed if match is completed and challenge exists
-    if (matchStatus === 'completed' && challengeId) {
-      db.prepare(`
-        UPDATE challenges
-        SET status = 'completed'
-        WHERE id = ? AND status = 'accepted'
-      `).run(challengeId)
+    if (!player1Validation.valid) {
+      return NextResponse.json(
+        { error: `Player 1: ${player1Validation.error}` },
+        { status: 400 }
+      )
     }
-    // Note: Player stats are updated automatically by the update_player_stats_on_match_insert trigger
 
-    // If status is 'completed', update Elo ratings
-    if (matchStatus === 'completed') {
+    const player2Validation = validatePlayerLeagueMembership(
+      sanitizedPlayer2Id,
+      sanitizedLeagueId,
+      db
+    )
+    if (!player2Validation.valid) {
+      return NextResponse.json(
+        { error: `Player 2: ${player2Validation.error}` },
+        { status: 400 }
+      )
+    }
+
+    // Create backup of player ratings before making changes
+    const backup = createBackup({
+      playerIds: [sanitizedPlayer1Id, sanitizedPlayer2Id],
+      challengeIds: challengeId ? [sanitizeUUID(challengeId)!] : undefined,
+    })
+
+    // Use transaction for atomic match creation with backup/rollback support
+    let matchResult: { matchId: string; matchStatus: string }
+    try {
+      matchResult = DatabaseTransaction.execute((tx) => {
+        const matchId = crypto.randomUUID()
+        // Set status to pending_confirmation to require opponent confirmation
+        const matchStatus = 'pending_confirmation'
+        
+        // Determine winner_id before inserting
+        const winnerId = sanitizedPlayer1Score > sanitizedPlayer2Score 
+          ? sanitizedPlayer1Id 
+          : sanitizedPlayer2Score > sanitizedPlayer1Score 
+          ? sanitizedPlayer2Id 
+          : null
+        
+        // Insert match with pending_confirmation status and track who reported it
+        const insertMatch = db.prepare(`
+          INSERT INTO matches (
+            id, challenge_id, player1_id, player2_id, league_id,
+            player1_score, player2_score, status, winner_id, reported_by
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        tx.run(
+          insertMatch,
+          matchId,
+          challengeId ? sanitizeUUID(challengeId) : null,
+          sanitizedPlayer1Id,
+          sanitizedPlayer2Id,
+          sanitizedLeagueId,
+          sanitizedPlayer1Score,
+          sanitizedPlayer2Score,
+          matchStatus,
+          winnerId,
+          player.id // Track who reported the match
+        )
+
+        // Note: Ratings will be updated only after opponent confirms
+        // Challenge status will be updated after confirmation
+
+        return { matchId, matchStatus }
+      })
+    } catch (error: any) {
+      // Rollback using backup if transaction fails
+      console.error('Error in match creation transaction:', error)
       try {
-        dbHelpers.updateEloRatings(matchId, elo)
-      } catch (error: any) {
-        console.error('Error updating Elo ratings:', error)
-        // Don't fail the request if rating update fails, but log it
+        restoreBackup(backup)
+      } catch (restoreError) {
+        console.error('Error restoring backup:', restoreError)
       }
+      throw error
     }
 
     return NextResponse.json({
       success: true,
       match: {
-        id: matchId,
-        challengeId,
-        player1Id,
-        player2Id,
-        leagueId,
-        player1Score,
-        player2Score,
-        status: matchStatus
+        id: matchResult.matchId,
+        challengeId: challengeId ? sanitizeUUID(challengeId) : null,
+        player1Id: sanitizedPlayer1Id,
+        player2Id: sanitizedPlayer2Id,
+        leagueId: sanitizedLeagueId,
+        player1Score: sanitizedPlayer1Score,
+        player2Score: sanitizedPlayer2Score,
+        status: matchResult.matchStatus
       }
     }, { status: 201 })
 

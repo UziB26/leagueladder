@@ -1,7 +1,10 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { Challenge } from '@/types/database'
+import { apiRateLimit } from '@/lib/rate-limit'
+import { validateRequest, requestSchemas } from '@/lib/validation'
+import { sanitizeUUID, sanitizeString } from '@/lib/sanitize'
 import crypto from 'crypto'
 
 interface User {
@@ -66,23 +69,56 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Apply rate limiting
+    const rateLimitResponse = await apiRateLimit(request)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
+
+    // Validate request
+    const validator = validateRequest({
+      schema: requestSchemas.createChallenge,
+      errorMessage: 'Invalid challenge data',
+    })
+    const { data, error } = await validator(request)
+    if (error) {
+      return error
+    }
+
+    const { challengeeId, leagueId } = data
+
+    // Sanitize inputs
+    const sanitizedChallengeeId = sanitizeUUID(challengeeId)
+    // League IDs are strings like 'tt_league', 'fifa_league', not UUIDs
+    const sanitizedLeagueId = sanitizeString(leagueId)
+    
+    if (!sanitizedChallengeeId) {
+      return NextResponse.json(
+        { error: 'Invalid challengee ID format' },
+        { status: 400 }
+      )
+    }
+    
+    if (!sanitizedLeagueId || sanitizedLeagueId.length === 0) {
+      return NextResponse.json(
+        { error: 'Invalid league ID format' },
+        { status: 400 }
+      )
+    }
+      return NextResponse.json(
+        { error: 'Invalid challengee ID or league ID format' },
+        { status: 400 }
+      )
+    }
+
     const session = await auth()
     
     if (!session?.user?.email) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
-      )
-    }
-
-    const { challengeeId, leagueId } = await request.json()
-    
-    if (!challengeeId || !leagueId) {
-      return NextResponse.json(
-        { error: 'Challengee ID and League ID are required' },
-        { status: 400 }
       )
     }
 
@@ -122,7 +158,7 @@ export async function POST(request: Request) {
     const challengeeInLeague = db.prepare(`
       SELECT 1 FROM league_memberships 
       WHERE player_id = ? AND league_id = ? AND is_active = 1
-    `).get(challengeeId, leagueId)
+    `).get(sanitizedChallengeeId, sanitizedLeagueId)
     
     if (!challengeeInLeague) {
       return NextResponse.json(
@@ -135,7 +171,7 @@ export async function POST(request: Request) {
     const existingChallenge = db.prepare(`
       SELECT 1 FROM challenges 
       WHERE challenger_id = ? AND challengee_id = ? AND league_id = ? AND status = 'pending'
-    `).get(challenger.id, challengeeId, leagueId)
+    `).get(challenger.id, sanitizedChallengeeId, sanitizedLeagueId)
     
     if (existingChallenge) {
       return NextResponse.json(
@@ -145,7 +181,7 @@ export async function POST(request: Request) {
     }
     
     // Prevent self-challenge
-    if (challenger.id === challengeeId) {
+    if (challenger.id === sanitizedChallengeeId) {
       return NextResponse.json(
         { error: 'Cannot challenge yourself' },
         { status: 400 }
@@ -160,7 +196,7 @@ export async function POST(request: Request) {
     db.prepare(`
       INSERT INTO challenges (id, challenger_id, challengee_id, league_id, expires_at)
       VALUES (?, ?, ?, ?, ?)
-    `).run(challengeId, challenger.id, challengeeId, leagueId, expiresAt.toISOString())
+    `).run(challengeId, challenger.id, sanitizedChallengeeId, sanitizedLeagueId, expiresAt.toISOString())
     
     return NextResponse.json({ 
       success: true, 

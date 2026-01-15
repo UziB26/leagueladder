@@ -13,11 +13,75 @@ export default function RegisterPage() {
   const [name, setName] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [emailError, setEmailError] = useState("")
+  const [passwordError, setPasswordError] = useState("")
+
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
+  const validatePassword = (password: string): { valid: boolean; error: string } => {
+    if (password.length < 8) {
+      return { valid: false, error: "Password must be at least 8 characters long" }
+    }
+    if (!/[A-Z]/.test(password)) {
+      return { valid: false, error: "Password must contain at least one uppercase letter" }
+    }
+    if (!/[a-z]/.test(password)) {
+      return { valid: false, error: "Password must contain at least one lowercase letter" }
+    }
+    if (!/[0-9]/.test(password)) {
+      return { valid: false, error: "Password must contain at least one number" }
+    }
+    return { valid: true, error: "" }
+  }
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setEmail(value)
+    if (value && !validateEmail(value)) {
+      setEmailError("Please enter a valid email address")
+    } else {
+      setEmailError("")
+    }
+  }
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setPassword(value)
+    if (value) {
+      const validation = validatePassword(value)
+      if (!validation.valid) {
+        setPasswordError(validation.error)
+      } else {
+        setPasswordError("")
+      }
+    } else {
+      setPasswordError("")
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     setError("")
+    setEmailError("")
+    setPasswordError("")
+
+    // Validate email
+    if (!validateEmail(email)) {
+      setEmailError("Please enter a valid email address")
+      return
+    }
+
+    // Validate password
+    const passwordValidation = validatePassword(password)
+    if (!passwordValidation.valid) {
+      setPasswordError(passwordValidation.error)
+      return
+    }
+
+    setLoading(true)
 
     try {
       const result = await signIn("credentials", {
@@ -89,10 +153,15 @@ export default function RegisterPage() {
                 autoComplete="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-2 appearance-none relative block w-full px-4 py-3 text-base border-2 border-gray-300 placeholder-gray-400 text-white bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10"
+                onChange={handleEmailChange}
+                className={`mt-2 appearance-none relative block w-full px-4 py-3 text-base border-2 placeholder-gray-400 text-white bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10 ${
+                  emailError ? 'border-red-500' : 'border-gray-300'
+                }`}
                 placeholder="you@example.com"
               />
+              {emailError && (
+                <p className="mt-1 text-sm text-red-500">{emailError}</p>
+              )}
             </div>
             
             <div>
@@ -106,10 +175,18 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-2 appearance-none relative block w-full px-4 py-3 text-base border-2 border-gray-300 placeholder-gray-400 text-white bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10"
+                onChange={handlePasswordChange}
+                className={`mt-2 appearance-none relative block w-full px-4 py-3 text-base border-2 placeholder-gray-400 text-white bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10 ${
+                  passwordError ? 'border-red-500' : 'border-gray-300'
+                }`}
                 placeholder="••••••••"
               />
+              {passwordError && (
+                <p className="mt-1 text-sm text-red-500">{passwordError}</p>
+              )}
+              {!passwordError && password && (
+                <p className="mt-1 text-sm text-green-500">Password strength: Good</p>
+              )}
             </div>
           </div>
 
