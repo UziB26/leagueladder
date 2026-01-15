@@ -117,7 +117,7 @@ export default function ChallengesPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-blue-600">Challenges</h1>
-        <p className="text-gray-900 font-medium mt-2">Challenge other players and manage your match requests</p>
+        <p className="text-white font-medium mt-2">Challenge other players and manage your match requests</p>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
@@ -162,8 +162,8 @@ export default function ChallengesPage() {
                 <div className="text-center py-12">Loading challenges...</div>
               ) : challenges.length === 0 ? (
                 <div className="text-center py-12 bg-gray-50 rounded-lg">
-                  <div className="text-gray-400 mb-2">No incoming challenges</div>
-                  <p className="text-gray-500">Other players can challenge you from your profile</p>
+                  <div className="text-black mb-2">No incoming challenges</div>
+                  <p className="text-black">Other players can challenge you from your profile</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -187,8 +187,8 @@ export default function ChallengesPage() {
                 <div className="text-center py-12">Loading challenges...</div>
               ) : challenges.length === 0 ? (
                 <div className="text-center py-12 bg-gray-50 rounded-lg">
-                  <div className="text-gray-400 mb-2">No outgoing challenges</div>
-                  <p className="text-gray-500">Create a challenge using the form on the left</p>
+                  <div className="text-black mb-2">No outgoing challenges</div>
+                  <p className="text-black">Create a challenge using the form on the left</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -212,8 +212,8 @@ export default function ChallengesPage() {
                 <div className="text-center py-12">Loading challenges...</div>
               ) : challenges.length === 0 ? (
                 <div className="text-center py-12 bg-gray-50 rounded-lg">
-                  <div className="text-gray-400 mb-2">No challenges yet</div>
-                  <p className="text-gray-500">Be the first to create a challenge!</p>
+                  <div className="text-black mb-2">No challenges yet</div>
+                  <p className="text-black">Be the first to create a challenge!</p>
                 </div>
               ) : (
                 <div className="space-y-4">

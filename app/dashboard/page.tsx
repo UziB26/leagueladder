@@ -108,18 +108,18 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="min-h-screen p-8 bg-gray-50">
+    <main className="min-h-screen p-8">
       <div className="max-w-6xl mx-auto">
         <header className="mb-12">
-          <h1 className="text-4xl font-bold text-gray-900">🏓 League Ladder Dashboard</h1>
-          <p className="text-gray-600 mt-2">Welcome{session?.user?.name ? `, ${session.user.name}` : ''}!</p>
+          <h1 className="text-4xl font-bold text-white">🏓 League Ladder Dashboard</h1>
+          <p className="text-gray-300 mt-2">Welcome{session?.user?.name ? `, ${session.user.name}` : ''}!</p>
         </header>
 
         {message && (
           <div className={`mb-6 px-4 py-3 rounded ${
             message.type === 'success' 
-              ? 'bg-green-50 border border-green-200 text-green-800' 
-              : 'bg-red-50 border border-red-200 text-red-800'
+              ? 'bg-green-900 border border-green-700 text-green-100' 
+              : 'bg-red-900 border border-red-700 text-red-100'
           }`}>
             {message.text}
           </div>
@@ -130,25 +130,25 @@ export default function DashboardPage() {
             const isJoining = joining === league.id
             
             return (
-              <div key={league.id} className="bg-white p-6 rounded-lg shadow">
+              <div key={league.id} className="bg-gray-900 p-6 rounded-lg shadow border border-gray-700">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-semibold text-black">
+                  <h2 className="text-2xl font-semibold text-white">
                     {league.game_type === 'fifa' ? '🎮' : '🏓'} {league.name}
                   </h2>
                   {league.isMember && (
-                    <span className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
+                    <span className="px-3 py-1 bg-green-900 text-green-100 text-sm font-medium rounded-full border border-green-700">
                       Member
                     </span>
                   )}
                 </div>
-                <p className="text-gray-600 mb-4">
+                <p className="text-gray-300 mb-4">
                   {league.game_type === 'fifa' 
                     ? 'Challenge players, record matches, climb the FIFA rankings'
                     : 'Compete in table tennis matches with Elo-based rankings'}
                 </p>
                 {league.isMember ? (
                   <Link href={`/leaderboard/${league.id}`}>
-                    <Button className="w-full text-blue-600 hover:text-blue-700" variant="outline">
+                    <Button className="w-full text-white border-white hover:bg-white hover:text-black" variant="outline">
                       View Leaderboard
                     </Button>
                   </Link>
@@ -167,8 +167,8 @@ export default function DashboardPage() {
         </div>
         
         <div className="mt-12">
-          <h3 className="text-xl font-semibold mb-4 text-black">How it works</h3>
-          <ol className="list-decimal pl-5 space-y-2 text-gray-700">
+          <h3 className="text-xl font-semibold mb-4 text-white">How it works</h3>
+          <ol className="list-decimal pl-5 space-y-2 text-gray-300">
             <li>Register and create your player profile</li>
             <li>Join either FIFA or Table Tennis league (or both!)</li>
             <li>Challenge other players to matches</li>

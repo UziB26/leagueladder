@@ -65,7 +65,7 @@ export default function ReportMatchPage() {
           />
         ) : (
           <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-black-500">
               Loading player information...
             </div>
           </div>

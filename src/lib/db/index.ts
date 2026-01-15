@@ -214,7 +214,28 @@ export function initializeDatabase() {
       END
     `)
     
-    // Trigger 2: Set winner_id and confirmed_at automatically when match status changes to 'completed'
+    // Trigger 2a: Set winner_id and confirmed_at automatically when match is INSERTED with 'completed' status
+    // This trigger runs FIRST to set winner_id before stats are updated
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS set_match_winner_on_insert
+      AFTER INSERT ON matches
+      WHEN NEW.status = 'completed' AND NEW.winner_id IS NULL
+      BEGIN
+        UPDATE matches
+        SET winner_id = CASE
+          WHEN NEW.player1_score > NEW.player2_score THEN NEW.player1_id
+          WHEN NEW.player2_score > NEW.player1_score THEN NEW.player2_id
+          ELSE NULL
+        END
+        WHERE id = NEW.id;
+        
+        UPDATE matches
+        SET confirmed_at = CURRENT_TIMESTAMP
+        WHERE id = NEW.id AND confirmed_at IS NULL;
+      END
+    `)
+    
+    // Trigger 2b: Set winner_id and confirmed_at automatically when match status changes to 'completed'
     db.exec(`
       CREATE TRIGGER IF NOT EXISTS set_match_winner
       AFTER UPDATE OF status ON matches
@@ -234,7 +255,63 @@ export function initializeDatabase() {
       END
     `)
     
-    // Trigger 3: Update player_ratings stats (wins, losses, draws, games_played) when match is completed
+    // Trigger 3a: Update player_ratings stats when match is INSERTED with 'completed' status
+    // Note: winner_id should be set in the INSERT statement or by set_match_winner_on_insert trigger
+    // This trigger uses a subquery to get the current winner_id (which may have been set by another trigger)
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS update_player_stats_on_match_insert
+      AFTER INSERT ON matches
+      WHEN NEW.status = 'completed'
+      BEGIN
+        -- Get the current winner_id from the matches table (may have been set by set_match_winner_on_insert trigger)
+        -- Use COALESCE to fallback to score-based determination if winner_id is still NULL
+        -- Update Player 1 stats
+        UPDATE player_ratings
+        SET 
+          games_played = games_played + 1,
+          wins = wins + CASE 
+            WHEN (SELECT winner_id FROM matches WHERE id = NEW.id) = NEW.player1_id THEN 1 
+            WHEN (SELECT winner_id FROM matches WHERE id = NEW.id) IS NULL AND NEW.player1_score > NEW.player2_score THEN 1 
+            ELSE 0 
+          END,
+          losses = losses + CASE 
+            WHEN (SELECT winner_id FROM matches WHERE id = NEW.id) = NEW.player2_id THEN 1 
+            WHEN (SELECT winner_id FROM matches WHERE id = NEW.id) IS NULL AND NEW.player2_score > NEW.player1_score THEN 1 
+            ELSE 0 
+          END,
+          draws = draws + CASE 
+            WHEN (SELECT winner_id FROM matches WHERE id = NEW.id) IS NULL AND NEW.player1_score = NEW.player2_score THEN 1 
+            ELSE 0 
+          END,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE player_id = NEW.player1_id 
+          AND league_id = NEW.league_id;
+        
+        -- Update Player 2 stats
+        UPDATE player_ratings
+        SET 
+          games_played = games_played + 1,
+          wins = wins + CASE 
+            WHEN (SELECT winner_id FROM matches WHERE id = NEW.id) = NEW.player2_id THEN 1 
+            WHEN (SELECT winner_id FROM matches WHERE id = NEW.id) IS NULL AND NEW.player2_score > NEW.player1_score THEN 1 
+            ELSE 0 
+          END,
+          losses = losses + CASE 
+            WHEN (SELECT winner_id FROM matches WHERE id = NEW.id) = NEW.player1_id THEN 1 
+            WHEN (SELECT winner_id FROM matches WHERE id = NEW.id) IS NULL AND NEW.player1_score > NEW.player2_score THEN 1 
+            ELSE 0 
+          END,
+          draws = draws + CASE 
+            WHEN (SELECT winner_id FROM matches WHERE id = NEW.id) IS NULL AND NEW.player1_score = NEW.player2_score THEN 1 
+            ELSE 0 
+          END,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE player_id = NEW.player2_id 
+          AND league_id = NEW.league_id;
+      END
+    `)
+    
+    // Trigger 3b: Update player_ratings stats (wins, losses, draws, games_played) when match status changes to 'completed'
     // Note: This updates basic stats. Elo rating calculation must be done in application code.
     db.exec(`
       CREATE TRIGGER IF NOT EXISTS update_player_stats_on_match_completion

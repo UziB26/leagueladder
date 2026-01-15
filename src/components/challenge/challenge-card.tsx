@@ -141,7 +141,7 @@ export function ChallengeCard({
               {formatDistanceToNow(new Date(challenge.created_at), { addSuffix: true })}
             </span>
           </div>
-          <div className="font-medium">
+          <div className="font-medium text-black">
             {isChallenger ? 'You challenged' : 'Challenged by'} 
             <span className="font-bold mx-1">
               {isChallenger ? challenge.challengee_name || 'Opponent' : challenge.challenger_name || 'Opponent'}
@@ -235,7 +235,7 @@ export function ChallengeCard({
                   <input
                     type="number"
                     min="0"
-                    value={player1Score}
+                    value={player1Score ?? ''}
                     onChange={(e) => {
                       const val = e.target.value
                       if (val === '' || /^\d+$/.test(val)) {
@@ -243,7 +243,7 @@ export function ChallengeCard({
                         setReportError("")
                       }
                     }}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                     placeholder="0"
                     disabled={reporting}
                   />
@@ -255,7 +255,7 @@ export function ChallengeCard({
                   <input
                     type="number"
                     min="0"
-                    value={player2Score}
+                    value={player2Score ?? ''}
                     onChange={(e) => {
                       const val = e.target.value
                       if (val === '' || /^\d+$/.test(val)) {
@@ -263,7 +263,7 @@ export function ChallengeCard({
                         setReportError("")
                       }
                     }}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                     placeholder="0"
                     disabled={reporting}
                   />

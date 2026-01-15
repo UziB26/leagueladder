@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { LeaderboardTable } from "./leaderboard-table"
 import { LeaderboardEntry } from "@/types/database"
+import Link from "next/link"
 
 interface LeaderboardClientProps {
   leagueId: string
@@ -52,6 +53,8 @@ export function LeaderboardClient({ leagueId, leagueName, initialPlayers }: Lead
     }
   }, [refreshLeaderboard])
 
+  const top3Players = players.slice(0, 3)
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
@@ -68,6 +71,39 @@ export function LeaderboardClient({ leagueId, leagueName, initialPlayers }: Lead
         </button>
       </div>
       <LeaderboardTable players={players} leagueName={leagueName} />
+      
+      {/* Top 3 Players */}
+      {top3Players.length >= 3 && (
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold text-blue-500 mb-6">Top 3 Players</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {top3Players.map((player, index) => (
+              <div key={player.id} className="text-center p-6 bg-white rounded-lg shadow hover:shadow-lg transition-shadow">
+                <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${
+                  index === 0 ? 'bg-yellow-100 text-yellow-800' :
+                  index === 1 ? 'bg-gray-100 text-gray-800' :
+                  'bg-orange-100 text-orange-800'
+                }`}>
+                  <span className="text-2xl font-bold">#{index + 1}</span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">{player.name}</h3>
+                <div className="text-3xl font-bold text-gray-900 my-2">{player.rating}</div>
+                <div className="text-sm text-gray-500">ELO Rating</div>
+                <div className="mt-4 text-sm text-gray-600">
+                  {player.games_played} games • {player.wins}W {player.losses}L
+                  {player.draws > 0 && ` • ${player.draws}D`}
+                </div>
+                <Link 
+                  href={`/players/${player.id}`}
+                  className="inline-block mt-4 text-blue-600 hover:text-blue-800 font-medium hover:underline"
+                >
+                  View Profile →
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

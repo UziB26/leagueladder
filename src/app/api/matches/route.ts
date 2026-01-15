@@ -149,11 +149,19 @@ export async function POST(request: Request) {
     const matchId = crypto.randomUUID()
     const matchStatus = status || 'completed'
     
+    // Determine winner_id before inserting
+    const winnerId = player1Score > player2Score 
+      ? player1Id 
+      : player2Score > player1Score 
+      ? player2Id 
+      : null
+    
+    // Insert match with winner_id set
     db.prepare(`
       INSERT INTO matches (
         id, challenge_id, player1_id, player2_id, league_id,
-        player1_score, player2_score, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        player1_score, player2_score, status, winner_id, confirmed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `).run(
       matchId,
       challengeId || null,
@@ -162,7 +170,8 @@ export async function POST(request: Request) {
       leagueId,
       player1Score,
       player2Score,
-      matchStatus
+      matchStatus,
+      winnerId
     )
 
     // Mark challenge as completed if match is completed and challenge exists
@@ -173,6 +182,7 @@ export async function POST(request: Request) {
         WHERE id = ? AND status = 'accepted'
       `).run(challengeId)
     }
+    // Note: Player stats are updated automatically by the update_player_stats_on_match_insert trigger
 
     // If status is 'completed', update Elo ratings
     if (matchStatus === 'completed') {

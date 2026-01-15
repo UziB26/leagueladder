@@ -113,8 +113,24 @@ export function PlayerMatchHistory({ playerId, limit = 50 }: PlayerMatchHistoryP
           const opponentName = isPlayer1 ? match.player2_name : match.player1_name
           const playerScore = isPlayer1 ? match.player1_score : match.player2_score
           const opponentScore = isPlayer1 ? match.player2_score : match.player1_score
-          const isWinner = match.winner_id === playerId
-          const isDraw = match.winner_id === null
+          
+          // Determine winner - check winner_id first, then fallback to scores
+          let isWinner = false
+          let isDraw = false
+          
+          if (match.winner_id === playerId) {
+            isWinner = true
+          } else if (match.winner_id === null || match.winner_id === undefined) {
+            // If winner_id is not set, determine from scores
+            if (playerScore === opponentScore) {
+              isDraw = true
+            } else {
+              isWinner = playerScore > opponentScore
+            }
+          } else {
+            // winner_id is set and it's not the current player, so it's a loss
+            isWinner = false
+          }
           
           const ratingUpdate = isPlayer1 
             ? match.rating_updates?.player1 

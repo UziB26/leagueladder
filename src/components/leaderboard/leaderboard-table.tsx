@@ -1,6 +1,7 @@
 "use client"
 
 import { LeaderboardEntry } from "@/types/database"
+import Link from "next/link"
 
 interface LeaderboardTableProps {
   players: LeaderboardEntry[]
@@ -74,9 +75,9 @@ export function LeaderboardTable({ players, leagueName }: LeaderboardTableProps)
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">
-                          <a href={`/players/${player.id}`} className="hover:text-blue-600">
+                          <Link href={`/players/${player.id}`} className="hover:text-blue-600">
                             {player.name}
-                          </a>
+                          </Link>
                         </div>
                       </div>
                     </div>

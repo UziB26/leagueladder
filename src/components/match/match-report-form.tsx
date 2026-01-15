@@ -60,7 +60,8 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
       setScores(prev => ({
         ...prev,
         [challengeId]: {
-          ...prev[challengeId],
+          player1Score: prev[challengeId]?.player1Score ?? '',
+          player2Score: prev[challengeId]?.player2Score ?? '',
           [field]: value
         }
       }))
@@ -203,6 +204,10 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
           const { player1, player2 } = getPlayerNames(challenge)
           const challengeScores = scores[challenge.id] || { player1Score: '', player2Score: '' }
           const isSubmitting = submitting === challenge.id
+          
+          // Ensure values are always strings to prevent controlled/uncontrolled input issues
+          const player1ScoreValue = challengeScores.player1Score ?? ''
+          const player2ScoreValue = challengeScores.player2Score ?? ''
 
           return (
             <div key={challenge.id} className="border rounded-lg p-4 bg-gray-50">
@@ -228,9 +233,9 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
                   <input
                     type="number"
                     min="0"
-                    value={challengeScores.player1Score}
+                    value={player1ScoreValue}
                     onChange={(e) => handleScoreChange(challenge.id, 'player1Score', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                     placeholder="0"
                     disabled={isSubmitting}
                   />
@@ -242,9 +247,9 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
                   <input
                     type="number"
                     min="0"
-                    value={challengeScores.player2Score}
+                    value={player2ScoreValue}
                     onChange={(e) => handleScoreChange(challenge.id, 'player2Score', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                     placeholder="0"
                     disabled={isSubmitting}
                   />
@@ -253,7 +258,7 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
 
               <Button
                 onClick={() => handleSubmit(challenge)}
-                disabled={isSubmitting || !challengeScores.player1Score || !challengeScores.player2Score}
+                disabled={isSubmitting || !player1ScoreValue || !player2ScoreValue}
                 className="w-full"
               >
                 {isSubmitting ? 'Reporting Match...' : 'Report Match Result'}

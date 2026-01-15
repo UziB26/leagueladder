@@ -16,6 +16,8 @@ interface LeaderboardListClientProps {
 export function LeaderboardListClient({ initialLeagueData }: LeaderboardListClientProps) {
   const [leagueData, setLeagueData] = useState(initialLeagueData)
   const [loading, setLoading] = useState<Record<string, boolean>>({})
+  const [totalMatches, setTotalMatches] = useState(0)
+  const [leagueMatchesCount, setLeagueMatchesCount] = useState<Record<string, number>>({})
 
   const refreshLeague = useCallback(async (leagueId: string) => {
     setLoading(prev => ({ ...prev, [leagueId]: true }))
@@ -42,10 +44,69 @@ export function LeaderboardListClient({ initialLeagueData }: LeaderboardListClie
     }
   }, [leagueData, refreshLeague])
 
+  // Fetch total matches count and per-league counts
+  useEffect(() => {
+    const fetchMatchesCount = async () => {
+      try {
+        const totalResponse = await fetch('/api/matches/count')
+        if (totalResponse.ok) {
+          const totalData = await totalResponse.json()
+          setTotalMatches(totalData.count || 0)
+        }
+        
+        // Fetch per-league match counts
+        const leagueCounts: Record<string, number> = {}
+        for (const { league } of leagueData) {
+          try {
+            const leagueResponse = await fetch(`/api/leagues/${league.id}/matches/count`)
+            if (leagueResponse.ok) {
+              const leagueData = await leagueResponse.json()
+              leagueCounts[league.id] = leagueData.count || 0
+            }
+          } catch (error) {
+            console.error(`Error fetching matches for league ${league.id}:`, error)
+          }
+        }
+        setLeagueMatchesCount(leagueCounts)
+      } catch (error) {
+        console.error('Error fetching matches count:', error)
+      }
+    }
+    fetchMatchesCount()
+  }, [leagueData])
+
   // Listen for custom event to refresh all leaderboards
   useEffect(() => {
+    const refreshMatchesCount = async () => {
+      try {
+        const totalResponse = await fetch('/api/matches/count')
+        if (totalResponse.ok) {
+          const totalData = await totalResponse.json()
+          setTotalMatches(totalData.count || 0)
+        }
+        
+        // Refresh per-league match counts
+        const leagueCounts: Record<string, number> = {}
+        for (const { league } of leagueData) {
+          try {
+            const leagueResponse = await fetch(`/api/leagues/${league.id}/matches/count`)
+            if (leagueResponse.ok) {
+              const leagueData = await leagueResponse.json()
+              leagueCounts[league.id] = leagueData.count || 0
+            }
+          } catch (error) {
+            console.error(`Error fetching matches for league ${league.id}:`, error)
+          }
+        }
+        setLeagueMatchesCount(leagueCounts)
+      } catch (error) {
+        console.error('Error refreshing matches count:', error)
+      }
+    }
+
     const handleRefresh = () => {
       refreshAll()
+      refreshMatchesCount()
     }
 
     window.addEventListener('leaderboard:refresh', handleRefresh)
@@ -54,6 +115,7 @@ export function LeaderboardListClient({ initialLeagueData }: LeaderboardListClie
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         refreshAll()
+        refreshMatchesCount()
       }
     }
     
@@ -63,7 +125,7 @@ export function LeaderboardListClient({ initialLeagueData }: LeaderboardListClie
       window.removeEventListener('leaderboard:refresh', handleRefresh)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [refreshAll])
+  }, [refreshAll, leagueData])
 
   return (
     <div>
@@ -113,7 +175,7 @@ export function LeaderboardListClient({ initialLeagueData }: LeaderboardListClie
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-gray-900">
-                      {players.reduce((sum, p) => sum + p.games_played, 0)}
+                      {leagueMatchesCount[league.id] ?? '...'}
                     </div>
                     <div className="text-sm text-gray-600">Total Games</div>
                   </div>
@@ -149,15 +211,13 @@ export function LeaderboardListClient({ initialLeagueData }: LeaderboardListClie
             </div>
             <div className="text-center p-4 bg-green-50 rounded-lg">
               <div className="text-3xl font-bold text-green-600">
-                {leagueData.reduce((sum, data) => sum + data.players.length, 0)}
+                {new Set(leagueData.flatMap(data => data.players.map(p => p.id))).size}
               </div>
               <div className="text-gray-600">Total Players</div>
             </div>
             <div className="text-center p-4 bg-purple-50 rounded-lg">
               <div className="text-3xl font-bold text-purple-600">
-                {leagueData.reduce((sum, data) => 
-                  sum + data.players.reduce((pSum, p) => pSum + p.games_played, 0), 0
-                )}
+                {totalMatches}
               </div>
               <div className="text-gray-600">Matches Played</div>
             </div>

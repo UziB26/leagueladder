@@ -73,32 +73,61 @@ export async function POST(request: Request) {
       )
     }
 
+    // Check if rating already exists (shouldn't happen, but handle gracefully)
+    const existingRating = db.prepare(`
+      SELECT * FROM player_ratings 
+      WHERE player_id = ? AND league_id = ?
+    `).get(player.id, leagueId)
+
     // Join league
     const membershipId = crypto.randomUUID()
-    db.prepare(`
-      INSERT INTO league_memberships (id, player_id, league_id) 
-      VALUES (?, ?, ?)
-    `).run(membershipId, player.id, leagueId)
+    try {
+      db.prepare(`
+        INSERT INTO league_memberships (id, player_id, league_id) 
+        VALUES (?, ?, ?)
+      `).run(membershipId, player.id, leagueId)
+    } catch (error: any) {
+      // If membership insert fails due to unique constraint, check if it already exists
+      if (error?.code === 'SQLITE_CONSTRAINT_UNIQUE' || error?.message?.includes('UNIQUE constraint')) {
+        // Membership already exists, return success silently
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Successfully joined league' 
+        }, { status: 200 })
+      }
+      throw error
+    }
 
-    // Initialize rating with seed rating of 1000 and zero stats
-    const ratingId = crypto.randomUUID()
-    db.prepare(`
-      INSERT INTO player_ratings (
-        id, player_id, league_id, rating, 
-        games_played, wins, losses, draws
-      ) 
-      VALUES (?, ?, ?, 1000, 0, 0, 0, 0)
-    `).run(ratingId, player.id, leagueId)
+    // Initialize rating with seed rating of 1000 and zero stats (only if it doesn't exist)
+    if (!existingRating) {
+      const ratingId = crypto.randomUUID()
+      try {
+        db.prepare(`
+          INSERT INTO player_ratings (
+            id, player_id, league_id, rating, 
+            games_played, wins, losses, draws
+          ) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(ratingId, player.id, leagueId, 1000, 0, 0, 0, 0)
+      } catch (error: any) {
+        // If rating insert fails due to unique constraint, it's okay - rating already exists
+        // This can happen in race conditions or if the rating was created elsewhere
+        if (error?.code !== 'SQLITE_CONSTRAINT_UNIQUE' && !error?.message?.includes('UNIQUE constraint')) {
+          throw error
+        }
+        // Rating already exists, which is fine - continue with success
+      }
+    }
 
     return NextResponse.json({ 
       success: true, 
       message: 'Successfully joined league' 
-    })
+    }, { status: 200 })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error joining league:', error)
     return NextResponse.json(
-      { error: 'Failed to join league' },
+      { error: error?.message || 'Failed to join league' },
       { status: 500 }
     )
   }

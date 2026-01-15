@@ -92,11 +92,26 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
   }
 
   const isWinner = (match: MatchWithRatings) => {
-    return match.winner_id === currentPlayerId
+    // Check if current player is the winner
+    if (match.winner_id === currentPlayerId) {
+      return true
+    }
+    // Also check by scores if winner_id is not set
+    const { isPlayer1 } = getPlayerRole(match)
+    if (match.winner_id === null || match.winner_id === undefined) {
+      const playerScore = isPlayer1 ? match.player1_score : match.player2_score
+      const opponentScore = isPlayer1 ? match.player2_score : match.player1_score
+      return playerScore > opponentScore
+    }
+    return false
   }
 
   const isDraw = (match: MatchWithRatings) => {
-    return match.winner_id === null
+    // Check if it's a draw (winner_id is null or scores are equal)
+    if (match.winner_id === null || match.winner_id === undefined) {
+      return match.player1_score === match.player2_score
+    }
+    return false
   }
 
   if (loading) {
