@@ -50,6 +50,9 @@ export const db = new Proxy({} as DatabaseInstance, {
   }
 }) as DatabaseInstance
 
+// Export getDatabase for cases where we need the actual instance (e.g., transactions)
+export { getDatabase }
+
 // Initialize all tables
 export function initializeDatabase() {
     // Ensure database is initialized

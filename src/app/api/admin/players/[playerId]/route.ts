@@ -1,26 +1,15 @@
-import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { NextResponse, NextRequest } from "next/server"
+import { apiHandlers } from "@/lib/api-helpers"
 import { db, DatabaseTransaction } from "@/lib/db"
 import { sanitizeUUID, sanitizeString } from "@/lib/sanitize"
 import crypto from "crypto"
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ playerId: string }> }
-) {
+export const GET = apiHandlers.admin(async (
+  request: NextRequest & { session?: any },
+  context?: { params?: Promise<{ playerId: string }> }
+) => {
   try {
-    const session = await auth()
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const user = session.user as { id?: string; is_admin?: boolean }
-    if (!user.is_admin) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
-
-    const { playerId } = await params
+    const { playerId } = await (context?.params || Promise.resolve({ playerId: '' }))
     const sanitizedPlayerId = sanitizeUUID(playerId)
     if (!sanitizedPlayerId) {
       return NextResponse.json({ error: "Invalid player ID" }, { status: 400 })
@@ -84,32 +73,21 @@ export async function GET(
       { status: 500 }
     )
   }
-}
+})
 
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ playerId: string }> }
-) {
+export const PUT = apiHandlers.admin(async (
+  request: NextRequest & { session?: any; validatedData?: any },
+  context?: { params?: Promise<{ playerId: string }> }
+) => {
   try {
-    const session = await auth()
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const user = session.user as { id?: string; is_admin?: boolean }
-    if (!user.is_admin) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
-
-    const { playerId } = await params
+    const { playerId } = await (context?.params || Promise.resolve({ playerId: '' }))
+    const user = request.session?.user as { id?: string }
     const sanitizedPlayerId = sanitizeUUID(playerId)
     if (!sanitizedPlayerId) {
       return NextResponse.json({ error: "Invalid player ID" }, { status: 400 })
     }
 
-    const body = await request.json()
-    const { name, email } = body
+    const { name, email } = request.validatedData || await request.json()
 
     // Validate player exists
     const existingPlayer = db.prepare('SELECT * FROM players WHERE id = ?').get(sanitizedPlayerId)
@@ -168,25 +146,15 @@ export async function PUT(
       { status: 500 }
     )
   }
-}
+})
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ playerId: string }> }
-) {
+export const DELETE = apiHandlers.admin(async (
+  request: NextRequest & { session?: any },
+  context?: { params?: Promise<{ playerId: string }> }
+) => {
   try {
-    const session = await auth()
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const user = session.user as { id?: string; is_admin?: boolean }
-    if (!user.is_admin) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
-
-    const { playerId } = await params
+    const { playerId } = await (context?.params || Promise.resolve({ playerId: '' }))
+    const user = request.session?.user as { id?: string }
     const sanitizedPlayerId = sanitizeUUID(playerId)
     if (!sanitizedPlayerId) {
       return NextResponse.json({ error: "Invalid player ID" }, { status: 400 })
@@ -222,4 +190,4 @@ export async function DELETE(
       { status: 500 }
     )
   }
-}
+})

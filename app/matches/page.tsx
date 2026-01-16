@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LoadingState } from "@/components/ui/loading-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
+import { PullToRefresh } from "@/components/ui/pull-to-refresh"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 
@@ -108,16 +109,30 @@ export default function MatchesPage() {
         </TabsList>
         
         <TabsContent value="confirmations" className="mt-4">
-          <PendingConfirmations />
+          <PullToRefresh 
+            onRefresh={async () => {
+              setRefreshKey(prev => prev + 1)
+            }}
+            className="min-h-[200px]"
+          >
+            <PendingConfirmations key={refreshKey} />
+          </PullToRefresh>
         </TabsContent>
         
         <TabsContent value="history" className="mt-4">
           {currentPlayerId ? (
-            <MatchHistory 
-              key={refreshKey}
-              currentPlayerId={currentPlayerId}
-              limit={20}
-            />
+            <PullToRefresh 
+              onRefresh={async () => {
+                setRefreshKey(prev => prev + 1)
+              }}
+              className="min-h-[200px]"
+            >
+              <MatchHistory 
+                key={refreshKey}
+                currentPlayerId={currentPlayerId}
+                limit={20}
+              />
+            </PullToRefresh>
           ) : (
             <LoadingState text="Loading player information..." />
           )}

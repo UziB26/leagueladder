@@ -1,4 +1,4 @@
-import { sanitizeUUID, sanitizeInteger } from '../sanitize'
+import { sanitizeUUID, sanitizeInteger, sanitizeString } from '../sanitize'
 
 /**
  * Validate match data before saving to database
@@ -96,7 +96,7 @@ export function validateMatchData(data: Partial<MatchData>): ValidationResult {
   }
 
   // Validate status if provided
-  if (data.status && !['pending', 'completed', 'voided'].includes(data.status)) {
+  if (data.status && !['pending', 'pending_confirmation', 'completed', 'voided', 'disputed'].includes(data.status)) {
     errors.push('Invalid match status')
   }
 
@@ -111,11 +111,11 @@ export function validateMatchData(data: Partial<MatchData>): ValidationResult {
     sanitized: {
       player1Id: sanitizeUUID(data.player1Id!)!,
       player2Id: sanitizeUUID(data.player2Id!)!,
-      leagueId: sanitizeUUID(data.leagueId!)!,
+      leagueId: sanitizeString(data.leagueId!)!,
       player1Score: sanitizeInteger(data.player1Score!, 0, 1000)!,
       player2Score: sanitizeInteger(data.player2Score!, 0, 1000)!,
       challengeId: data.challengeId ? sanitizeUUID(data.challengeId) : undefined,
-      status: data.status || 'completed',
+      status: data.status || 'pending_confirmation',
     },
   }
 }
@@ -155,8 +155,9 @@ export function validateChallengeData(
   if (!data.leagueId) {
     errors.push('League ID is required')
   } else {
-    const sanitized = sanitizeUUID(data.leagueId)
-    if (!sanitized) {
+    // League IDs are strings like 'tt_league', 'fifa_league', not UUIDs
+    const sanitized = sanitizeString(data.leagueId)
+    if (!sanitized || sanitized.length === 0) {
       errors.push('Invalid League ID format')
     }
   }
@@ -180,7 +181,7 @@ export function validateChallengeData(
     sanitized: {
       challengerId: sanitizeUUID(data.challengerId!)!,
       challengeeId: sanitizeUUID(data.challengeeId!)!,
-      leagueId: sanitizeUUID(data.leagueId!)!,
+      leagueId: sanitizeString(data.leagueId!)!,
     },
   }
 }

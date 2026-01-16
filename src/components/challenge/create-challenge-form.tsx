@@ -183,7 +183,7 @@ export function CreateChallengeForm({ currentPlayerId, onSuccess }: CreateChalle
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-base font-medium text-gray-700 mb-2">
             Select League
           </label>
           <Select
@@ -201,7 +201,7 @@ export function CreateChallengeForm({ currentPlayerId, onSuccess }: CreateChalle
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-base font-medium text-gray-700 mb-2">
             Challenge Player
           </label>
           <Select

@@ -96,11 +96,24 @@ export const authOptions = {
     signIn: '/auth/login'
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
+        // Initial login - set user data
         token.id = (user as DBUser).id
         token.email = (user as DBUser).email
         token.is_admin = (user as DBUser).is_admin || false
+      } else if (token.email) {
+        // Refresh admin status from database on each request
+        // This ensures admin status changes are reflected immediately
+        try {
+          const dbUser = db.prepare('SELECT is_admin FROM users WHERE email = ?').get(token.email) as DBUser | undefined
+          if (dbUser) {
+            token.is_admin = dbUser.is_admin || false
+          }
+        } catch (error) {
+          // If database query fails, keep existing token value
+          console.error('Error refreshing admin status:', error)
+        }
       }
       return token
     },

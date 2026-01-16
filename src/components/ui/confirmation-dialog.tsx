@@ -50,12 +50,12 @@ export function ConfirmationDialog({
           <p className="text-gray-300 text-sm">{message}</p>
         </div>
 
-        <div className="flex gap-3 justify-end">
+        <div className="flex gap-4 md:gap-3 justify-end">
           <Button
             variant="outline"
             onClick={onClose}
             disabled={isLoading}
-            className="text-white border-white hover:bg-white hover:text-black"
+            className="text-white border-white hover:bg-white hover:text-black active:bg-gray-200"
           >
             {cancelText}
           </Button>
@@ -64,8 +64,8 @@ export function ConfirmationDialog({
             disabled={isLoading}
             className={cn(
               variant === "destructive"
-                ? "bg-red-600 hover:bg-red-700 text-white"
-                : "bg-blue-600 hover:bg-blue-700 text-white"
+                ? "bg-red-600 hover:bg-red-700 active:bg-red-800 text-white"
+                : "bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white"
             )}
           >
             {isLoading ? "Processing..." : confirmText}

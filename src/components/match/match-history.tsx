@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { formatDistanceToNow, format } from "date-fns"
+import { parseDatabaseDate } from "@/lib/utils"
+import { EmptyMatchesState } from "@/components/ui/empty-state"
+import { MatchesListSkeleton } from "@/components/ui/matches-list-skeleton"
 
 interface MatchWithRatings {
   id: string
@@ -120,7 +123,7 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
     return (
       <div className="bg-white p-6 rounded-lg shadow">
         <h3 className="text-lg font-semibold mb-4 text-blue-600">Match History</h3>
-        <div className="text-center py-8 text-gray-500">Loading match history...</div>
+        <MatchesListSkeleton />
       </div>
     )
   }
@@ -138,10 +141,9 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
     return (
       <div className="bg-white p-6 rounded-lg shadow">
         <h3 className="text-lg font-semibold mb-4 text-blue-600">Match History</h3>
-        <div className="text-center py-8 text-gray-500">
-          <p>No matches played yet.</p>
-          <p className="text-sm mt-2">Complete a match to see it here.</p>
-        </div>
+        <EmptyMatchesState 
+          message="Complete a match to see it here."
+        />
       </div>
     )
   }
@@ -188,8 +190,8 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
                     )}
                   </div>
                   <div className="text-sm text-gray-500">
-                    {format(new Date(match.played_at), 'MMM d, yyyy')} •{' '}
-                    {formatDistanceToNow(new Date(match.played_at), { addSuffix: true })}
+                    {format(parseDatabaseDate(match.played_at), 'MMM d, yyyy')} •{' '}
+                    {formatDistanceToNow(parseDatabaseDate(match.played_at), { addSuffix: true })}
                   </div>
                 </div>
                 

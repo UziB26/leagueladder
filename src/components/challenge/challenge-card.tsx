@@ -4,9 +4,13 @@ import { Challenge } from "@/types/database"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/loading-state"
 import { ConfirmationDialog, useConfirmationDialog } from "@/components/ui/confirmation-dialog"
+import { SwipeableCard } from "@/components/ui/swipeable-card"
+import { ContextMenu } from "@/components/ui/context-menu"
 import { formatDistanceToNow } from "date-fns"
+import { parseDatabaseDate } from "@/lib/utils"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { Check, X, MoreVertical, Trash2 } from "lucide-react"
 
 interface ChallengeCardProps {
   challenge: Challenge
@@ -168,6 +172,77 @@ export function ChallengeCard({
       default: return 'bg-gray-100 text-gray-800'
     }
   }
+
+  // Determine swipe actions based on challenge status and user role
+  const getSwipeActions = () => {
+    if (challenge.status === 'pending' && isChallengee) {
+      return {
+        onSwipeRight: {
+          label: 'Accept',
+          color: 'bg-green-600',
+          onAction: () => handleAction('accept'),
+        },
+        onSwipeLeft: {
+          label: 'Decline',
+          color: 'bg-red-600',
+          onAction: () => handleAction('decline'),
+        },
+      }
+    }
+    if (challenge.status === 'pending' && isChallenger) {
+      return {
+        onSwipeLeft: {
+          label: 'Cancel',
+          color: 'bg-red-600',
+          onAction: () => handleAction('cancel'),
+        },
+      }
+    }
+    return {}
+  }
+
+  // Context menu options
+  const getContextMenuOptions = () => {
+    const options = []
+    
+    if (challenge.status === 'pending' && isChallengee) {
+      options.push(
+        {
+          label: 'Accept Challenge',
+          icon: <Check className="h-4 w-4" />,
+          onClick: () => handleAction('accept'),
+        },
+        {
+          label: 'Decline Challenge',
+          icon: <X className="h-4 w-4" />,
+          onClick: () => handleAction('decline'),
+          variant: 'destructive' as const,
+        }
+      )
+    }
+    
+    if (challenge.status === 'pending' && isChallenger) {
+      options.push({
+        label: 'Cancel Challenge',
+        icon: <Trash2 className="h-4 w-4" />,
+        onClick: () => handleAction('cancel'),
+        variant: 'destructive' as const,
+      })
+    }
+
+    if (challenge.status === 'accepted' && (isChallenger || isChallengee)) {
+      options.push({
+        label: 'Report Score',
+        icon: <MoreVertical className="h-4 w-4" />,
+        onClick: () => setShowReportForm(true),
+      })
+    }
+
+    return options
+  }
+
+  const swipeActions = getSwipeActions()
+  const contextMenuOptions = getContextMenuOptions()
   
   return (
     <>
@@ -182,15 +257,25 @@ export function ChallengeCard({
         variant={confirmationDialog.config?.variant}
         isLoading={loading}
       />
-      <div className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow">
-      <div className="flex justify-between items-start mb-3">
+      <SwipeableCard
+        onSwipeLeft={swipeActions.onSwipeLeft}
+        onSwipeRight={swipeActions.onSwipeRight}
+        disabled={loading || Object.keys(swipeActions).length === 0}
+        className="rounded-lg"
+      >
+        <ContextMenu
+          options={contextMenuOptions}
+          disabled={loading || contextMenuOptions.length === 0}
+        >
+          <div className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start mb-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(challenge.status)}`}>
               {challenge.status.toUpperCase()}
             </span>
             <span className="text-sm text-gray-500">
-              {formatDistanceToNow(new Date(challenge.created_at), { addSuffix: true })}
+              {formatDistanceToNow(parseDatabaseDate(challenge.created_at), { addSuffix: true })}
             </span>
           </div>
           <div className="font-medium text-black">
@@ -202,7 +287,7 @@ export function ChallengeCard({
           </div>
         </div>
         
-        {challenge.expires_at && new Date(challenge.expires_at) < new Date() && (
+        {challenge.expires_at && parseDatabaseDate(challenge.expires_at) < new Date() && (
           <span className="text-xs text-red-600 font-medium">EXPIRED</span>
         )}
       </div>
@@ -302,11 +387,13 @@ export function ChallengeCard({
 
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-base font-medium text-gray-700 mb-2">
                     {getChallengerName()} Score
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    enterKeyHint="next"
                     min="0"
                     value={player1Score ?? ''}
                     onChange={(e) => {
@@ -316,17 +403,26 @@ export function ChallengeCard({
                         setReportError("")
                       }
                     }}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        const nextInput = e.currentTarget.parentElement?.parentElement?.querySelector<HTMLInputElement>('input[type="number"]:last-of-type')
+                        nextInput?.focus()
+                      }
+                    }}
+                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                     placeholder="0"
                     disabled={reporting}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-base font-medium text-gray-700 mb-2">
                     {getChallengeeName()} Score
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    enterKeyHint="done"
                     min="0"
                     value={player2Score ?? ''}
                     onChange={(e) => {
@@ -336,19 +432,25 @@ export function ChallengeCard({
                         setReportError("")
                       }
                     }}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !reporting && player1Score && player2Score) {
+                        e.preventDefault()
+                        handleReportScore()
+                      }
+                    }}
+                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                     placeholder="0"
                     disabled={reporting}
                   />
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-3 md:gap-2">
                 <Button
                   size="sm"
                   onClick={handleReportScore}
                   disabled={reporting || !player1Score || !player2Score}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800"
                 >
                   {reporting ? (
                     <>
@@ -369,6 +471,7 @@ export function ChallengeCard({
                     setReportError("")
                   }}
                   disabled={reporting}
+                  className="active:bg-gray-200"
                 >
                   Cancel
                 </Button>
@@ -377,7 +480,9 @@ export function ChallengeCard({
           )}
         </div>
       )}
-    </div>
+            </div>
+          </ContextMenu>
+        </SwipeableCard>
     </>
   )
 }

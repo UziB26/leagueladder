@@ -11,11 +11,12 @@ export function AuthButton() {
 
   if (session) {
     return (
-      <div className="flex items-center gap-4">
-        <span className="text-sm text-gray-600">Hi, {session.user?.name}</span>
+      <div className="flex items-center gap-2 md:gap-4">
+        <span className="text-sm text-gray-600 hidden sm:inline">Hi, {session.user?.name}</span>
         <Button
           variant="outline"
           size="sm"
+          className="min-h-[44px] md:min-h-0"
           onClick={() => signOut({ callbackUrl: "/" })}
         >
           Sign Out
@@ -25,15 +26,20 @@ export function AuthButton() {
   }
 
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-3 md:gap-2">
       <Button
         variant="outline"
         size="sm"
+        className="min-h-[44px] md:min-h-0"
         onClick={() => router.push("/auth/login")}
       >
         Login
       </Button>
-      <Button size="sm" onClick={() => router.push("/auth/register")}>
+      <Button 
+        size="sm" 
+        className="min-h-[44px] md:min-h-0"
+        onClick={() => router.push("/auth/register")}
+      >
         Register
       </Button>
     </div>

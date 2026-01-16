@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { LeaderboardTable } from "./leaderboard-table"
+import { LeaderboardSkeleton } from "@/components/ui/leaderboard-skeleton"
 import { LeaderboardEntry } from "@/types/database"
 import Link from "next/link"
 
@@ -70,7 +71,11 @@ export function LeaderboardClient({ leagueId, leagueName, initialPlayers }: Lead
           {loading ? 'Refreshing...' : '🔄 Refresh'}
         </button>
       </div>
-      <LeaderboardTable players={players} leagueName={leagueName} />
+      {loading ? (
+        <LeaderboardSkeleton />
+      ) : (
+        <LeaderboardTable players={players} leagueName={leagueName} />
+      )}
       
       {/* Top 3 Players */}
       {top3Players.length >= 3 && (

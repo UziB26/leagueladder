@@ -67,14 +67,14 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-gray-400 mb-4">
               {this.state.error?.message || "An unexpected error occurred"}
             </p>
-            <div className="flex gap-3 justify-center">
-              <Button onClick={this.handleReset} variant="outline" className="text-white border-white hover:bg-white hover:text-black">
+            <div className="flex gap-4 md:gap-3 justify-center">
+              <Button onClick={this.handleReset} variant="outline" className="text-white border-white hover:bg-white hover:text-black active:bg-gray-200">
                 Try again
               </Button>
               <Button
                 onClick={() => window.location.href = "/"}
                 variant="outline"
-                className="text-white border-white hover:bg-white hover:text-black"
+                className="text-white border-white hover:bg-white hover:text-black active:bg-gray-200"
               >
                 Go home
               </Button>

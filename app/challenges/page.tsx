@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button"
 import { LoadingState } from "@/components/ui/loading-state"
 import { ErrorState, ErrorMessage } from "@/components/ui/error-state"
 import { SuccessMessage } from "@/components/ui/success-state"
-import { EmptyState } from "@/components/ui/empty-state"
+import { EmptyState, EmptyChallengesState } from "@/components/ui/empty-state"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PullToRefresh } from "@/components/ui/pull-to-refresh"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Challenge } from "@/types/database"
@@ -228,24 +229,28 @@ export default function ChallengesPage() {
               {loading ? (
                 <LoadingState text="Loading challenges..." />
               ) : challenges.length === 0 ? (
-                <EmptyState
-                  title="No incoming challenges"
-                  description="Other players can challenge you from your profile"
+                <EmptyChallengesState
+                  action={{
+                    label: "Create Challenge",
+                    onClick: () => setActiveTab("all")
+                  }}
                 />
               ) : (
-                <div className="space-y-4">
-                  {challenges.map(challenge => (
-                    <ChallengeCard
-                      key={challenge.id}
-                      challenge={challenge}
-                      currentPlayerId={currentPlayerId}
-                      onAccept={handleAccept}
-                      onDecline={handleDecline}
-                      onCancel={handleCancel}
-                      onReportSuccess={fetchChallenges}
-                    />
-                  ))}
-                </div>
+                <PullToRefresh onRefresh={fetchChallenges} className="min-h-[200px]">
+                  <div className="space-y-4">
+                    {challenges.map(challenge => (
+                      <ChallengeCard
+                        key={challenge.id}
+                        challenge={challenge}
+                        currentPlayerId={currentPlayerId}
+                        onAccept={handleAccept}
+                        onDecline={handleDecline}
+                        onCancel={handleCancel}
+                        onReportSuccess={fetchChallenges}
+                      />
+                    ))}
+                  </div>
+                </PullToRefresh>
               )}
             </TabsContent>
             
@@ -253,24 +258,28 @@ export default function ChallengesPage() {
               {loading ? (
                 <LoadingState text="Loading challenges..." />
               ) : challenges.length === 0 ? (
-                <EmptyState
-                  title="No outgoing challenges"
-                  description="Create a challenge using the form on the left"
+                <EmptyChallengesState
+                  action={{
+                    label: "Create Challenge",
+                    onClick: () => {} // Form is already visible on the left
+                  }}
                 />
               ) : (
-                <div className="space-y-4">
-                  {challenges.map(challenge => (
-                    <ChallengeCard
-                      key={challenge.id}
-                      challenge={challenge}
-                      currentPlayerId={currentPlayerId}
-                      onAccept={handleAccept}
-                      onDecline={handleDecline}
-                      onCancel={handleCancel}
-                      onReportSuccess={fetchChallenges}
-                    />
-                  ))}
-                </div>
+                <PullToRefresh onRefresh={fetchChallenges} className="min-h-[200px]">
+                  <div className="space-y-4">
+                    {challenges.map(challenge => (
+                      <ChallengeCard
+                        key={challenge.id}
+                        challenge={challenge}
+                        currentPlayerId={currentPlayerId}
+                        onAccept={handleAccept}
+                        onDecline={handleDecline}
+                        onCancel={handleCancel}
+                        onReportSuccess={fetchChallenges}
+                      />
+                    ))}
+                  </div>
+                </PullToRefresh>
               )}
             </TabsContent>
             
@@ -278,24 +287,28 @@ export default function ChallengesPage() {
               {loading ? (
                 <LoadingState text="Loading challenges..." />
               ) : challenges.length === 0 ? (
-                <EmptyState
-                  title="No challenges yet"
-                  description="Be the first to create a challenge!"
+                <EmptyChallengesState
+                  action={{
+                    label: "Create Your First Challenge",
+                    onClick: () => {} // Form is already visible on the left
+                  }}
                 />
               ) : (
-                <div className="space-y-4">
-                  {challenges.map(challenge => (
-                    <ChallengeCard
-                      key={challenge.id}
-                      challenge={challenge}
-                      currentPlayerId={currentPlayerId}
-                      onAccept={handleAccept}
-                      onDecline={handleDecline}
-                      onCancel={handleCancel}
-                      onReportSuccess={fetchChallenges}
-                    />
-                  ))}
-                </div>
+                <PullToRefresh onRefresh={fetchChallenges} className="min-h-[200px]">
+                  <div className="space-y-4">
+                    {challenges.map(challenge => (
+                      <ChallengeCard
+                        key={challenge.id}
+                        challenge={challenge}
+                        currentPlayerId={currentPlayerId}
+                        onAccept={handleAccept}
+                        onDecline={handleDecline}
+                        onCancel={handleCancel}
+                        onReportSuccess={fetchChallenges}
+                      />
+                    ))}
+                  </div>
+                </PullToRefresh>
               )}
             </TabsContent>
           </Tabs>

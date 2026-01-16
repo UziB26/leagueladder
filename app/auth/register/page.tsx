@@ -134,10 +134,19 @@ export default function RegisterPage() {
                 id="name"
                 name="name"
                 type="text"
+                inputMode="text"
+                autoComplete="name"
+                enterKeyHint="next"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="mt-2 appearance-none relative block w-full px-4 py-3 text-base border-2 border-gray-300 placeholder-gray-400 text-white bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    document.getElementById('email')?.focus()
+                  }
+                }}
+                className="mt-2 appearance-none relative block w-full px-4 py-3 text-base md:text-base border-2 border-gray-300 placeholder-gray-400 text-white bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10"
                 placeholder="Your gaming name"
               />
             </div>
@@ -150,11 +159,19 @@ export default function RegisterPage() {
                 id="email"
                 name="email"
                 type="email"
+                inputMode="email"
                 autoComplete="email"
+                enterKeyHint="next"
                 required
                 value={email}
                 onChange={handleEmailChange}
-                className={`mt-2 appearance-none relative block w-full px-4 py-3 text-base border-2 placeholder-gray-400 text-white bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10 ${
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    document.getElementById('password')?.focus()
+                  }
+                }}
+                className={`mt-2 appearance-none relative block w-full px-4 py-3 text-base md:text-base border-2 placeholder-gray-400 text-white bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10 ${
                   emailError ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="you@example.com"
@@ -173,10 +190,17 @@ export default function RegisterPage() {
                 name="password"
                 type="password"
                 autoComplete="new-password"
+                enterKeyHint="done"
                 required
                 value={password}
                 onChange={handlePasswordChange}
-                className={`mt-2 appearance-none relative block w-full px-4 py-3 text-base border-2 placeholder-gray-400 text-white bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10 ${
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !loading) {
+                    e.preventDefault()
+                    handleSubmit(e as any)
+                  }
+                }}
+                className={`mt-2 appearance-none relative block w-full px-4 py-3 text-base md:text-base border-2 placeholder-gray-400 text-white bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10 ${
                   passwordError ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="••••••••"

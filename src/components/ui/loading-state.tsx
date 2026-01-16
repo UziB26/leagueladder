@@ -26,11 +26,15 @@ export function LoadingState({
     <div
       className={cn(
         "animate-spin rounded-full border-2 border-gray-300 border-t-blue-600",
+        "transition-all duration-300 ease-in-out",
         sizeClasses[size],
         className
       )}
       role="status"
       aria-label="Loading"
+      style={{
+        animation: "spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite",
+      }}
     >
       <span className="sr-only">Loading...</span>
     </div>
@@ -76,11 +80,15 @@ export function Spinner({ size = "md", className }: SpinnerProps) {
     <div
       className={cn(
         "animate-spin rounded-full border-2 border-gray-300 border-t-blue-600",
+        "transition-all duration-300 ease-in-out",
         sizeClasses[size],
         className
       )}
       role="status"
       aria-label="Loading"
+      style={{
+        animation: "spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite",
+      }}
     >
       <span className="sr-only">Loading...</span>
     </div>

@@ -10,10 +10,16 @@ export function Navigation() {
   const pathname = usePathname()
   const { data: session } = useSession()
   const [pendingMatchesCount, setPendingMatchesCount] = useState(0)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   
   const isActive = (path: string) => {
     return pathname === path || pathname?.startsWith(path + '/')
   }
+
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [pathname])
 
   useEffect(() => {
     if (session) {
@@ -53,80 +59,106 @@ export function Navigation() {
     }
   }
 
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen)
+  }
+
+  const navLinks = [
+    { href: '/leaderboard', label: 'Leaderboard' },
+    { href: '/leagues', label: 'Leagues' },
+    { href: '/challenges', label: 'Challenges' },
+    { href: '/matches', label: 'Matches', badge: pendingMatchesCount },
+  ]
+
+  if (session?.user && (session.user as { is_admin?: boolean }).is_admin) {
+    navLinks.push({ href: '/admin', label: 'Admin' })
+  }
+
   return (
-    <nav className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+    <nav className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 safe-area-top">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2 min-h-[44px] min-w-[44px] items-center justify-center">
             <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
               <span className="text-white font-bold">🏓</span>
             </div>
-            <span className="text-xl font-bold text-gray-900">League Ladder</span>
+            <span className="text-xl font-bold text-gray-900 hidden sm:inline">League Ladder</span>
           </Link>
           
+          {/* Desktop Navigation - Hidden on mobile */}
           <div className="hidden md:flex items-center gap-6">
-            <Link 
-              href="/leaderboard" 
-              className={`text-sm font-medium transition-colors ${
-                isActive('/leaderboard') 
-                  ? 'text-blue-600' 
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Leaderboard
-            </Link>
-            <Link 
-              href="/leagues" 
-              className={`text-sm font-medium transition-colors ${
-                isActive('/leagues') 
-                  ? 'text-blue-600' 
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Leagues
-            </Link>
-            <Link 
-              href="/challenges" 
-              className={`text-sm font-medium transition-colors ${
-                isActive('/challenges') 
-                  ? 'text-blue-600 font-semibold' 
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Challenges
-            </Link>
-            <Link 
-              href="/matches" 
-              className={`relative text-sm font-medium transition-colors ${
-                isActive('/matches') 
-                  ? 'text-blue-600' 
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Matches
-              {pendingMatchesCount > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white min-w-[1.25rem] h-5">
-                  {pendingMatchesCount > 9 ? '9+' : pendingMatchesCount}
-                </span>
-              )}
-            </Link>
-            {session?.user && (session.user as { is_admin?: boolean }).is_admin && (
+            {navLinks.map((link) => (
               <Link 
-                href="/admin" 
-                className={`text-sm font-medium transition-colors ${
-                  isActive('/admin') 
+                key={link.href}
+                href={link.href} 
+                className={`text-sm font-medium transition-colors min-h-[44px] flex items-center px-2 ${
+                  isActive(link.href) 
                     ? 'text-blue-600' 
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                Admin
+                {link.label}
+                {link.badge && link.badge > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white min-w-[1.25rem] h-5">
+                    {link.badge > 9 ? '9+' : link.badge}
+                  </span>
+                )}
               </Link>
-            )}
+            ))}
           </div>
         </div>
         
-        <AuthButton />
+        <div className="flex items-center gap-4">
+          {/* Mobile Hamburger Button - Visible on mobile, hidden on desktop */}
+          <button
+            onClick={toggleMobileMenu}
+            className="md:hidden min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md"
+            aria-label="Toggle menu"
+            aria-expanded={mobileMenuOpen}
+          >
+            {mobileMenuOpen ? (
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            )}
+          </button>
+          
+          <AuthButton />
+        </div>
       </div>
+      
+      {/* Mobile Menu - Visible when mobileMenuOpen is true */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t bg-white">
+          <div className="container mx-auto px-4 py-2">
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`block min-h-[44px] flex items-center px-4 py-3 text-base font-medium transition-colors rounded-md ${
+                  isActive(link.href)
+                    ? 'text-blue-600 bg-blue-50'
+                    : 'text-gray-700 hover:bg-gray-50 active:bg-gray-100'
+                }`}
+              >
+                <span className="flex items-center">
+                  {link.label}
+                  {link.badge && link.badge > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white min-w-[1.5rem] h-6">
+                      {link.badge > 9 ? '9+' : link.badge}
+                    </span>
+                  )}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </nav>
   )
 }

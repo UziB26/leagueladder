@@ -7,6 +7,7 @@ import { Match } from "@/types/database"
 import { SuccessMessage } from "@/components/ui/success-state"
 import { ErrorMessage } from "@/components/ui/error-state"
 import { LoadingState } from "@/components/ui/loading-state"
+import { parseDatabaseDate } from "@/lib/utils"
 
 interface MatchConfirmationCardProps {
   match: Match
@@ -50,8 +51,10 @@ export function MatchConfirmationCard({ match, onConfirmed }: MatchConfirmationC
       }
 
       setSuccess(data.message || "Match confirmed successfully!")
-      // Trigger event for navigation to update pending count
+      // Trigger events for navigation and leaderboard refresh
       window.dispatchEvent(new Event('match:confirmed'))
+      // Dispatch leaderboard refresh event immediately so ratings update instantly
+      window.dispatchEvent(new CustomEvent('leaderboard:refresh', { detail: { immediate: true } }))
       setTimeout(() => {
         onConfirmed()
       }, 1500)
@@ -151,17 +154,17 @@ export function MatchConfirmationCard({ match, onConfirmed }: MatchConfirmationC
           </div>
           {match.played_at && (
             <div className="text-sm text-gray-400 mt-1">
-              Played: <span className="text-white">{new Date(match.played_at).toLocaleString()}</span>
+              Played: <span className="text-white">{parseDatabaseDate(match.played_at).toLocaleString()}</span>
             </div>
           )}
         </div>
 
         {!showDisputeForm ? (
-          <div className="flex gap-3">
+          <div className="flex gap-3 md:gap-3">
             <Button
               onClick={handleConfirm}
               disabled={loading}
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+              className="flex-1 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white"
             >
               {loading ? "Processing..." : "Confirm Match"}
             </Button>
@@ -169,7 +172,7 @@ export function MatchConfirmationCard({ match, onConfirmed }: MatchConfirmationC
               onClick={() => setShowDisputeForm(true)}
               disabled={loading}
               variant="outline"
-              className="flex-1 border-red-600 text-red-400 hover:bg-red-900 hover:text-red-300"
+              className="flex-1 border-red-600 text-red-400 hover:bg-red-900 hover:text-red-300 active:bg-red-800"
             >
               Dispute Match
             </Button>
@@ -177,50 +180,78 @@ export function MatchConfirmationCard({ match, onConfirmed }: MatchConfirmationC
         ) : (
           <div className="space-y-4 bg-gray-800 p-4 rounded-lg border border-gray-700">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-base font-medium text-gray-300 mb-2">
                 Reason for Dispute *
               </label>
               <textarea
                 value={disputeReason}
                 onChange={(e) => setDisputeReason(e.target.value)}
+                inputMode="text"
+                enterKeyHint="next"
                 placeholder="Explain why you're disputing these scores..."
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.ctrlKey) {
+                    // Ctrl+Enter submits on desktop
+                    e.preventDefault()
+                    if (!loading && disputeReason.trim()) {
+                      handleDispute()
+                    }
+                  }
+                }}
+                className="w-full px-4 py-3 text-base bg-gray-900 border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 rows={3}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-base font-medium text-gray-300 mb-2">
                   Correct Score for {match.player1_name || "Player 1"} (Optional)
                 </label>
                 <input
                   type="number"
+                  inputMode="numeric"
+                  enterKeyHint="next"
                   min="0"
                   value={disputedScore1}
                   onChange={(e) => setDisputedScore1(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      const nextInput = e.currentTarget.parentElement?.parentElement?.querySelector<HTMLInputElement>('input[type="number"]:last-of-type')
+                      nextInput?.focus()
+                    }
+                  }}
+                  className="w-full px-4 py-3 text-base bg-gray-900 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder={match.player1_score.toString()}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-base font-medium text-gray-300 mb-2">
                   Correct Score for {match.player2_name || "Player 2"} (Optional)
                 </label>
                 <input
                   type="number"
+                  inputMode="numeric"
+                  enterKeyHint="done"
                   min="0"
                   value={disputedScore2}
                   onChange={(e) => setDisputedScore2(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !loading && disputeReason.trim()) {
+                      e.preventDefault()
+                      handleDispute()
+                    }
+                  }}
+                  className="w-full px-4 py-3 text-base bg-gray-900 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder={match.player2_score.toString()}
                 />
               </div>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-4 md:gap-3">
               <Button
                 onClick={handleDispute}
                 disabled={loading || !disputeReason.trim()}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                className="flex-1 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white"
               >
                 {loading ? "Processing..." : "Submit Dispute"}
               </Button>
@@ -233,7 +264,7 @@ export function MatchConfirmationCard({ match, onConfirmed }: MatchConfirmationC
                 }}
                 disabled={loading}
                 variant="outline"
-                className="flex-1"
+                className="flex-1 active:bg-gray-200"
               >
                 Cancel
               </Button>

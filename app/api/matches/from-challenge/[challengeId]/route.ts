@@ -134,7 +134,9 @@ export async function POST(
 
     // Create the match
     const matchId = crypto.randomUUID()
-    const matchStatus = status || 'completed'
+    // Matches should be created as 'pending_confirmation' to require opponent confirmation
+    // Only set to 'completed' if explicitly requested (e.g., admin override)
+    const matchStatus = status || 'pending_confirmation'
     
     // Determine winner_id before inserting
     const winnerId = player1Score > player2Score 
@@ -143,12 +145,13 @@ export async function POST(
       ? player2Id 
       : null
     
-    // Insert match with winner_id set
+    // Insert match with winner_id and reported_by set
+    // reported_by is the player who reported the match (current player)
     db.prepare(`
       INSERT INTO matches (
         id, challenge_id, player1_id, player2_id, league_id,
-        player1_score, player2_score, status, winner_id, confirmed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        player1_score, player2_score, status, winner_id, reported_by, confirmed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE NULL END)
     `).run(
       matchId,
       challengeId,
@@ -158,11 +161,13 @@ export async function POST(
       player1Score,
       player2Score,
       matchStatus,
-      winnerId
+      winnerId,
+      player.id, // Set reported_by to current player
+      matchStatus
     )
 
-    // Mark challenge as completed (trigger should also handle this, but explicit update ensures it)
-    if (matchStatus === 'completed') {
+    // Mark challenge as completed if match is completed and challenge exists
+    if (matchStatus === 'completed' && challengeId) {
       db.prepare(`
         UPDATE challenges
         SET status = 'completed'
@@ -171,7 +176,8 @@ export async function POST(
       // Note: Player stats are updated automatically by the update_player_stats_on_match_insert trigger
     }
 
-    // If status is 'completed', update Elo ratings
+    // ELO ratings should only be updated after match confirmation
+    // If status is explicitly 'completed' (e.g., admin override), update ELO immediately
     if (matchStatus === 'completed') {
       try {
         dbHelpers.updateEloRatings(matchId, elo)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "./auth"
+import { db } from "./db"
 import { rateLimit, apiRateLimit, strictRateLimit, loginRateLimit } from "./rate-limit"
 import { validateRequest, requestSchemas } from "./validation"
 import { sanitizeRequestBody } from "./sanitize"
@@ -60,8 +61,9 @@ export function createProtectedHandler(
       }
 
       // Check authentication
+      let session: any = null
       if (requireAuth) {
-        const session = await auth()
+        session = await auth()
         if (!session?.user) {
           return NextResponse.json(
             { error: "Unauthorized" },
@@ -71,21 +73,40 @@ export function createProtectedHandler(
 
         // Check admin requirement
         if (requireAdmin) {
-          const user = session.user as { is_admin?: boolean }
+          const user = session.user as { is_admin?: boolean; email?: string }
+          // Verify admin status from database for extra security
+          // This ensures admin status changes are immediately enforced
           if (!user.is_admin) {
             return NextResponse.json(
               { error: "Forbidden - Admin access required" },
               { status: 403 }
             )
           }
+          // Double-check against database (session should already be refreshed by JWT callback)
+          // This is a safety check in case session hasn't refreshed yet
+          if (user.email) {
+            try {
+              const dbUser = db.prepare('SELECT is_admin FROM users WHERE email = ?').get(user.email) as { is_admin?: boolean } | undefined
+              if (!dbUser?.is_admin) {
+                return NextResponse.json(
+                  { error: "Forbidden - Admin access required" },
+                  { status: 403 }
+                )
+              }
+            } catch (error) {
+              // If database check fails, trust session (fallback)
+              console.error('Error verifying admin status from database:', error)
+            }
+          }
         }
       }
 
-      // Attach validated data to request
+      // Attach validated data and session to request
       const enhancedRequest = {
         ...request,
         validatedData,
-      } as NextRequest & { validatedData?: any }
+        session,
+      } as NextRequest & { validatedData?: any; session?: any }
 
       // Call the handler
       return await handler(enhancedRequest, context)

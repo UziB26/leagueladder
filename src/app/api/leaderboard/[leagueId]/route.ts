@@ -29,7 +29,17 @@ export async function GET(
       LIMIT 100
     `).all(leagueId) as LeaderboardEntry[]
 
-    return NextResponse.json({ players })
+    // Return with no-cache headers to ensure fresh data
+    return NextResponse.json(
+      { players },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      }
+    )
   } catch (error: any) {
     console.error('Error fetching leaderboard:', error)
     return NextResponse.json(

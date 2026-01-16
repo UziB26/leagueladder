@@ -63,7 +63,7 @@ export async function GET(request: Request) {
       JOIN players p1 ON m.player1_id = p1.id
       JOIN players p2 ON m.player2_id = p2.id
       WHERE (m.player1_id = ? OR m.player2_id = ?)
-        AND m.status = 'completed'
+        AND (m.status = 'completed' OR m.status = 'pending_confirmation')
       ORDER BY m.played_at DESC
       LIMIT ?
     `).all(player.id, player.id, limit) as any[]

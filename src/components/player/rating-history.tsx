@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { formatDistanceToNow, format } from "date-fns"
+import { parseDatabaseDate } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface RatingHistoryEntry {
@@ -216,7 +217,7 @@ export function RatingHistory({ playerId, leagueId, limit = 50 }: RatingHistoryP
                 </div>
                 
                 <div className="text-xs text-gray-500 ml-4">
-                  {formatDistanceToNow(new Date(entry.created_at), { addSuffix: true })}
+                  {formatDistanceToNow(parseDatabaseDate(entry.created_at), { addSuffix: true })}
                 </div>
               </div>
             </div>

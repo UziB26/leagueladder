@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { LoadingState, Spinner } from "@/components/ui/loading-state"
 import { Challenge } from "@/types/database"
 import { formatDistanceToNow } from "date-fns"
+import { parseDatabaseDate } from "@/lib/utils"
 
 interface MatchReportFormProps {
   currentPlayerId: string
@@ -239,7 +240,7 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
                     {challenge.league_name || 'League'}
                   </div>
                   <span className="text-xs text-gray-500">
-                    {formatDistanceToNow(new Date(challenge.created_at), { addSuffix: true })}
+                    {formatDistanceToNow(parseDatabaseDate(challenge.created_at), { addSuffix: true })}
                   </span>
                 </div>
                 <div className="text-sm text-gray-600">
@@ -249,29 +250,46 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
 
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-base font-medium text-gray-700 mb-2">
                     {player1} Score
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    enterKeyHint="next"
                     min="0"
                     value={player1ScoreValue}
                     onChange={(e) => handleScoreChange(challenge.id, 'player1Score', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        const nextInput = e.currentTarget.parentElement?.parentElement?.querySelector<HTMLInputElement>('input[type="number"]:last-of-type')
+                        nextInput?.focus()
+                      }
+                    }}
+                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                     placeholder="0"
                     disabled={isSubmitting}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-base font-medium text-gray-700 mb-2">
                     {player2} Score
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    enterKeyHint="done"
                     min="0"
                     value={player2ScoreValue}
                     onChange={(e) => handleScoreChange(challenge.id, 'player2Score', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isSubmitting && player1ScoreValue && player2ScoreValue) {
+                        e.preventDefault()
+                        handleSubmit(challenge)
+                      }
+                    }}
+                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                     placeholder="0"
                     disabled={isSubmitting}
                   />

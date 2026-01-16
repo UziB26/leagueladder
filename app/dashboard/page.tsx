@@ -5,6 +5,7 @@ import { LoadingState } from "@/components/ui/loading-state"
 import { ErrorState, ErrorMessage } from "@/components/ui/error-state"
 import { SuccessMessage } from "@/components/ui/success-state"
 import { EmptyState } from "@/components/ui/empty-state"
+import { ProgressIndicators } from "@/components/dashboard/progress-indicators"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
@@ -175,6 +176,11 @@ export default function DashboardPage() {
             />
           </div>
         )}
+
+        {/* Progress Indicators */}
+        <div className="mb-12">
+          <ProgressIndicators />
+        </div>
         
         {leagues.length === 0 ? (
           <EmptyState

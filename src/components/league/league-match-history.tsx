@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { formatDistanceToNow, format } from "date-fns"
+import { parseDatabaseDate } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface MatchWithRatings {
@@ -187,7 +188,7 @@ export function LeagueMatchHistory({ leagueId, leagueName, limit = 50 }: LeagueM
                         {isDraw ? 'DRAW' : player1Won ? `${match.player1_name} WINS` : `${match.player2_name} WINS`}
                       </span>
                       <span className="text-xs text-gray-500">
-                        {formatDistanceToNow(new Date(match.played_at), { addSuffix: true })}
+                        {formatDistanceToNow(parseDatabaseDate(match.played_at), { addSuffix: true })}
                       </span>
                     </div>
 
@@ -244,7 +245,7 @@ export function LeagueMatchHistory({ leagueId, leagueName, limit = 50 }: LeagueM
                   </div>
 
                   <div className="text-xs text-gray-500 ml-4">
-                    {format(new Date(match.played_at), 'MMM d, yyyy')}
+                    {format(parseDatabaseDate(match.played_at), 'MMM d, yyyy')}
                   </div>
                 </div>
               </div>

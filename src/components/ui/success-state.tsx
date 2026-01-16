@@ -82,6 +82,7 @@ export function SuccessMessage({ message, onDismiss, className }: SuccessMessage
     <div
       className={cn(
         "bg-green-900 border border-green-700 text-green-100 px-4 py-3 rounded-lg flex items-center justify-between",
+        "animate-in slide-in-from-top-5 fade-in duration-300",
         className
       )}
       role="alert"
@@ -105,7 +106,7 @@ export function SuccessMessage({ message, onDismiss, className }: SuccessMessage
       {onDismiss && (
         <button
           onClick={onDismiss}
-          className="ml-4 text-green-400 hover:text-green-300"
+          className="ml-4 text-green-400 hover:text-green-300 hover:scale-110 active:scale-95 transition-transform duration-200"
           aria-label="Dismiss success message"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

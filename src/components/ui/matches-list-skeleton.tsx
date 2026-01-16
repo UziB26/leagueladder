@@ -1,0 +1,106 @@
+import { Skeleton, SkeletonAvatar, SkeletonText } from "./skeleton"
+
+export function MatchesListSkeleton() {
+  return (
+    <div className="space-y-4">
+      {/* Filter/Search Bar Skeleton */}
+      <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          <Skeleton variant="rectangular" height={44} className="flex-1" />
+          <Skeleton variant="rectangular" height={44} className="w-full md:w-32" />
+        </div>
+      </div>
+
+      {/* Matches List */}
+      <div className="space-y-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div
+            key={i}
+            className="bg-gray-900 rounded-lg border border-gray-700 p-4 md:p-6"
+          >
+            {/* Match Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Skeleton variant="circular" width={32} height={32} />
+                <Skeleton variant="text" className="h-5 w-32" />
+              </div>
+              <Skeleton variant="text" className="h-4 w-20" />
+            </div>
+
+            {/* Players */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              {/* Player 1 */}
+              <div className="flex items-center gap-3">
+                <SkeletonAvatar size={48} />
+                <div className="flex-1 space-y-2">
+                  <Skeleton variant="text" className="h-5 w-24" />
+                  <Skeleton variant="text" className="h-4 w-16" />
+                </div>
+              </div>
+
+              {/* Score */}
+              <div className="flex items-center justify-center gap-2">
+                <Skeleton variant="text" className="h-8 w-12" />
+                <Skeleton variant="text" className="h-4 w-4" />
+                <Skeleton variant="text" className="h-8 w-12" />
+              </div>
+
+              {/* Player 2 */}
+              <div className="flex items-center gap-3 md:justify-end">
+                <div className="flex-1 space-y-2 text-right md:order-2">
+                  <Skeleton variant="text" className="h-5 w-24 ml-auto" />
+                  <Skeleton variant="text" className="h-4 w-16 ml-auto" />
+                </div>
+                <SkeletonAvatar size={48} className="md:order-1" />
+              </div>
+            </div>
+
+            {/* Match Details */}
+            <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-gray-800">
+              <Skeleton variant="text" className="h-4 w-24" />
+              <Skeleton variant="text" className="h-4 w-32" />
+              <Skeleton variant="text" className="h-4 w-20" />
+            </div>
+
+            {/* Actions (for pending matches) */}
+            {i < 3 && (
+              <div className="flex gap-3 mt-4">
+                <Skeleton variant="rectangular" height={44} className="flex-1" />
+                <Skeleton variant="rectangular" height={44} className="flex-1" />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Compact version for smaller spaces
+export function MatchesListSkeletonCompact() {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div
+          key={i}
+          className="bg-gray-900 rounded-lg border border-gray-700 p-4"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 flex-1">
+              <SkeletonAvatar size={40} />
+              <div className="flex-1 space-y-2">
+                <Skeleton variant="text" className="h-4 w-40" />
+                <Skeleton variant="text" className="h-3 w-24" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton variant="text" className="h-5 w-12" />
+              <Skeleton variant="text" className="h-4 w-4" />
+              <Skeleton variant="text" className="h-5 w-12" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}

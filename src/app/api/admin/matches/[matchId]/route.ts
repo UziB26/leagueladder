@@ -1,24 +1,19 @@
-import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { NextResponse, NextRequest } from "next/server"
+import { apiHandlers } from "@/lib/api-helpers"
 import { db } from "@/lib/db"
+import crypto from "crypto"
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ matchId: string }> }
-) {
+export const DELETE = apiHandlers.admin(async (
+  request: NextRequest & { session?: any },
+  context?: { params?: Promise<{ matchId: string }> }
+) => {
   try {
-    const session = await auth()
-
-    if (!session?.user) {
+    const { matchId } = await (context?.params || Promise.resolve({ matchId: '' }))
+    const user = request.session?.user as { id?: string }
+    
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-
-    const user = session.user as { id?: string; is_admin?: boolean }
-    if (!user.is_admin) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
-
-    const { matchId } = await params
 
     // Delete match (cascade will handle related records)
     db.prepare('DELETE FROM matches WHERE id = ?').run(matchId)
@@ -44,4 +39,4 @@ export async function DELETE(
       { status: 500 }
     )
   }
-}
+})

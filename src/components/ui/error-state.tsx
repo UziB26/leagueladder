@@ -59,12 +59,12 @@ export function ErrorState({
       <p className="text-gray-400 mb-6 max-w-sm mx-auto">
         {errorMessage}
       </p>
-      <div className="flex gap-3 justify-center">
+      <div className="flex gap-4 md:gap-3 justify-center">
         {onRetry && (
           <Button
             onClick={onRetry}
             variant="outline"
-            className="text-white border-white hover:bg-white hover:text-black"
+            className="text-white border-white hover:bg-white hover:text-black active:bg-gray-200"
           >
             Try Again
           </Button>
@@ -105,6 +105,7 @@ export function ErrorMessage({ message, onDismiss, className }: ErrorMessageProp
     <div
       className={cn(
         "bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded-lg flex items-center justify-between",
+        "animate-in slide-in-from-top-5 fade-in duration-300",
         className
       )}
       role="alert"
@@ -128,7 +129,7 @@ export function ErrorMessage({ message, onDismiss, className }: ErrorMessageProp
       {onDismiss && (
         <button
           onClick={onDismiss}
-          className="ml-4 text-red-400 hover:text-red-300"
+          className="ml-4 text-red-400 hover:text-red-300 hover:scale-110 active:scale-95 transition-transform duration-200"
           aria-label="Dismiss error"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

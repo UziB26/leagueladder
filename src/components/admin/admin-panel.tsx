@@ -6,6 +6,7 @@ import { ConfirmationDialog, useConfirmationDialog } from "@/components/ui/confi
 import { ErrorMessage } from "@/components/ui/error-state"
 import { SuccessMessage } from "@/components/ui/success-state"
 import { LoadingState } from "@/components/ui/loading-state"
+import { parseDatabaseDate } from "@/lib/utils"
 
 interface User {
   id: string
@@ -495,7 +496,7 @@ export function AdminPanel() {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                          {new Date(user.created_at).toLocaleDateString()}
+                          {parseDatabaseDate(user.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                           <Button
@@ -545,7 +546,7 @@ export function AdminPanel() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{player.league_count}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{player.match_count}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                          {new Date(player.created_at).toLocaleDateString()}
+                          {parseDatabaseDate(player.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <Button
@@ -584,7 +585,7 @@ export function AdminPanel() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{league.game_type}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{league.member_count}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                          {new Date(league.created_at).toLocaleDateString()}
+                          {parseDatabaseDate(league.created_at).toLocaleDateString()}
                         </td>
                       </tr>
                     ))}
@@ -638,8 +639,8 @@ export function AdminPanel() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
                           {match.played_at 
-                            ? new Date(match.played_at).toLocaleDateString()
-                            : new Date(match.created_at).toLocaleDateString()}
+                            ? parseDatabaseDate(match.played_at).toLocaleDateString()
+                            : parseDatabaseDate(match.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                           {match.status === 'completed' && (

@@ -4,6 +4,7 @@ import { Player } from "@/types/database"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { PlayerMatchHistory } from "./player-match-history"
 import { RatingHistory } from "./rating-history"
+import { parseDatabaseDate } from "@/lib/utils"
 
 interface PlayerProfileProps {
   player: Player
@@ -37,7 +38,7 @@ export function PlayerProfile({ player, ratings, matches }: PlayerProfileProps) 
             <h1 className="text-3xl font-bold text-gray-900">{player.name}</h1>
             <p className="text-gray-600">{player.email}</p>
             <p className="text-gray-500 text-sm mt-1">
-              Member since {new Date(player.created_at).toLocaleDateString()}
+              Member since {parseDatabaseDate(player.created_at).toLocaleDateString()}
             </p>
           </div>
         </div>
@@ -143,7 +144,7 @@ export function PlayerProfile({ player, ratings, matches }: PlayerProfileProps) 
                       {match.player1_name} {match.player1_score} - {match.player2_score} {match.player2_name}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {new Date(match.played_at).toLocaleDateString()}
+                      {parseDatabaseDate(match.played_at).toLocaleDateString()}
                     </div>
                   </div>
                 ))}

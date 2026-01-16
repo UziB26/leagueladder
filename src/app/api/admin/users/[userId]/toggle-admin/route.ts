@@ -1,25 +1,20 @@
-import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { NextResponse, NextRequest } from "next/server"
+import { apiHandlers } from "@/lib/api-helpers"
 import { db } from "@/lib/db"
+import crypto from "crypto"
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ userId: string }> }
-) {
+export const POST = apiHandlers.admin(async (
+  request: NextRequest & { session?: any; validatedData?: any },
+  context?: { params?: Promise<{ userId: string }> }
+) => {
   try {
-    const session = await auth()
+    const { userId } = await (context?.params || Promise.resolve({ userId: '' }))
+    const { is_admin } = request.validatedData || await request.json()
+    const user = request.session?.user as { id?: string }
 
-    if (!session?.user) {
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-
-    const user = session.user as { id?: string; is_admin?: boolean }
-    if (!user.is_admin) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
-
-    const { userId } = await params
-    const { is_admin } = await request.json()
 
     // Prevent revoking your own admin status
     if (userId === user.id && !is_admin) {
@@ -53,4 +48,4 @@ export async function POST(
       { status: 500 }
     )
   }
-}
+})

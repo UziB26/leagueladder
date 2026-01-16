@@ -1,19 +1,9 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { apiHandlers } from "@/lib/api-helpers"
 import { db } from "@/lib/db"
 
-export async function GET() {
+export const GET = apiHandlers.admin(async (request) => {
   try {
-    const session = await auth()
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const user = session.user as { id?: string; is_admin?: boolean }
-    if (!user.is_admin) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
 
     // Basic counts
     const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }
@@ -143,4 +133,4 @@ export async function GET() {
       { status: 500 }
     )
   }
-}
+})

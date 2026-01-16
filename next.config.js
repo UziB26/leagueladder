@@ -11,6 +11,37 @@ const nextConfig = {
         allowedOrigins: ['localhost:3000'],
       },
     },
+    // PWA Configuration
+    async headers() {
+      return [
+        {
+          source: '/sw.js',
+          headers: [
+            {
+              key: 'Cache-Control',
+              value: 'public, max-age=0, must-revalidate',
+            },
+            {
+              key: 'Service-Worker-Allowed',
+              value: '/',
+            },
+          ],
+        },
+        {
+          source: '/manifest.json',
+          headers: [
+            {
+              key: 'Cache-Control',
+              value: 'public, max-age=31536000, immutable',
+            },
+          ],
+        },
+      ]
+    },
+    // Ensure service worker and manifest are accessible
+    async rewrites() {
+      return []
+    },
   }
   
   module.exports = nextConfig

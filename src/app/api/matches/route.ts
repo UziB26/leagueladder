@@ -87,6 +87,39 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Prevent self-match (player cannot play against themselves)
+    if (sanitizedPlayer1Id === sanitizedPlayer2Id) {
+      return NextResponse.json(
+        { error: 'Cannot report a match where both players are the same' },
+        { status: 400 }
+      )
+    }
+
+    // Validate score format: must be non-negative integers
+    if (sanitizedPlayer1Score < 0 || sanitizedPlayer2Score < 0) {
+      return NextResponse.json(
+        { error: 'Scores must be non-negative integers' },
+        { status: 400 }
+      )
+    }
+
+    // Validate reasonable score limits
+    const MAX_REASONABLE_SCORE = 1000
+    if (sanitizedPlayer1Score > MAX_REASONABLE_SCORE || sanitizedPlayer2Score > MAX_REASONABLE_SCORE) {
+      return NextResponse.json(
+        { error: `Scores must be reasonable numbers (max ${MAX_REASONABLE_SCORE})` },
+        { status: 400 }
+      )
+    }
+
+    // Ensure at least one score is greater than 0 (can't both be 0)
+    if (sanitizedPlayer1Score === 0 && sanitizedPlayer2Score === 0) {
+      return NextResponse.json(
+        { error: 'At least one player must have a score greater than 0' },
+        { status: 400 }
+      )
+    }
+
     const session = await auth()
     
     if (!session?.user?.email) {
@@ -386,9 +419,35 @@ export async function GET(request: Request) {
       WHERE (m.player1_id = ? OR m.player2_id = ?)
       ORDER BY m.played_at DESC
       LIMIT ?
-    `).all(player.id, player.id, limit)
+    `).all(player.id, player.id, limit) as any[]
 
-    return NextResponse.json({ matches })
+    // Fetch rating updates for each match
+    const matchesWithRatings = matches.map((match) => {
+      // Get rating updates for both players
+      const ratingUpdate1 = db.prepare(`
+        SELECT old_rating, new_rating, change
+        FROM rating_updates
+        WHERE match_id = ? AND player_id = ?
+        LIMIT 1
+      `).get(match.id, match.player1_id) as any
+
+      const ratingUpdate2 = db.prepare(`
+        SELECT old_rating, new_rating, change
+        FROM rating_updates
+        WHERE match_id = ? AND player_id = ?
+        LIMIT 1
+      `).get(match.id, match.player2_id) as any
+
+      return {
+        ...match,
+        rating_updates: {
+          player1: ratingUpdate1 || null,
+          player2: ratingUpdate2 || null
+        }
+      }
+    })
+
+    return NextResponse.json({ matches: matchesWithRatings })
 
   } catch (error: any) {
     console.error('Error fetching matches:', error)
