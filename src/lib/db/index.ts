@@ -5,10 +5,13 @@ import { v4 as uuidv4 } from 'uuid'
 // Initialize database
 const dbPath = join(process.cwd(), 'league-ladder.db')
 
-// Lazy database initialization - only create when first accessed
-let _db: Database | null = null
+// Type alias for the Database instance
+type DatabaseInstance = InstanceType<typeof Database>
 
-function getDatabase(): Database {
+// Lazy database initialization - only create when first accessed
+let _db: DatabaseInstance | null = null
+
+function getDatabase(): DatabaseInstance {
   if (!_db) {
     try {
       _db = new Database(dbPath, { verbose: process.env.NODE_ENV === 'development' ? console.log : undefined })
@@ -30,16 +33,16 @@ function getDatabase(): Database {
 }
 
 // Export db as a proxy that lazily initializes
-export const db = new Proxy({} as Database, {
+export const db = new Proxy({} as DatabaseInstance, {
   get(_target, prop) {
     const dbInstance = getDatabase()
-    const value = dbInstance[prop as keyof Database]
+    const value = dbInstance[prop as keyof DatabaseInstance]
     if (typeof value === 'function') {
       return value.bind(dbInstance)
     }
     return value
   }
-}) as Database
+}) as DatabaseInstance
 
 // Initialize all tables
 export function initializeDatabase() {
