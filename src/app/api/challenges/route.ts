@@ -107,11 +107,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-      return NextResponse.json(
-        { error: 'Invalid challengee ID or league ID format' },
-        { status: 400 }
-      )
-    }
 
     const session = await auth()
     
