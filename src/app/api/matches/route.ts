@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
       leagueId: sanitizedLeagueId,
       player1Score: sanitizedPlayer1Score,
       player2Score: sanitizedPlayer2Score,
-      challengeId: challengeId ? sanitizeUUID(challengeId) : undefined,
+      challengeId: challengeId ? (sanitizeUUID(challengeId) ?? undefined) : undefined,
       status: status || 'completed',
     })
 
