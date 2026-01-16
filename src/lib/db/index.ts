@@ -52,14 +52,13 @@ export const db = new Proxy({} as DatabaseInstance, {
 
 // Initialize all tables
 export function initializeDatabase() {
-    if (!_db) {
-      throw new Error('Database must be initialized before calling initializeDatabase()')
-    }
+    // Ensure database is initialized
+    const db = getDatabase()
     // Enable foreign keys
-    _db.pragma('foreign_keys = ON')
+    db.pragma('foreign_keys = ON')
   
     // Users table (for NextAuth)
-    _db.exec(`
+    db.exec(`
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         name TEXT,
@@ -74,7 +73,7 @@ export function initializeDatabase() {
     
     // Add is_admin column if it doesn't exist (for existing databases)
     try {
-      _db.exec(`ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE`)
+      db.exec(`ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE`)
     } catch (e) {
       // Column already exists, ignore
     }
@@ -271,7 +270,7 @@ export function initializeDatabase() {
     ]
     
     leagues.forEach(league => {
-      _db.prepare(`
+      db.prepare(`
         INSERT OR IGNORE INTO leagues (id, name, game_type) 
         VALUES (?, ?, ?)
       `).run(league.id, league.name, league.game_type)
