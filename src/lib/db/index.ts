@@ -4,18 +4,53 @@ import { v4 as uuidv4 } from 'uuid'
 
 // Initialize database
 const dbPath = join(process.cwd(), 'league-ladder.db')
-export const db = new Database(dbPath, { verbose: console.log })
 
-// Enable foreign keys
-db.pragma('foreign_keys = ON')
+// Lazy database initialization - only create when first accessed
+let _db: Database | null = null
+
+function getDatabase(): Database {
+  if (!_db) {
+    try {
+      _db = new Database(dbPath, { verbose: process.env.NODE_ENV === 'development' ? console.log : undefined })
+      _db.pragma('foreign_keys = ON')
+      // Initialize tables on first access
+      initializeDatabase()
+    } catch (error) {
+      // During build, database might not be accessible - this is okay
+      if (process.env.NEXT_PHASE === 'phase-production-build' || process.env.VERCEL === '1') {
+        console.warn('Database initialization skipped during build')
+        // Create a minimal database instance that won't be used
+        // This is just to prevent build errors
+      } else {
+        throw error
+      }
+    }
+  }
+  return _db
+}
+
+// Export db as a proxy that lazily initializes
+export const db = new Proxy({} as Database, {
+  get(_target, prop) {
+    const dbInstance = getDatabase()
+    const value = dbInstance[prop as keyof Database]
+    if (typeof value === 'function') {
+      return value.bind(dbInstance)
+    }
+    return value
+  }
+}) as Database
 
 // Initialize all tables
 export function initializeDatabase() {
+    if (!_db) {
+      throw new Error('Database must be initialized before calling initializeDatabase()')
+    }
     // Enable foreign keys
-    db.pragma('foreign_keys = ON')
+    _db.pragma('foreign_keys = ON')
   
     // Users table (for NextAuth)
-    db.exec(`
+    _db.exec(`
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         name TEXT,
@@ -30,7 +65,7 @@ export function initializeDatabase() {
     
     // Add is_admin column if it doesn't exist (for existing databases)
     try {
-      db.exec(`ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE`)
+      _db.exec(`ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE`)
     } catch (e) {
       // Column already exists, ignore
     }
@@ -227,7 +262,7 @@ export function initializeDatabase() {
     ]
     
     leagues.forEach(league => {
-      db.prepare(`
+      _db.prepare(`
         INSERT OR IGNORE INTO leagues (id, name, game_type) 
         VALUES (?, ?, ?)
       `).run(league.id, league.name, league.game_type)
@@ -436,8 +471,8 @@ export function initializeDatabase() {
     console.log('✅ Database initialized with all tables and triggers')
   }
 
-// Run initialization
-initializeDatabase()
+// Database initialization is now lazy - it happens on first access via getDatabase()
+// This prevents build-time errors on Vercel
 
 // Export transaction utilities
 export { DatabaseTransaction, createBackup, restoreBackup } from './transactions'
