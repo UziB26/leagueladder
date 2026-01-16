@@ -24,10 +24,16 @@ function getDatabase(): DatabaseInstance {
         console.warn('Database initialization skipped during build')
         // Create a minimal database instance that won't be used
         // This is just to prevent build errors
+        // For build time, create an in-memory database
+        _db = new Database(':memory:')
       } else {
         throw error
       }
     }
+  }
+  // At this point, _db is guaranteed to be non-null
+  if (!_db) {
+    throw new Error('Failed to initialize database')
   }
   return _db
 }
