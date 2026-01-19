@@ -141,6 +141,9 @@ export function CreateChallengeForm({ currentPlayerId, onSuccess }: CreateChalle
       setSelectedPlayer(null)
       setSelectedLeague(null)
       
+      // Trigger event to refresh achievements/stats
+      window.dispatchEvent(new CustomEvent('challenge:created'))
+      
       if (onSuccess) {
         onSuccess()
       }
@@ -162,28 +165,28 @@ export function CreateChallengeForm({ currentPlayerId, onSuccess }: CreateChalle
 
   const leagueOptions = leagues.map(league => ({
     value: league.id,
-    label: `${league.name} (${league.game_type})`
+    label: league.name
   }))
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
-      <h3 className="text-lg font-semibold mb-4 text-blue-600">Create New Challenge</h3>
+    <div className="bg-black border border-gray-700 p-6 rounded-lg shadow">
+      <h3 className="text-lg font-semibold mb-4 text-blue-400">Create New Challenge</h3>
       
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          <div className="bg-red-900/30 border border-red-700 text-red-300 px-4 py-3 rounded">
             {error}
           </div>
         )}
         
         {success && (
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+          <div className="bg-green-900/30 border border-green-700 text-green-300 px-4 py-3 rounded">
             {success}
           </div>
         )}
 
         <div>
-          <label className="block text-base font-medium text-gray-700 mb-2">
+          <label className="block text-base font-medium text-white mb-2">
             Select League
           </label>
           <Select
@@ -201,7 +204,7 @@ export function CreateChallengeForm({ currentPlayerId, onSuccess }: CreateChalle
         </div>
 
         <div>
-          <label className="block text-base font-medium text-gray-700 mb-2">
+          <label className="block text-base font-medium text-white mb-2">
             Challenge Player
           </label>
           <Select
@@ -213,19 +216,19 @@ export function CreateChallengeForm({ currentPlayerId, onSuccess }: CreateChalle
             className="react-select-container"
             classNamePrefix="react-select"
           />
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-400 mt-1">
             {selectedLeague 
               ? `Players in ${selectedLeague.label}`
               : 'Select a league to see players in that league, or see all players'}
           </p>
           {players.length === 0 && (
-            <p className="text-sm text-red-500 mt-1">
+            <p className="text-sm text-red-400 mt-1">
               No players available. Make sure you've joined a league.
             </p>
           )}
         </div>
 
-        <div className="pt-4 border-t">
+        <div className="pt-4 border-t border-gray-700">
           <Button
             type="submit"
             className="w-full"

@@ -67,7 +67,7 @@ export function Navigation() {
     { href: '/leaderboard', label: 'Leaderboard' },
     { href: '/leagues', label: 'Leagues' },
     { href: '/challenges', label: 'Challenges' },
-    { href: '/matches', label: 'Matches', badge: pendingMatchesCount },
+    { href: '/matches', label: 'Matches', badge: pendingMatchesCount > 0 ? pendingMatchesCount : undefined },
   ]
 
   if (session?.user && (session.user as { is_admin?: boolean }).is_admin) {
@@ -75,36 +75,44 @@ export function Navigation() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 safe-area-top">
+    <nav className="sticky top-0 z-50 w-full border-b border-gray-700 bg-black/95 backdrop-blur supports-[backdrop-filter]:bg-black/60 safe-area-top">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2 min-h-[44px] min-w-[44px] items-center justify-center">
-            <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
-              <span className="text-white font-bold">🏓</span>
+            <div className="h-8 w-8 flex items-center justify-center">
+              <img 
+                src="/app logo.png" 
+                alt="League Ladder Logo" 
+                className="h-8 w-8 object-contain"
+              />
             </div>
-            <span className="text-xl font-bold text-gray-900 hidden sm:inline">League Ladder</span>
+            <span className="text-xl font-bold text-white hidden sm:inline">League Ladder</span>
           </Link>
           
           {/* Desktop Navigation - Hidden on mobile */}
           <div className="hidden md:flex items-center gap-6">
-            {navLinks.map((link) => (
-              <Link 
-                key={link.href}
-                href={link.href} 
-                className={`text-sm font-medium transition-colors min-h-[44px] flex items-center px-2 ${
-                  isActive(link.href) 
-                    ? 'text-blue-600' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {link.label}
-                {link.badge && link.badge > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white min-w-[1.25rem] h-5">
-                    {link.badge > 9 ? '9+' : link.badge}
-                  </span>
-                )}
-              </Link>
-            ))}
+            {navLinks.map((link) => {
+              const badgeCount = typeof link.badge === 'number' ? link.badge : 0
+
+              return (
+                <Link 
+                  key={link.href}
+                  href={link.href} 
+                  className={`text-sm font-medium transition-colors min-h-[44px] flex items-center px-2 ${
+                    isActive(link.href) 
+                      ? 'text-blue-500' 
+                      : 'text-gray-300 hover:text-white'
+                  }`}
+                >
+                  {link.label}
+                  {badgeCount > 0 && (
+                    <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white min-w-[1.25rem] h-5">
+                      {badgeCount > 9 ? '9+' : badgeCount}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
           </div>
         </div>
         
@@ -112,7 +120,7 @@ export function Navigation() {
           {/* Mobile Hamburger Button - Visible on mobile, hidden on desktop */}
           <button
             onClick={toggleMobileMenu}
-            className="md:hidden min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md"
+            className="md:hidden min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-300 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md"
             aria-label="Toggle menu"
             aria-expanded={mobileMenuOpen}
           >
@@ -133,29 +141,33 @@ export function Navigation() {
       
       {/* Mobile Menu - Visible when mobileMenuOpen is true */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t bg-white">
+        <div className="md:hidden border-t border-gray-700 bg-black/95 backdrop-blur supports-[backdrop-filter]:bg-black/60">
           <div className="container mx-auto px-4 py-2">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`block min-h-[44px] flex items-center px-4 py-3 text-base font-medium transition-colors rounded-md ${
-                  isActive(link.href)
-                    ? 'text-blue-600 bg-blue-50'
-                    : 'text-gray-700 hover:bg-gray-50 active:bg-gray-100'
-                }`}
-              >
-                <span className="flex items-center">
-                  {link.label}
-                  {link.badge && link.badge > 0 && (
-                    <span className="ml-2 inline-flex items-center justify-center rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white min-w-[1.5rem] h-6">
-                      {link.badge > 9 ? '9+' : link.badge}
-                    </span>
-                  )}
-                </span>
-              </Link>
-            ))}
+            {navLinks.map((link) => {
+              const badgeCount = typeof link.badge === 'number' ? link.badge : 0
+
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`block min-h-[44px] flex items-center px-4 py-3 text-base font-medium transition-colors rounded-md ${
+                    isActive(link.href)
+                      ? 'text-blue-500 bg-blue-900/30'
+                      : 'text-gray-300 hover:bg-gray-800 active:bg-gray-700'
+                  }`}
+                >
+                  <span className="flex items-center">
+                    {link.label}
+                    {badgeCount > 0 && (
+                      <span className="ml-2 inline-flex items-center justify-center rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white min-w-[1.5rem] h-6">
+                        {badgeCount > 9 ? '9+' : badgeCount}
+                      </span>
+                    )}
+                  </span>
+                </Link>
+              )
+            })}
           </div>
         </div>
       )}

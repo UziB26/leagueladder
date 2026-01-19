@@ -69,18 +69,18 @@ export function PlayerMatchHistory({ playerId, limit = 50 }: PlayerMatchHistoryP
 
   if (loading) {
     return (
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Match History</h2>
-        <div className="text-center py-12 text-gray-500">Loading match history...</div>
+      <div className="bg-black shadow rounded-lg p-6">
+        <h2 className="text-2xl font-bold text-white mb-4">Match History</h2>
+        <div className="text-center py-12 text-gray-400">Loading match history...</div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Match History</h2>
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+      <div className="bg-black shadow rounded-lg p-6">
+        <h2 className="text-2xl font-bold text-white mb-4">Match History</h2>
+        <div className="bg-red-900/30 border border-red-700 text-red-300 px-4 py-3 rounded">
           {error}
         </div>
       </div>
@@ -89,9 +89,9 @@ export function PlayerMatchHistory({ playerId, limit = 50 }: PlayerMatchHistoryP
 
   if (matches.length === 0) {
     return (
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Match History</h2>
-        <div className="text-center py-12 text-gray-500">
+      <div className="bg-black shadow rounded-lg p-6">
+        <h2 className="text-2xl font-bold text-white mb-4">Match History</h2>
+        <div className="text-center py-12 text-gray-400">
           <p>No matches played yet.</p>
           <p className="text-sm mt-2">Start challenging players to see your match history here!</p>
         </div>
@@ -100,10 +100,10 @@ export function PlayerMatchHistory({ playerId, limit = 50 }: PlayerMatchHistoryP
   }
 
   return (
-    <div className="bg-white shadow rounded-lg p-6">
+    <div className="bg-black shadow rounded-lg p-6">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Match History</h2>
-        <span className="text-sm text-gray-500">
+        <h2 className="text-2xl font-bold text-white">Match History</h2>
+        <span className="text-sm text-gray-400">
           {matches.length} {matches.length === 1 ? 'match' : 'matches'}
         </span>
       </div>
@@ -142,10 +142,10 @@ export function PlayerMatchHistory({ playerId, limit = 50 }: PlayerMatchHistoryP
               key={match.id}
               className={`border rounded-lg p-4 transition-colors ${
                 isWinner 
-                  ? 'bg-green-50 border-green-200' 
+                  ? 'bg-green-900/30 border-green-700' 
                   : isDraw
-                  ? 'bg-gray-50 border-gray-200'
-                  : 'bg-red-50 border-red-200'
+                  ? 'bg-gray-800 border-gray-700'
+                  : 'bg-red-900/30 border-red-700'
               }`}
             >
               <div className="flex items-start justify-between">
@@ -153,49 +153,49 @@ export function PlayerMatchHistory({ playerId, limit = 50 }: PlayerMatchHistoryP
                   <div className="flex items-center gap-3 mb-2">
                     <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
                       isWinner 
-                        ? 'bg-green-200 text-green-800' 
+                        ? 'bg-green-800 text-green-300' 
                         : isDraw
-                        ? 'bg-gray-200 text-gray-800'
-                        : 'bg-red-200 text-red-800'
+                        ? 'bg-gray-700 text-gray-300'
+                        : 'bg-red-800 text-red-300'
                     }`}>
                       {isWinner ? 'WIN' : isDraw ? 'DRAW' : 'LOSS'}
                     </span>
-                    <span className="text-sm font-medium text-gray-700">
+                    <span className="text-sm font-medium text-gray-300">
                       {match.league_name}
                     </span>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-400">
                       {formatDistanceToNow(parseDatabaseDate(match.played_at), { addSuffix: true })}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2 mb-2">
-                    <span className={`font-semibold ${isPlayer1 ? 'text-blue-600' : 'text-gray-700'}`}>
+                    <span className={`font-semibold ${isPlayer1 ? 'text-blue-400' : 'text-gray-300'}`}>
                       {isPlayer1 ? 'You' : match.player1_name}
                     </span>
-                    <span className="text-lg font-bold text-gray-900">
+                    <span className="text-lg font-bold text-white">
                       {match.player1_score}
                     </span>
                     <span className="text-gray-500">-</span>
-                    <span className="text-lg font-bold text-gray-900">
+                    <span className="text-lg font-bold text-white">
                       {match.player2_score}
                     </span>
-                    <span className={`font-semibold ${!isPlayer1 ? 'text-blue-600' : 'text-gray-700'}`}>
+                    <span className={`font-semibold ${!isPlayer1 ? 'text-blue-400' : 'text-gray-300'}`}>
                       {!isPlayer1 ? 'You' : match.player2_name}
                     </span>
                   </div>
 
                   {ratingUpdate && (
                     <div className="flex items-center gap-2 text-sm">
-                      <span className="text-gray-600">Rating:</span>
-                      <span className="font-medium text-gray-700">
+                      <span className="text-gray-400">Rating:</span>
+                      <span className="font-medium text-gray-300">
                         {ratingUpdate.old_rating}
                       </span>
-                      <span className="text-gray-400">→</span>
-                      <span className="font-bold text-gray-900">
+                      <span className="text-gray-500">→</span>
+                      <span className="font-bold text-white">
                         {ratingUpdate.new_rating}
                       </span>
                       <span className={`font-semibold ${
-                        ratingUpdate.change >= 0 ? 'text-green-600' : 'text-red-600'
+                        ratingUpdate.change >= 0 ? 'text-green-400' : 'text-red-400'
                       }`}>
                         ({ratingUpdate.change >= 0 ? '+' : ''}{ratingUpdate.change})
                       </span>
@@ -203,7 +203,7 @@ export function PlayerMatchHistory({ playerId, limit = 50 }: PlayerMatchHistoryP
                   )}
                 </div>
 
-                <div className="text-xs text-gray-500 ml-4">
+                <div className="text-xs text-gray-400 ml-4">
                   {format(parseDatabaseDate(match.played_at), 'MMM d, yyyy')}
                 </div>
               </div>

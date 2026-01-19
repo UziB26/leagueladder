@@ -8,6 +8,7 @@ import { PWAInstaller } from "@/components/pwa/pwa-installer";
 import { PWAInitializer } from "@/components/pwa/pwa-initializer";
 import { ViewportManager } from "@/components/viewport/viewport-manager";
 import { ViewportMeta } from "@/components/viewport/viewport-meta";
+import { OnboardingWrapper } from "@/components/onboarding/onboarding-wrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -55,9 +56,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark" style={{ colorScheme: 'dark' }}>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white`}
       >
         <div className="min-h-screen">
           <ViewportMeta />
@@ -69,6 +70,7 @@ export default function RootLayout({
             </PageTransition>
             <PWAInstaller />
             <PWAInitializer />
+            <OnboardingWrapper />
           </AuthProvider>
         </div>
       </body>

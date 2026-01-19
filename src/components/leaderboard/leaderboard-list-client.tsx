@@ -148,8 +148,8 @@ export function LeaderboardListClient({ initialLeagueData }: LeaderboardListClie
           <div key={league.id}>
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">{league.name} Leaderboard</h2>
-                <p className="text-gray-600 text-sm">Top players by Elo rating</p>
+                <h2 className="text-xl font-bold text-white">{league.name} Leaderboard</h2>
+                <p className="text-white text-sm">Top players by Elo rating</p>
               </div>
               <button
                 onClick={() => refreshLeague(league.id)}
@@ -164,29 +164,29 @@ export function LeaderboardListClient({ initialLeagueData }: LeaderboardListClie
             {/* League Stats Summary */}
             <Card className="mt-4">
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg">{league.name} Stats</CardTitle>
-                <CardDescription>League overview</CardDescription>
+                <CardTitle className="text-lg text-white">{league.name} Stats</CardTitle>
+                <CardDescription className="text-gray-400">League overview</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900">{players.length}</div>
-                    <div className="text-sm text-gray-600">Players</div>
+                    <div className="text-2xl font-bold text-white">{players.length}</div>
+                    <div className="text-sm text-white">Players</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900">
+                    <div className="text-2xl font-bold text-white">
                       {leagueMatchesCount[league.id] ?? '...'}
                     </div>
-                    <div className="text-sm text-gray-600">Total Games</div>
+                    <div className="text-sm text-white">Total Games</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900">
+                    <div className="text-2xl font-bold text-white">
                       {players.length > 0 
                         ? Math.round(players.reduce((sum, p) => sum + p.rating, 0) / players.length)
                         : 0
                       }
                     </div>
-                    <div className="text-sm text-gray-600">Avg Rating</div>
+                    <div className="text-sm text-white">Avg Rating</div>
                   </div>
                 </div>
               </CardContent>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { MatchReportForm } from "@/components/match/match-report-form"
 import { MatchHistory } from "@/components/match/match-history"
+import { PendingConfirmations } from "@/components/match/pending-confirmations"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
@@ -12,7 +13,7 @@ export default function MatchesPage() {
   const router = useRouter()
   const [currentPlayerId, setCurrentPlayerId] = useState<string>("")
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState("history")
+  const [activeTab, setActiveTab] = useState("pending")
 
   useEffect(() => {
     if (!session) {
@@ -65,11 +66,16 @@ export default function MatchesPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="history" onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 mb-6">
+      <Tabs defaultValue="pending" onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-3 mb-6">
+          <TabsTrigger value="pending">Pending Confirmations</TabsTrigger>
           <TabsTrigger value="history">Match History</TabsTrigger>
           <TabsTrigger value="report">Report Match</TabsTrigger>
         </TabsList>
+        
+        <TabsContent value="pending" className="mt-4">
+          <PendingConfirmations />
+        </TabsContent>
         
         <TabsContent value="history" className="mt-4">
           {currentPlayerId ? (

@@ -20,9 +20,9 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           // Desktop: Standard padding
           {
             "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg active:bg-blue-800": variant === 'default',
-            "bg-gray-100 text-gray-900 hover:bg-gray-200 hover:shadow-md active:bg-gray-300": variant === 'secondary',
-            "border border-gray-300 bg-transparent hover:bg-gray-100 hover:border-gray-400 hover:shadow-sm active:bg-gray-200 text-gray-900": variant === 'outline',
-            "hover:bg-gray-100 hover:shadow-sm active:bg-gray-200": variant === 'ghost',
+            "bg-gray-800 text-white hover:bg-gray-700 hover:shadow-md active:bg-gray-600 border border-gray-700": variant === 'secondary',
+            "border border-gray-600 bg-transparent hover:bg-gray-800 hover:border-gray-500 hover:shadow-sm active:bg-gray-700 text-white": variant === 'outline',
+            "hover:bg-gray-800 hover:shadow-sm active:bg-gray-700 text-white": variant === 'ghost',
           },
           {
             // Mobile: min-h-[44px] for touch targets, larger padding

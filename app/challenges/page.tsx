@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { ChallengeCard } from "@/components/challenge/challenge-card"
 import { CreateChallengeForm } from "@/components/challenge/create-challenge-form"
 import { Button } from "@/components/ui/button"
@@ -31,12 +31,6 @@ export default function ChallengesPage() {
     fetchCurrentPlayer()
   }, [session, router])
 
-  useEffect(() => {
-    if (currentPlayerId) {
-      fetchChallenges()
-    }
-  }, [currentPlayerId, activeTab])
-
   const fetchCurrentPlayer = async () => {
     try {
       const response = await fetch('/api/players/me')
@@ -47,7 +41,7 @@ export default function ChallengesPage() {
     }
   }
 
-  const fetchChallenges = async () => {
+  const fetchChallenges = useCallback(async () => {
     setLoading(true)
     setFetchError(null)
     try {
@@ -70,7 +64,29 @@ export default function ChallengesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [activeTab])
+
+  useEffect(() => {
+    if (currentPlayerId) {
+      fetchChallenges()
+    }
+  }, [currentPlayerId, fetchChallenges])
+
+  // Listen for match confirmation to refresh challenges
+  useEffect(() => {
+    const handleMatchConfirmed = () => {
+      // Refresh challenges when a match is confirmed (challenge status may have changed)
+      if (currentPlayerId) {
+        fetchChallenges()
+      }
+    }
+
+    window.addEventListener('match:confirmed', handleMatchConfirmed)
+    
+    return () => {
+      window.removeEventListener('match:confirmed', handleMatchConfirmed)
+    }
+  }, [currentPlayerId, fetchChallenges])
 
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
@@ -166,7 +182,7 @@ export default function ChallengesPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white">Challenges</h1>
+        <h1 className="text-3xl font-bold text-blue-500">Challenges</h1>
         <p className="text-gray-300 font-medium mt-2">Challenge other players and manage your match requests</p>
       </div>
 
@@ -197,20 +213,20 @@ export default function ChallengesPage() {
           />
           
           {/* Quick Stats */}
-          <div className="mt-6 bg-gray-50 p-4 rounded-lg">
-            <h4 className="font-medium text-gray-900 mb-3">Challenge Stats</h4>
+          <div className="mt-6 bg-black border border-gray-700 p-4 rounded-lg">
+            <h4 className="font-medium text-white mb-3">Challenge Stats</h4>
             <div className="grid grid-cols-2 gap-3">
-              <div className="text-center p-3 bg-white rounded">
-                <div className="text-2xl font-bold text-blue-600">
+              <div className="text-center p-3 bg-gray-900 rounded border border-gray-700">
+                <div className="text-2xl font-bold text-blue-400">
                   {challenges.filter(c => c.status === 'pending').length}
                 </div>
-                <div className="text-sm text-gray-600">Pending</div>
+                <div className="text-sm text-white">Pending</div>
               </div>
-              <div className="text-center p-3 bg-white rounded">
-                <div className="text-2xl font-bold text-green-600">
+              <div className="text-center p-3 bg-gray-900 rounded border border-gray-700">
+                <div className="text-2xl font-bold text-green-400">
                   {challenges.filter(c => c.status === 'accepted').length}
                 </div>
-                <div className="text-sm text-gray-600">Accepted</div>
+                <div className="text-sm text-white">Accepted</div>
               </div>
             </div>
           </div>

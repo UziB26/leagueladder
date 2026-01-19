@@ -166,15 +166,9 @@ export async function POST(
       matchStatus
     )
 
-    // Mark challenge as completed if match is completed and challenge exists
-    if (matchStatus === 'completed' && challengeId) {
-      db.prepare(`
-        UPDATE challenges
-        SET status = 'completed'
-        WHERE id = ? AND status = 'accepted'
-      `).run(challengeId)
-      // Note: Player stats are updated automatically by the update_player_stats_on_match_insert trigger
-    }
+    // Note: Challenge status will be updated to 'completed' when the match is confirmed
+    // We don't update it here because the match is created as 'pending_confirmation'
+    // The challenge will be marked as completed in the match confirmation endpoint
 
     // ELO ratings should only be updated after match confirmation
     // If status is explicitly 'completed' (e.g., admin override), update ELO immediately

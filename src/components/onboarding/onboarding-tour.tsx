@@ -24,6 +24,8 @@ export function OnboardingTour({
   onComplete,
   onSkip,
 }: OnboardingTourProps) {
+  console.log('[OnboardingTour] RENDER - Component function called', { stepsLength: steps.length, storageKey })
+  
   const [currentStep, setCurrentStep] = useState(0)
   const [isVisible, setIsVisible] = useState(false)
   const [targetElement, setTargetElement] = useState<HTMLElement | null>(null)
@@ -31,6 +33,8 @@ export function OnboardingTour({
   const [isMobile, setIsMobile] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
+  
+  console.log('[OnboardingTour] RENDER - State:', { currentStep, isVisible, stepsLength: steps.length })
 
   useEffect(() => {
     const checkMobile = () => {
@@ -42,13 +46,31 @@ export function OnboardingTour({
   }, [])
 
   useEffect(() => {
-    // Check if user has already completed the tour
-    const hasCompleted = localStorage.getItem(storageKey) === 'true'
-    if (!hasCompleted) {
-      setIsVisible(true)
-      updateTooltipPosition()
+    // Wrapper already checked completion, so if we're here, show the tour
+    if (typeof window === 'undefined') {
+      return
     }
-  }, [storageKey])
+    
+    console.log('[OnboardingTour] Component mounted, checking steps:', { stepsLength: steps.length, storageKey })
+    
+    if (steps.length === 0) {
+      console.log('[OnboardingTour] No steps available')
+      setIsVisible(false)
+      return
+    }
+    
+    // Show immediately - wrapper already checked completion
+    console.log('[OnboardingTour] ✅✅✅ Setting tour VISIBLE NOW!')
+    setIsVisible(true)
+    
+    // Small delay to ensure DOM is ready before positioning
+    const timer = setTimeout(() => {
+      console.log('[OnboardingTour] Updating tooltip position')
+      updateTooltipPosition()
+    }, 500)
+    
+    return () => clearTimeout(timer)
+  }, [storageKey, steps.length])
 
   useEffect(() => {
     if (isVisible && currentStep < steps.length) {
@@ -69,10 +91,28 @@ export function OnboardingTour({
     if (currentStep >= steps.length) return
 
     const step = steps[currentStep]
-    const element = document.querySelector(step.targetSelector) as HTMLElement
+    // Try multiple selector strategies to find the element
+    let element = document.querySelector(step.targetSelector) as HTMLElement
+    
+    // If not found, try finding by text content (for navigation links)
+    if (!element) {
+      const navLinks = document.querySelectorAll('nav a, a[href*="leaderboard"], a[href*="challenges"], a[href*="matches"]')
+      const stepId = step.id
+      navLinks.forEach((link) => {
+        const href = link.getAttribute('href') || ''
+        const text = link.textContent?.toLowerCase() || ''
+        if (
+          (stepId === 'leaderboard' && (href.includes('leaderboard') || text.includes('leaderboard'))) ||
+          (stepId === 'challenges' && (href.includes('challenges') || text.includes('challenges'))) ||
+          (stepId === 'matches' && (href.includes('matches') || text.includes('matches')))
+        ) {
+          element = link as HTMLElement
+        }
+      })
+    }
 
     if (!element) {
-      // If element not found, center the tooltip
+      // If element still not found, center the tooltip
       setTargetElement(null)
       setTooltipPosition({
         top: window.innerHeight / 2,
@@ -212,7 +252,7 @@ export function OnboardingTour({
       {/* Tooltip */}
       <div
         ref={tooltipRef}
-        className="fixed z-[9999] w-[90vw] max-w-sm md:max-w-md bg-white rounded-lg shadow-2xl p-6 transition-all"
+        className="fixed z-[9999] w-[90vw] max-w-sm md:max-w-md bg-black border border-gray-700 rounded-lg shadow-2xl p-6 transition-all"
         style={{
           top: `${tooltipPosition.top}px`,
           left: `${tooltipPosition.left}px`,
@@ -222,18 +262,18 @@ export function OnboardingTour({
         {/* Progress bar */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-gray-500">
+            <span className="text-xs font-medium text-gray-400">
               Step {currentStep + 1} of {steps.length}
             </span>
             <button
               onClick={handleSkip}
-              className="text-xs text-gray-500 hover:text-gray-700 font-medium min-h-[32px] min-w-[32px] flex items-center justify-center"
+              className="text-xs text-gray-400 hover:text-gray-300 font-medium min-h-[32px] min-w-[32px] flex items-center justify-center"
               aria-label="Skip tour"
             >
               Skip tour
             </button>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-gray-800 rounded-full h-2">
             <div
               className="bg-blue-600 h-2 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
@@ -243,10 +283,10 @@ export function OnboardingTour({
 
         {/* Content */}
         <div className="mb-6">
-          <h3 className="text-xl md:text-lg font-bold text-gray-900 mb-2">
+          <h3 className="text-xl md:text-lg font-bold text-white mb-2">
             {step.title}
           </h3>
-          <p className="text-base md:text-sm text-gray-600 leading-relaxed">
+          <p className="text-base md:text-sm text-gray-300 leading-relaxed">
             {step.description}
           </p>
         </div>
@@ -280,32 +320,43 @@ export const leagueLadderTourSteps: TourStep[] = [
     id: 'leaderboard',
     title: 'View the Leaderboard',
     description: 'See where you rank against other players. Your Elo rating determines your position on the leaderboard.',
-    targetSelector: 'a[href="/leaderboard"], nav a[href*="leaderboard"]',
+    targetSelector: 'nav a[href="/leaderboard"], a[href="/leaderboard"], nav a[href*="leaderboard"]',
     position: 'bottom',
   },
   {
     id: 'challenges',
     title: 'Challenge Players',
     description: 'Challenge other players in your league to matches. Once accepted, you can report match results.',
-    targetSelector: 'a[href="/challenges"], nav a[href*="challenges"]',
+    targetSelector: 'nav a[href="/challenges"], a[href="/challenges"], nav a[href*="challenges"]',
     position: 'bottom',
   },
   {
     id: 'matches',
     title: 'Report Matches',
     description: 'After playing a match, report the scores here. Your opponent will confirm, and ratings will update automatically.',
-    targetSelector: 'a[href="/matches"], nav a[href*="matches"]',
+    targetSelector: 'nav a[href="/matches"], a[href="/matches"], nav a[href*="matches"]',
     position: 'bottom',
   },
 ]
 
 // Hook to check if onboarding should be shown
 export function useOnboardingTour(storageKey: string = 'league-ladder-onboarding-completed') {
-  const [shouldShow, setShouldShow] = useState(false)
+  // Default to true (show tour) unless localStorage says it's completed
+  const [shouldShow, setShouldShow] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const hasCompleted = localStorage.getItem(storageKey) === 'true'
+      console.log('[useOnboardingTour] Initial check:', { storageKey, hasCompleted, shouldShow: !hasCompleted })
+      return !hasCompleted
+    }
+    return true // Default to showing tour on server
+  })
 
   useEffect(() => {
-    const hasCompleted = localStorage.getItem(storageKey) === 'true'
-    setShouldShow(!hasCompleted)
+    if (typeof window !== 'undefined') {
+      const hasCompleted = localStorage.getItem(storageKey) === 'true'
+      console.log('[useOnboardingTour] localStorage check:', { storageKey, hasCompleted, shouldShow: !hasCompleted })
+      setShouldShow(!hasCompleted)
+    }
   }, [storageKey])
 
   const markAsCompleted = () => {

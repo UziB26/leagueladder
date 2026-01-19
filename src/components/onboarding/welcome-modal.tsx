@@ -61,7 +61,7 @@ export function WelcomeModal({
         aria-labelledby="welcome-modal-title"
       >
         <div
-          className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto pointer-events-auto"
+          className="bg-black border border-gray-700 rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -94,20 +94,20 @@ export function WelcomeModal({
               {/* Step 1: Join Leagues */}
               <div className="flex gap-4 md:gap-6">
                 <div className="flex-shrink-0">
-                  <div className="w-12 h-12 md:w-14 md:h-14 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="text-2xl md:text-3xl font-bold text-blue-600">1</span>
+                  <div className="w-12 h-12 md:w-14 md:h-14 bg-blue-900 rounded-full flex items-center justify-center border border-blue-700">
+                    <span className="text-2xl md:text-3xl font-bold text-blue-400">1</span>
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xl md:text-lg font-bold text-gray-900 mb-2">
+                  <h3 className="text-xl md:text-lg font-bold text-white mb-2">
                     Join a League
                   </h3>
-                  <p className="text-base md:text-sm text-gray-600 mb-4 leading-relaxed">
+                  <p className="text-base md:text-sm text-gray-300 mb-4 leading-relaxed">
                     Start by joining either the <strong>Table Tennis</strong> or <strong>FIFA</strong> league (or both!). 
                     Each league has its own separate Elo rating system.
                   </p>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-sm text-blue-900 font-medium">
+                  <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-4">
+                    <p className="text-sm text-blue-300 font-medium">
                       💡 Tip: Go to the Dashboard to join leagues and see your current memberships.
                     </p>
                   </div>
@@ -117,20 +117,20 @@ export function WelcomeModal({
               {/* Step 2: Challenge Players */}
               <div className="flex gap-4 md:gap-6">
                 <div className="flex-shrink-0">
-                  <div className="w-12 h-12 md:w-14 md:h-14 bg-green-100 rounded-full flex items-center justify-center">
-                    <span className="text-2xl md:text-3xl font-bold text-green-600">2</span>
+                  <div className="w-12 h-12 md:w-14 md:h-14 bg-green-900 rounded-full flex items-center justify-center border border-green-700">
+                    <span className="text-2xl md:text-3xl font-bold text-green-400">2</span>
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xl md:text-lg font-bold text-gray-900 mb-2">
+                  <h3 className="text-xl md:text-lg font-bold text-white mb-2">
                     Challenge Players
                   </h3>
-                  <p className="text-base md:text-sm text-gray-600 mb-4 leading-relaxed">
+                  <p className="text-base md:text-sm text-gray-300 mb-4 leading-relaxed">
                     Once you're in a league, challenge other players to matches. They'll receive a notification 
                     and can accept or decline your challenge.
                   </p>
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <p className="text-sm text-green-900 font-medium">
+                  <div className="bg-green-900/30 border border-green-700 rounded-lg p-4">
+                    <p className="text-sm text-green-300 font-medium">
                       💡 Tip: Visit the Challenges page to create new challenges and manage incoming requests.
                     </p>
                   </div>
@@ -140,20 +140,20 @@ export function WelcomeModal({
               {/* Step 3: Report Matches */}
               <div className="flex gap-4 md:gap-6">
                 <div className="flex-shrink-0">
-                  <div className="w-12 h-12 md:w-14 md:h-14 bg-purple-100 rounded-full flex items-center justify-center">
-                    <span className="text-2xl md:text-3xl font-bold text-purple-600">3</span>
+                  <div className="w-12 h-12 md:w-14 md:h-14 bg-purple-900 rounded-full flex items-center justify-center border border-purple-700">
+                    <span className="text-2xl md:text-3xl font-bold text-purple-400">3</span>
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xl md:text-lg font-bold text-gray-900 mb-2">
+                  <h3 className="text-xl md:text-lg font-bold text-white mb-2">
                     Report Match Results
                   </h3>
-                  <p className="text-base md:text-sm text-gray-600 mb-4 leading-relaxed">
+                  <p className="text-base md:text-sm text-gray-300 mb-4 leading-relaxed">
                     After playing a match, report the scores. Your opponent will confirm the result, 
                     and your Elo ratings will update automatically!
                   </p>
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                    <p className="text-sm text-purple-900 font-medium">
+                  <div className="bg-purple-900/30 border border-purple-700 rounded-lg p-4">
+                    <p className="text-sm text-purple-300 font-medium">
                       💡 Tip: Check the Matches page to report results and view your match history.
                     </p>
                   </div>
@@ -161,28 +161,28 @@ export function WelcomeModal({
               </div>
 
               {/* Quick Links */}
-              <div className="pt-6 border-t border-gray-200">
-                <h4 className="text-lg font-semibold text-gray-900 mb-4">
+              <div className="pt-6 border-t border-gray-700">
+                <h4 className="text-lg font-semibold text-white mb-4">
                   Quick Links
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <a
                     href="/dashboard"
-                    className="flex items-center justify-center px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-700 font-medium text-base transition-colors active:bg-gray-200 min-h-[44px]"
+                    className="flex items-center justify-center px-4 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-white font-medium text-base transition-colors active:bg-gray-600 min-h-[44px] border border-gray-700"
                     onClick={handleClose}
                   >
                     Dashboard
                   </a>
                   <a
                     href="/challenges"
-                    className="flex items-center justify-center px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-700 font-medium text-base transition-colors active:bg-gray-200 min-h-[44px]"
+                    className="flex items-center justify-center px-4 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-white font-medium text-base transition-colors active:bg-gray-600 min-h-[44px] border border-gray-700"
                     onClick={handleClose}
                   >
                     Challenges
                   </a>
                   <a
                     href="/leaderboard"
-                    className="flex items-center justify-center px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-700 font-medium text-base transition-colors active:bg-gray-200 min-h-[44px]"
+                    className="flex items-center justify-center px-4 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-white font-medium text-base transition-colors active:bg-gray-600 min-h-[44px] border border-gray-700"
                     onClick={handleClose}
                   >
                     Leaderboard
@@ -193,7 +193,7 @@ export function WelcomeModal({
           </div>
 
           {/* Footer */}
-          <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6 rounded-b-lg">
+          <div className="sticky bottom-0 bg-gray-900 border-t border-gray-700 p-6 rounded-b-lg">
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-3">
               <Button
                 variant="outline"

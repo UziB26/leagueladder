@@ -1,6 +1,6 @@
 // Service Worker for League Ladder PWA
-const CACHE_NAME = 'league-ladder-v1'
-const RUNTIME_CACHE = 'league-ladder-runtime-v1'
+const CACHE_NAME = 'league-ladder-v2'
+const RUNTIME_CACHE = 'league-ladder-runtime-v2'
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
@@ -42,6 +42,10 @@ self.addEventListener('activate', (event) => {
           })
       )
     })
+    .then(() => {
+      // Clear all runtime caches to ensure fresh CSS/HTML
+      return caches.delete(RUNTIME_CACHE).catch(() => {})
+    })
     .then(() => self.clients.claim())
   )
 })
@@ -63,10 +67,27 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // Don't cache CSS files - always fetch fresh to get latest styles
+  if (event.request.url.includes('.css') || 
+      event.request.url.includes('_next/static/css') ||
+      event.request.url.includes('globals.css')) {
+    event.respondWith(fetch(event.request))
+    return
+  }
+
+  // Don't cache HTML/document pages - always fetch fresh to get latest UI
+  if (event.request.destination === 'document' || 
+      event.request.url.endsWith('.html') ||
+      event.request.url.endsWith('/') ||
+      !event.request.url.includes('.')) {
+    event.respondWith(fetch(event.request))
+    return
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((cachedResponse) => {
-        // Return cached version if available
+        // Return cached version if available (only for static assets like images, fonts)
         if (cachedResponse) {
           return cachedResponse
         }
@@ -79,14 +100,26 @@ self.addEventListener('fetch', (event) => {
               return response
             }
 
-            // Clone the response
-            const responseToCache = response.clone()
+            // Only cache static assets (images, fonts, etc.) - not CSS or HTML
+            const url = event.request.url
+            const shouldCache = url.includes('.png') || 
+                               url.includes('.jpg') || 
+                               url.includes('.jpeg') || 
+                               url.includes('.svg') || 
+                               url.includes('.woff') || 
+                               url.includes('.woff2') ||
+                               url.includes('_next/static/media')
 
-            // Cache the fetched response
-            caches.open(RUNTIME_CACHE)
-              .then((cache) => {
-                cache.put(event.request, responseToCache)
-              })
+            if (shouldCache) {
+              // Clone the response
+              const responseToCache = response.clone()
+
+              // Cache the fetched response
+              caches.open(RUNTIME_CACHE)
+                .then((cache) => {
+                  cache.put(event.request, responseToCache)
+                })
+            }
 
             return response
           })

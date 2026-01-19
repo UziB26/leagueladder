@@ -24,9 +24,11 @@ export function MatchConfirmationCard({ match, onConfirmed }: MatchConfirmationC
   const [disputedScore2, setDisputedScore2] = useState<string>("")
 
   // Get the name of the player who reported (the opponent from current player's perspective)
-  const reporterName = match.reported_by === match.player1_id
-    ? match.player1_name || "Opponent"
-    : match.player2_name || "Opponent"
+  // Use reporter_name from API if available, otherwise determine from player IDs
+  const reporterName = match.reporter_name || 
+    (match.reported_by === match.player1_id
+      ? match.player1_name || "Opponent"
+      : match.player2_name || "Opponent")
 
   const handleConfirm = async () => {
     setLoading(true)

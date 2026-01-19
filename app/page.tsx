@@ -43,7 +43,14 @@ export default function Home() {
     <main className="min-h-screen p-8">
       <div className="max-w-6xl mx-auto">
         <header className="mb-12">
-          <h1 className="text-4xl font-bold text-white">🏓 League Ladder</h1>
+          <h1 className="text-4xl font-bold text-white flex items-center gap-3">
+            <img 
+              src="/app logo.png" 
+              alt="League Ladder Logo" 
+              className="h-12 w-12 object-contain"
+            />
+            League Ladder
+          </h1>
           <p className="text-gray-300 mt-2">Table Tennis & FIFA leagues with Elo rankings</p>
         </header>
         

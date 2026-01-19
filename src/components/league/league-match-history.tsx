@@ -92,7 +92,7 @@ export function LeagueMatchHistory({ leagueId, leagueName, limit = 50 }: LeagueM
           <CardDescription>Recent matches played in this league</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-12 text-gray-500">Loading match history...</div>
+          <div className="text-center py-12 text-gray-400">Loading match history...</div>
         </CardContent>
       </Card>
     )
@@ -106,7 +106,7 @@ export function LeagueMatchHistory({ leagueId, leagueName, limit = 50 }: LeagueM
           <CardDescription>Recent matches played in this league</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          <div className="bg-red-900/30 border border-red-700 text-red-300 px-4 py-3 rounded">
             {error}
           </div>
         </CardContent>
@@ -122,7 +122,7 @@ export function LeagueMatchHistory({ leagueId, leagueName, limit = 50 }: LeagueM
           <CardDescription>Recent matches played in this league</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-gray-400">
             <p>No matches played in this league yet.</p>
             <p className="text-sm mt-2">Be the first to start playing!</p>
           </div>
@@ -139,7 +139,7 @@ export function LeagueMatchHistory({ leagueId, leagueName, limit = 50 }: LeagueM
             <CardTitle>{leagueName} Match History</CardTitle>
             <CardDescription>Recent matches played in this league</CardDescription>
           </div>
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-gray-400">
             {matches.length} {matches.length === 1 ? 'match' : 'matches'}
           </span>
         </div>
@@ -169,10 +169,10 @@ export function LeagueMatchHistory({ leagueId, leagueName, limit = 50 }: LeagueM
                 key={match.id}
                 className={`border rounded-lg p-4 transition-colors ${
                   isDraw
-                    ? 'bg-gray-50 border-gray-200'
+                    ? 'bg-gray-800 border-gray-700'
                     : player1Won
-                    ? 'bg-green-50 border-green-200'
-                    : 'bg-red-50 border-red-200'
+                    ? 'bg-green-900/30 border-green-700'
+                    : 'bg-red-900/30 border-red-700'
                 }`}
               >
                 <div className="flex items-start justify-between">
@@ -180,44 +180,44 @@ export function LeagueMatchHistory({ leagueId, leagueName, limit = 50 }: LeagueM
                     <div className="flex items-center gap-3 mb-2">
                       <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
                         isDraw
-                          ? 'bg-gray-200 text-gray-800'
+                          ? 'bg-gray-700 text-gray-300'
                           : player1Won
-                          ? 'bg-green-200 text-green-800'
-                          : 'bg-red-200 text-red-800'
+                          ? 'bg-green-800 text-green-300'
+                          : 'bg-red-800 text-red-300'
                       }`}>
                         {isDraw ? 'DRAW' : player1Won ? `${match.player1_name} WINS` : `${match.player2_name} WINS`}
                       </span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-400">
                         {formatDistanceToNow(parseDatabaseDate(match.played_at), { addSuffix: true })}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-3 mb-2">
-                      <span className="font-semibold text-gray-900">{match.player1_name}</span>
-                      <span className="text-lg font-bold text-gray-900">
+                      <span className="font-semibold text-white">{match.player1_name}</span>
+                      <span className="text-lg font-bold text-white">
                         {match.player1_score}
                       </span>
                       <span className="text-gray-500">-</span>
-                      <span className="text-lg font-bold text-gray-900">
+                      <span className="text-lg font-bold text-white">
                         {match.player2_score}
                       </span>
-                      <span className="font-semibold text-gray-900">{match.player2_name}</span>
+                      <span className="font-semibold text-white">{match.player2_name}</span>
                     </div>
 
                     {match.rating_updates && (
                       <div className="flex items-center gap-4 text-sm">
                         {match.rating_updates.player1 && (
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-600">{match.player1_name}:</span>
-                            <span className="font-medium text-gray-700">
+                            <span className="text-gray-400">{match.player1_name}:</span>
+                            <span className="font-medium text-gray-300">
                               {match.rating_updates.player1.old_rating}
                             </span>
-                            <span className="text-gray-400">→</span>
-                            <span className="font-bold text-gray-900">
+                            <span className="text-gray-500">→</span>
+                            <span className="font-bold text-white">
                               {match.rating_updates.player1.new_rating}
                             </span>
                             <span className={`font-semibold ${
-                              match.rating_updates.player1.change >= 0 ? 'text-green-600' : 'text-red-600'
+                              match.rating_updates.player1.change >= 0 ? 'text-green-400' : 'text-red-400'
                             }`}>
                               ({match.rating_updates.player1.change >= 0 ? '+' : ''}{match.rating_updates.player1.change})
                             </span>
@@ -225,16 +225,16 @@ export function LeagueMatchHistory({ leagueId, leagueName, limit = 50 }: LeagueM
                         )}
                         {match.rating_updates.player2 && (
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-600">{match.player2_name}:</span>
-                            <span className="font-medium text-gray-700">
+                            <span className="text-gray-400">{match.player2_name}:</span>
+                            <span className="font-medium text-gray-300">
                               {match.rating_updates.player2.old_rating}
                             </span>
-                            <span className="text-gray-400">→</span>
-                            <span className="font-bold text-gray-900">
+                            <span className="text-gray-500">→</span>
+                            <span className="font-bold text-white">
                               {match.rating_updates.player2.new_rating}
                             </span>
                             <span className={`font-semibold ${
-                              match.rating_updates.player2.change >= 0 ? 'text-green-600' : 'text-red-600'
+                              match.rating_updates.player2.change >= 0 ? 'text-green-400' : 'text-red-400'
                             }`}>
                               ({match.rating_updates.player2.change >= 0 ? '+' : ''}{match.rating_updates.player2.change})
                             </span>
@@ -244,7 +244,7 @@ export function LeagueMatchHistory({ leagueId, leagueName, limit = 50 }: LeagueM
                     )}
                   </div>
 
-                  <div className="text-xs text-gray-500 ml-4">
+                  <div className="text-xs text-gray-400 ml-4">
                     {format(parseDatabaseDate(match.played_at), 'MMM d, yyyy')}
                   </div>
                 </div>

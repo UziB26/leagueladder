@@ -36,6 +36,15 @@ const nextConfig = {
             },
           ],
         },
+        {
+          source: '/:path*.css',
+          headers: [
+            {
+              key: 'Cache-Control',
+              value: 'public, max-age=0, must-revalidate',
+            },
+          ],
+        },
       ]
     },
     // Ensure service worker and manifest are accessible

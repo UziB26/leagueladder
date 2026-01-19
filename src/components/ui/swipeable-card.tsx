@@ -64,7 +64,7 @@ export function SwipeableCard({
       <div
         ref={elementRef}
         className={cn(
-          "relative z-10 bg-white transition-transform duration-200 ease-out",
+          "relative z-10 bg-black border border-gray-700 transition-transform duration-200 ease-out",
           isSwiping && "select-none"
         )}
         style={{

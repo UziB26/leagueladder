@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get matches pending confirmation where this player is the opponent (not the reporter)
-    // Handle cases where reported_by might be NULL (for older matches)
+    // Only include matches where reported_by is set and is NOT the current player
     const matches = db.prepare(`
       SELECT 
         m.id,
@@ -68,7 +68,8 @@ export async function GET(request: NextRequest) {
       JOIN players p2 ON m.player2_id = p2.id
       LEFT JOIN players reporter ON m.reported_by = reporter.id
       WHERE m.status = 'pending_confirmation'
-        AND (m.reported_by IS NULL OR m.reported_by != ?)
+        AND m.reported_by IS NOT NULL
+        AND m.reported_by != ?
         AND (m.player1_id = ? OR m.player2_id = ?)
       ORDER BY m.played_at DESC
     `).all(player.id, player.id, player.id) as any[]

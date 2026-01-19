@@ -269,7 +269,7 @@ export function initializeDatabase() {
     // Seed initial leagues
     const leagues = [
       { id: 'tt_league', name: 'Table Tennis', game_type: 'table-tennis' },
-      { id: 'fifa_league', name: 'FIFA', game_type: 'fifa' }
+      { id: 'fifa_league', name: 'Fifa', game_type: 'fifa' }
     ]
     
     leagues.forEach(league => {

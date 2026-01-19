@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
+import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
 import { 
   Trophy, 
   Target, 
@@ -48,6 +48,8 @@ interface Achievement {
 
 export function ProgressIndicators() {
   const { data: session } = useSession()
+  const router = useRouter()
+  const pathname = usePathname()
   const [stats, setStats] = useState<UserStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [nextSteps, setNextSteps] = useState<NextStep[]>([])
@@ -56,6 +58,30 @@ export function ProgressIndicators() {
   useEffect(() => {
     if (session) {
       fetchUserStats()
+    }
+  }, [session])
+
+  // Listen for events that should trigger stats refresh
+  useEffect(() => {
+    if (!session) return
+
+    const handleStatsRefresh = () => {
+      fetchUserStats()
+    }
+
+    // Listen for various events that affect stats
+    window.addEventListener('league:joined', handleStatsRefresh)
+    window.addEventListener('challenge:created', handleStatsRefresh)
+    window.addEventListener('match:reported', handleStatsRefresh)
+    window.addEventListener('match:confirmed', handleStatsRefresh)
+    window.addEventListener('leaderboard:refresh', handleStatsRefresh)
+    
+    return () => {
+      window.removeEventListener('league:joined', handleStatsRefresh)
+      window.removeEventListener('challenge:created', handleStatsRefresh)
+      window.removeEventListener('match:reported', handleStatsRefresh)
+      window.removeEventListener('match:confirmed', handleStatsRefresh)
+      window.removeEventListener('leaderboard:refresh', handleStatsRefresh)
     }
   }, [session])
 
@@ -87,7 +113,7 @@ export function ProgressIndicators() {
         description: 'Get started by joining a Table Tennis or FIFA league',
         action: {
           label: 'Browse Leagues',
-          href: '/dashboard'
+          href: '/leagues'
         },
         completed: false
       })
@@ -98,7 +124,7 @@ export function ProgressIndicators() {
         description: 'Get started by joining a Table Tennis or FIFA league',
         action: {
           label: 'Browse Leagues',
-          href: '/dashboard'
+          href: '/leagues'
         },
         completed: true
       })
@@ -151,20 +177,6 @@ export function ProgressIndicators() {
           href: '/matches'
         },
         completed: true
-      })
-    }
-
-    // Step 4: Check leaderboard
-    if (stats.matchesPlayed > 0) {
-      steps.push({
-        id: 'view-leaderboard',
-        title: 'Check Your Ranking',
-        description: 'See where you stand on the leaderboard',
-        action: {
-          label: 'View Leaderboard',
-          href: '/leaderboard'
-        },
-        completed: false
       })
     }
 
@@ -324,14 +336,24 @@ export function ProgressIndicators() {
                   </h4>
                   <p className="text-sm text-gray-400 mb-3">{step.description}</p>
                   {!step.completed && (
-                    <Link href={step.action.href}>
-                      <Button
-                        size="sm"
-                        className="min-h-[44px] md:min-h-0"
-                      >
-                        {step.action.label}
-                      </Button>
-                    </Link>
+                    <Button
+                      size="sm"
+                      className="min-h-[44px] md:min-h-0"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (step.action.href) {
+                          // If already on the target page, force navigation
+                          if (pathname === step.action.href) {
+                            window.location.href = step.action.href
+                          } else {
+                            router.push(step.action.href)
+                          }
+                        }
+                      }}
+                    >
+                      {step.action.label}
+                    </Button>
                   )}
                 </div>
               </div>
@@ -400,6 +422,19 @@ export function ProgressIndicators() {
                     <p className="text-xs text-gray-500 mt-1">
                       {achievement.progress} / {achievement.maxProgress}
                     </p>
+                  </div>
+                )}
+                {!achievement.unlocked && achievement.id === 'first-league' && (
+                  <div className="mt-3">
+                    <Button
+                      size="sm"
+                      className="w-full min-h-[44px] md:min-h-0 text-xs"
+                      onClick={() => {
+                        router.push('/dashboard')
+                      }}
+                    >
+                      Join League
+                    </Button>
                   </div>
                 )}
               </div>

@@ -60,8 +60,8 @@ export function LeaderboardClient({ leagueId, leagueName, initialPlayers }: Lead
     <div>
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">{leagueName} Leaderboard</h2>
-          <p className="text-gray-600 text-sm">Top players by Elo rating</p>
+          <h2 className="text-2xl font-bold text-white">{leagueName} Leaderboard</h2>
+          <p className="text-white text-sm">Top players by Elo rating</p>
         </div>
         <button
           onClick={refreshLeaderboard}
@@ -83,24 +83,24 @@ export function LeaderboardClient({ leagueId, leagueName, initialPlayers }: Lead
           <h2 className="text-2xl font-bold text-blue-500 mb-6">Top 3 Players</h2>
           <div className="grid md:grid-cols-3 gap-6">
             {top3Players.map((player, index) => (
-              <div key={player.id} className="text-center p-6 bg-white rounded-lg shadow hover:shadow-lg transition-shadow">
+              <div key={player.id} className="text-center p-6 bg-black rounded-lg shadow hover:shadow-lg transition-shadow border border-gray-700">
                 <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${
-                  index === 0 ? 'bg-yellow-100 text-yellow-800' :
-                  index === 1 ? 'bg-gray-100 text-gray-800' :
-                  'bg-orange-100 text-orange-800'
+                  index === 0 ? 'bg-yellow-900 text-yellow-300' :
+                  index === 1 ? 'bg-gray-700 text-gray-300' :
+                  'bg-orange-900 text-orange-300'
                 }`}>
                   <span className="text-2xl font-bold">#{index + 1}</span>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900">{player.name}</h3>
-                <div className="text-3xl font-bold text-gray-900 my-2">{player.rating}</div>
-                <div className="text-sm text-gray-500">ELO Rating</div>
-                <div className="mt-4 text-sm text-gray-600">
+                <h3 className="text-xl font-bold text-white">{player.name}</h3>
+                <div className="text-3xl font-bold text-white my-2">{player.rating}</div>
+                <div className="text-sm text-gray-400">ELO Rating</div>
+                <div className="mt-4 text-sm text-gray-400">
                   {player.games_played} games • {player.wins}W {player.losses}L
                   {player.draws > 0 && ` • ${player.draws}D`}
                 </div>
                 <Link 
                   href={`/players/${player.id}`}
-                  className="inline-block mt-4 text-blue-600 hover:text-blue-800 font-medium hover:underline"
+                  className="inline-block mt-4 text-blue-400 hover:text-blue-300 font-medium hover:underline"
                 >
                   View Profile →
                 </Link>

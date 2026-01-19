@@ -8,7 +8,7 @@ import { SwipeableCard } from "@/components/ui/swipeable-card"
 import { ContextMenu } from "@/components/ui/context-menu"
 import { formatDistanceToNow } from "date-fns"
 import { parseDatabaseDate } from "@/lib/utils"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Check, X, MoreVertical, Trash2 } from "lucide-react"
 
@@ -135,12 +135,17 @@ export function ChallengeCard({
       // Trigger match reported event for navigation badge
       window.dispatchEvent(new CustomEvent('match:reported'))
       
-      // Refresh challenges or navigate
+      // Refresh challenges to show updated status
       if (onReportSuccess) {
         onReportSuccess()
       } else {
         router.refresh()
       }
+      
+      // Navigate to matches page to see pending confirmation
+      setTimeout(() => {
+        router.push('/matches')
+      }, 1000) // Small delay to show success message
     } catch (error: any) {
       console.error('Error reporting match:', error)
       if (error.message?.includes('fetch') || error.message?.includes('network')) {
@@ -165,11 +170,11 @@ export function ChallengeCard({
   
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800'
-      case 'accepted': return 'bg-blue-100 text-blue-800'
-      case 'declined': return 'bg-red-100 text-red-800'
-      case 'completed': return 'bg-green-100 text-green-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'pending': return 'bg-yellow-900/50 text-yellow-300 border border-yellow-700'
+      case 'accepted': return 'bg-blue-900/50 text-blue-300 border border-blue-700'
+      case 'declined': return 'bg-red-900/50 text-red-300 border border-red-700'
+      case 'completed': return 'bg-green-900/50 text-green-300 border border-green-700'
+      default: return 'bg-gray-800 text-gray-300 border border-gray-700'
     }
   }
 
@@ -267,18 +272,18 @@ export function ChallengeCard({
           options={contextMenuOptions}
           disabled={loading || contextMenuOptions.length === 0}
         >
-          <div className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow">
+          <div className="bg-black border border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(challenge.status)}`}>
               {challenge.status.toUpperCase()}
             </span>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gray-400">
               {formatDistanceToNow(parseDatabaseDate(challenge.created_at), { addSuffix: true })}
             </span>
           </div>
-          <div className="font-medium text-black">
+          <div className="font-medium text-white">
             {isChallenger ? 'You challenged' : 'Challenged by'} 
             <span className="font-bold mx-1">
               {isChallenger ? challenge.challengee_name || 'Opponent' : challenge.challenger_name || 'Opponent'}
@@ -288,7 +293,7 @@ export function ChallengeCard({
         </div>
         
         {challenge.expires_at && parseDatabaseDate(challenge.expires_at) < new Date() && (
-          <span className="text-xs text-red-600 font-medium">EXPIRED</span>
+          <span className="text-xs text-red-400 font-medium">EXPIRED</span>
         )}
       </div>
       
@@ -354,9 +359,9 @@ export function ChallengeCard({
         <div className="mt-4">
           {!showReportForm ? (
             <>
-              <div className="p-3 bg-blue-50 rounded text-sm mb-3">
-                <div className="font-medium text-blue-800">Challenge Accepted!</div>
-                <div className="text-blue-600 mt-1">
+              <div className="p-3 bg-blue-900/30 border border-blue-700 rounded text-sm mb-3">
+                <div className="font-medium text-blue-300">Challenge Accepted!</div>
+                <div className="text-blue-400 mt-1">
                   Schedule your match. Report the score when the match is complete.
                 </div>
               </div>
@@ -369,25 +374,25 @@ export function ChallengeCard({
               </Button>
             </>
           ) : (
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="p-4 bg-gray-900 rounded-lg border border-gray-700">
               <div className="mb-3">
-                <div className="text-sm font-medium text-gray-700 mb-2">
+                <div className="text-sm font-medium text-white mb-2">
                   Enter match scores:
                 </div>
-                <div className="text-xs text-gray-600 mb-3">
+                <div className="text-xs text-gray-400 mb-3">
                   {getChallengerName()} vs {getChallengeeName()}
                 </div>
               </div>
 
               {reportError && (
-                <div className="mb-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
+                <div className="mb-3 bg-red-900/30 border border-red-700 text-red-300 px-3 py-2 rounded text-sm">
                   {reportError}
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
+                  <label className="block text-base font-medium text-white mb-2">
                     {getChallengerName()} Score
                   </label>
                   <input
@@ -410,13 +415,13 @@ export function ChallengeCard({
                         nextInput?.focus()
                       }
                     }}
-                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                    className="w-full px-4 py-3 text-base border border-gray-600 bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
                     placeholder="0"
                     disabled={reporting}
                   />
                 </div>
                 <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
+                  <label className="block text-base font-medium text-white mb-2">
                     {getChallengeeName()} Score
                   </label>
                   <input
@@ -438,7 +443,7 @@ export function ChallengeCard({
                         handleReportScore()
                       }
                     }}
-                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                    className="w-full px-4 py-3 text-base border border-gray-600 bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
                     placeholder="0"
                     disabled={reporting}
                   />

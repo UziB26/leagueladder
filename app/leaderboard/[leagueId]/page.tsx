@@ -48,9 +48,6 @@ export default async function LeagueLeaderboardPage({ params }: LeaguePageProps)
           </div>
           <div>
             <h1 className="text-3xl font-bold text-blue-500">{league.name} Leaderboard</h1>
-            <p className="text-gray-600 mt-1">
-              {league.game_type === 'fifa' ? 'FIFA video game league' : 'Table tennis league'}
-            </p>
           </div>
         </div>
       </div>

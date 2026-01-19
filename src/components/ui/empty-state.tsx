@@ -157,7 +157,7 @@ export function EmptyChallengesState({
       description="Challenge other players in your league to start competing. Create your first challenge to get started!"
       action={action}
       className={className}
-      variant="light"
+      variant="dark"
       icon={
         <svg
           className="mx-auto h-16 w-16 md:h-12 md:w-12 text-gray-400"
@@ -193,7 +193,7 @@ export function EmptyLeaderboardState({
       title={leagueName ? `No players in ${leagueName} yet` : "No players in this league yet"}
       description="Be the first to join this league! Once players join and start playing matches, they'll appear on the leaderboard."
       className={className}
-      variant="light"
+      variant="dark"
       icon={
         <svg
           className="mx-auto h-16 w-16 md:h-12 md:w-12 text-gray-400"
@@ -235,7 +235,7 @@ export function EmptyMatchesState({
       description={message || "Complete a match to see it here. Challenge another player or report a match result to get started!"}
       action={action}
       className={className}
-      variant="light"
+      variant="dark"
       icon={
         <svg
           className="mx-auto h-16 w-16 md:h-12 md:w-12 text-gray-400"

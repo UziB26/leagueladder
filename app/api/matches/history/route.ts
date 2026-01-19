@@ -53,6 +53,7 @@ export async function GET(request: Request) {
         m.winner_id,
         m.league_id,
         m.status,
+        m.reported_by,
         m.played_at,
         m.confirmed_at,
         l.name as league_name,

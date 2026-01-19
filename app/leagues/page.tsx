@@ -131,7 +131,7 @@ export default function LeaguesPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-blue-600">Available Leagues</h1>
-        <p className="text-gray-600 mt-2">Join a league to start competing and climb the leaderboard</p>
+        <p className="text-white mt-2">Join a league to start competing and climb the leaderboard</p>
       </div>
 
       {message && (
@@ -211,27 +211,27 @@ export default function LeaguesPage() {
         </div>
       )}
 
-      <div className="mt-12 bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-3">How Leagues Work</h2>
-        <ul className="space-y-2 text-gray-700">
+      <div className="mt-12 bg-black border border-gray-700 rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-white mb-3">How Leagues Work</h2>
+        <ul className="space-y-2 text-white">
           <li className="flex items-start gap-2">
-            <span className="text-blue-600 font-bold">•</span>
+            <span className="text-blue-400 font-bold">•</span>
             <span>Join any league to start competing with other players</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-blue-600 font-bold">•</span>
+            <span className="text-blue-400 font-bold">•</span>
             <span>Your Elo rating starts at 1000 when you join</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-blue-600 font-bold">•</span>
+            <span className="text-blue-400 font-bold">•</span>
             <span>Challenge other players and record match results</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-blue-600 font-bold">•</span>
+            <span className="text-blue-400 font-bold">•</span>
             <span>Climb the leaderboard by winning matches</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-blue-600 font-bold">•</span>
+            <span className="text-blue-400 font-bold">•</span>
             <span>You can join multiple leagues</span>
           </li>
         </ul>

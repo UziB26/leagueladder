@@ -12,7 +12,7 @@ export function AuthButton() {
   if (session) {
     return (
       <div className="flex items-center gap-2 md:gap-4">
-        <span className="text-sm text-gray-600 hidden sm:inline">Hi, {session.user?.name}</span>
+        <span className="text-sm text-gray-300 hidden sm:inline">Hi, {session.user?.name}</span>
         <Button
           variant="outline"
           size="sm"

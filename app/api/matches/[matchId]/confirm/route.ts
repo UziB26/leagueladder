@@ -230,13 +230,24 @@ export async function POST(
             const matchStatusResult = updateMatchStatus.run(sanitizedMatchId)
             console.log('Match status updated, changes:', matchStatusResult.changes)
 
+            // Ensure player ratings exist (create if they don't)
+            const ensureRating = dbInstance.prepare(`
+              INSERT OR IGNORE INTO player_ratings (id, player_id, league_id, rating, games_played, wins, losses, draws)
+              VALUES (?, ?, ?, 1000, 0, 0, 0, 0)
+            `)
+            
+            const ratingId1 = crypto.randomUUID()
+            const ratingId2 = crypto.randomUUID()
+            ensureRating.run(ratingId1, match.player1_id, match.league_id)
+            ensureRating.run(ratingId2, match.player2_id, match.league_id)
+            
             // Get current ratings BEFORE updating (to avoid trigger interference)
             console.log('Fetching current ratings...')
             const rating1 = getRating.get(match.player1_id, match.league_id) as any
             const rating2 = getRating.get(match.player2_id, match.league_id) as any
             
             if (!rating1) {
-              console.error('Player1 rating not found:', {
+              console.error('Player1 rating not found after creation attempt:', {
                 playerId: match.player1_id,
                 leagueId: match.league_id,
                 matchId: sanitizedMatchId
@@ -245,7 +256,7 @@ export async function POST(
             }
             
             if (!rating2) {
-              console.error('Player2 rating not found:', {
+              console.error('Player2 rating not found after creation attempt:', {
                 playerId: match.player2_id,
                 leagueId: match.league_id,
                 matchId: sanitizedMatchId
@@ -259,6 +270,13 @@ export async function POST(
             })
             
             // Calculate new Elo ratings
+            console.log('Calculating ELO with inputs:', {
+              player1Rating: rating1.rating,
+              player2Rating: rating2.rating,
+              player1Score: match.player1_score,
+              player2Score: match.player2_score
+            })
+            
             const result = elo.calculateForMatch(
               rating1.rating,
               rating2.rating,
@@ -267,35 +285,107 @@ export async function POST(
             )
             
             console.log('Elo calculation result:', {
-              player1: { old: rating1.rating, new: result.newRatingA, change: result.changeA },
-              player2: { old: rating2.rating, new: result.newRatingB, change: result.changeB },
+              player1: { 
+                old: rating1.rating, 
+                new: result.newRatingA, 
+                change: result.changeA,
+                willChange: rating1.rating !== result.newRatingA
+              },
+              player2: { 
+                old: rating2.rating, 
+                new: result.newRatingB, 
+                change: result.changeB,
+                willChange: rating2.rating !== result.newRatingB
+              },
               matchId: sanitizedMatchId
             })
             
+            // Verify that ratings will actually change
+            if (result.newRatingA === rating1.rating && result.newRatingB === rating2.rating) {
+              console.error('ERROR: ELO calculation returned unchanged ratings!', {
+                player1: { old: rating1.rating, new: result.newRatingA },
+                player2: { old: rating2.rating, new: result.newRatingB },
+                scores: { player1: match.player1_score, player2: match.player2_score }
+              })
+              // Don't throw - let it continue to see what happens
+            }
+            
             // Update player 1 rating
-            console.log('Updating player1 rating...')
+            // Ensure rating is an integer
+            const newRating1 = Math.round(result.newRatingA)
+            console.log('Updating player1 rating...', {
+              playerId: match.player1_id,
+              leagueId: match.league_id,
+              old: rating1.rating,
+              new: newRating1,
+              change: result.changeA
+            })
+            
+            // Verify the rating will actually change
+            if (rating1.rating === newRating1) {
+              console.warn('WARNING: Player1 rating would not change!', {
+                current: rating1.rating,
+                calculated: newRating1
+              })
+            }
+            
             const updateResult1 = updateRating.run(
-              result.newRatingA,
+              newRating1,
               match.player1_id,
               match.league_id
             )
-            console.log('Player1 rating update result, changes:', updateResult1.changes)
+            console.log('Player1 rating update result:', {
+              changes: updateResult1.changes,
+              lastInsertRowid: updateResult1.lastInsertRowid
+            })
             
             if (updateResult1.changes === 0) {
-              throw new Error(`Failed to update rating for player1: ${match.player1_id} in league: ${match.league_id}`)
+              // Check if rating already matches (might be a no-op)
+              const currentRating = getRating.get(match.player1_id, match.league_id) as any
+              if (currentRating?.rating !== newRating1) {
+                throw new Error(`Failed to update rating for player1: ${match.player1_id} in league: ${match.league_id}. Current: ${currentRating?.rating}, Expected: ${newRating1}`)
+              } else {
+                console.log('Player1 rating already at expected value, skipping update')
+              }
             }
             
             // Update player 2 rating
-            console.log('Updating player2 rating...')
+            // Ensure rating is an integer
+            const newRating2 = Math.round(result.newRatingB)
+            console.log('Updating player2 rating...', {
+              playerId: match.player2_id,
+              leagueId: match.league_id,
+              old: rating2.rating,
+              new: newRating2,
+              change: result.changeB
+            })
+            
+            // Verify the rating will actually change
+            if (rating2.rating === newRating2) {
+              console.warn('WARNING: Player2 rating would not change!', {
+                current: rating2.rating,
+                calculated: newRating2
+              })
+            }
+            
             const updateResult2 = updateRating.run(
-              result.newRatingB,
+              newRating2,
               match.player2_id,
               match.league_id
             )
-            console.log('Player2 rating update result, changes:', updateResult2.changes)
+            console.log('Player2 rating update result:', {
+              changes: updateResult2.changes,
+              lastInsertRowid: updateResult2.lastInsertRowid
+            })
             
             if (updateResult2.changes === 0) {
-              throw new Error(`Failed to update rating for player2: ${match.player2_id} in league: ${match.league_id}`)
+              // Check if rating already matches (might be a no-op)
+              const currentRating = getRating.get(match.player2_id, match.league_id) as any
+              if (currentRating?.rating !== newRating2) {
+                throw new Error(`Failed to update rating for player2: ${match.player2_id} in league: ${match.league_id}. Current: ${currentRating?.rating}, Expected: ${newRating2}`)
+              } else {
+                console.log('Player2 rating already at expected value, skipping update')
+              }
             }
             
             // Verify the updates were applied
@@ -305,16 +395,16 @@ export async function POST(
             console.log('Verification - ratings after update:', {
               player1: verifyRating1?.rating,
               player2: verifyRating2?.rating,
-              expected1: result.newRatingA,
-              expected2: result.newRatingB
+              expected1: newRating1,
+              expected2: newRating2
             })
             
-            if (verifyRating1?.rating !== result.newRatingA || verifyRating2?.rating !== result.newRatingB) {
+            if (verifyRating1?.rating !== newRating1 || verifyRating2?.rating !== newRating2) {
               console.error('Rating verification failed:', {
-                expected: { player1: result.newRatingA, player2: result.newRatingB },
+                expected: { player1: newRating1, player2: newRating2 },
                 actual: { player1: verifyRating1?.rating, player2: verifyRating2?.rating }
               })
-              throw new Error('Rating update verification failed')
+              throw new Error(`Rating update verification failed. Expected: player1=${newRating1}, player2=${newRating2}. Actual: player1=${verifyRating1?.rating}, player2=${verifyRating2?.rating}`)
             }
             
             // Record rating updates
@@ -326,7 +416,7 @@ export async function POST(
               match.player1_id,
               match.league_id,
               rating1.rating,
-              result.newRatingA,
+              newRating1,
               result.changeA
             )
             console.log('Rating update 1 inserted, changes:', insertResult1.changes)
@@ -342,7 +432,7 @@ export async function POST(
               match.player2_id,
               match.league_id,
               rating2.rating,
-              result.newRatingB,
+              newRating2,
               result.changeB
             )
             console.log('Rating update 2 inserted, changes:', insertResult2.changes)
@@ -352,8 +442,8 @@ export async function POST(
             }
             
             console.log('Rating updates recorded:', {
-              player1: { updateId: updateId1, change: result.changeA },
-              player2: { updateId: updateId2, change: result.changeB }
+              player1: { updateId: updateId1, old: rating1.rating, new: newRating1, change: result.changeA },
+              player2: { updateId: updateId2, old: rating2.rating, new: newRating2, change: result.changeB }
             })
 
             // Note: Player stats (wins/losses/draws) are automatically updated by the 
@@ -370,8 +460,10 @@ export async function POST(
           })
           
           // Execute the transaction with error handling
+          // better-sqlite3 transactions automatically commit on success or rollback on error
           try {
-            transaction()
+            const transactionResult = transaction()
+            console.log('=== TRANSACTION EXECUTED ===', transactionResult)
             console.log('=== TRANSACTION COMMITTED SUCCESSFULLY ===')
           } catch (txError: any) {
             console.error('=== TRANSACTION EXECUTION ERROR ===')
@@ -383,26 +475,31 @@ export async function POST(
             throw txError
           }
           
-          // Verify ratings were updated after transaction commits
-          const finalRating1 = db.prepare(`
-            SELECT rating FROM player_ratings
-            WHERE player_id = ? AND league_id = ?
-          `).get(match.player1_id, match.league_id) as any
+          // Force a small delay to ensure transaction is fully committed
+          // This is a workaround for potential timing issues
+          await new Promise(resolve => setTimeout(resolve, 10))
           
-          const finalRating2 = db.prepare(`
-            SELECT rating FROM player_ratings
+          // Verify ratings were updated after transaction commits
+          // Use dbInstance to ensure we're querying the same database instance
+          // Create fresh prepared statements to avoid any caching issues
+          const verifyRatingQuery = dbInstance.prepare(`
+            SELECT rating, updated_at FROM player_ratings
             WHERE player_id = ? AND league_id = ?
-          `).get(match.player2_id, match.league_id) as any
+          `)
+          
+          const finalRating1 = verifyRatingQuery.get(match.player1_id, match.league_id) as any
+          const finalRating2 = verifyRatingQuery.get(match.player2_id, match.league_id) as any
           
           console.log('Final ratings after transaction:', {
-            player1: { id: match.player1_id, rating: finalRating1?.rating },
-            player2: { id: match.player2_id, rating: finalRating2?.rating }
+            player1: { id: match.player1_id, rating: finalRating1?.rating, updated_at: finalRating1?.updated_at },
+            player2: { id: match.player2_id, rating: finalRating2?.rating, updated_at: finalRating2?.updated_at }
           })
           
           // Verify rating updates were inserted
-          const ratingUpdates = db.prepare(`
+          const ratingUpdatesQuery = dbInstance.prepare(`
             SELECT * FROM rating_updates WHERE match_id = ?
-          `).all(sanitizedMatchId) as any[]
+          `)
+          const ratingUpdates = ratingUpdatesQuery.all(sanitizedMatchId) as any[]
           
           console.log('Rating updates in database:', ratingUpdates.length, 'records')
           if (ratingUpdates.length > 0) {
@@ -411,14 +508,45 @@ export async function POST(
             console.error('WARNING: No rating updates found in database!')
           }
           
+          // Double-check that ratings actually changed
+          if (finalRating1?.rating === 1000 && finalRating2?.rating === 1000) {
+            console.error('WARNING: Ratings are still at default 1000! This suggests the update did not work.')
+            // Try to get the match to see what happened
+            const matchCheck = dbInstance.prepare('SELECT * FROM matches WHERE id = ?').get(sanitizedMatchId) as any
+            console.error('Match status:', matchCheck?.status)
+            console.error('Match winner:', matchCheck?.winner_id)
+          }
+          
           console.log('=== MATCH CONFIRMATION SUCCESS ===')
 
+          // Double-check ratings one more time before returning
+          const finalCheck1 = dbInstance.prepare(`
+            SELECT rating FROM player_ratings
+            WHERE player_id = ? AND league_id = ?
+          `).get(match.player1_id, match.league_id) as any
+          
+          const finalCheck2 = dbInstance.prepare(`
+            SELECT rating FROM player_ratings
+            WHERE player_id = ? AND league_id = ?
+          `).get(match.player2_id, match.league_id) as any
+          
+          console.log('Final check before response:', {
+            player1: finalCheck1?.rating,
+            player2: finalCheck2?.rating
+          })
+          
           return NextResponse.json({
             success: true,
             message: 'Match confirmed successfully. Ratings have been updated.',
             ratings: {
-              player1: finalRating1?.rating,
-              player2: finalRating2?.rating
+              player1: finalCheck1?.rating || finalRating1?.rating,
+              player2: finalCheck2?.rating || finalRating2?.rating
+            }
+          }, {
+            headers: {
+              'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+              'Pragma': 'no-cache',
+              'Expires': '0',
             }
           })
         } catch (txError: any) {

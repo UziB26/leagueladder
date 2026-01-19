@@ -48,6 +48,17 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
     if (currentPlayerId) {
       fetchMatchHistory()
     }
+    
+    // Listen for match confirmation events to refresh history
+    const handleMatchConfirmed = () => {
+      fetchMatchHistory()
+    }
+    
+    window.addEventListener('match:confirmed', handleMatchConfirmed)
+    
+    return () => {
+      window.removeEventListener('match:confirmed', handleMatchConfirmed)
+    }
   }, [currentPlayerId])
 
   const fetchMatchHistory = async () => {
@@ -97,6 +108,10 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
   }
 
   const isWinner = (match: MatchWithRatings) => {
+    // Only determine winner if match is completed
+    if (match.status !== 'completed') {
+      return false
+    }
     // Check if current player is the winner
     if (match.winner_id === currentPlayerId) {
       return true
@@ -112,6 +127,10 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
   }
 
   const isDraw = (match: MatchWithRatings) => {
+    // Only determine draw if match is completed
+    if (match.status !== 'completed') {
+      return false
+    }
     // Check if it's a draw (winner_id is null or scores are equal)
     if (match.winner_id === null || match.winner_id === undefined) {
       return match.player1_score === match.player2_score
@@ -121,8 +140,8 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
 
   if (loading) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-lg font-semibold mb-4 text-blue-600">Match History</h3>
+      <div className="bg-black p-6 rounded-lg shadow">
+        <h3 className="text-lg font-semibold mb-4 text-blue-400">Match History</h3>
         <MatchesListSkeleton />
       </div>
     )
@@ -130,17 +149,17 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
 
   if (error) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-lg font-semibold mb-4 text-blue-600">Match History</h3>
-        <div className="text-center py-8 text-red-500">{error}</div>
+      <div className="bg-black p-6 rounded-lg shadow">
+        <h3 className="text-lg font-semibold mb-4 text-blue-400">Match History</h3>
+        <div className="text-center py-8 text-red-400">{error}</div>
       </div>
     )
   }
 
   if (matches.length === 0) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-lg font-semibold mb-4 text-blue-600">Match History</h3>
+      <div className="bg-black p-6 rounded-lg shadow">
+        <h3 className="text-lg font-semibold mb-4 text-blue-400">Match History</h3>
         <EmptyMatchesState 
           message="Complete a match to see it here."
         />
@@ -149,9 +168,9 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
   }
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
-      <h3 className="text-lg font-semibold mb-4 text-blue-600">Match History</h3>
-      <p className="text-sm text-gray-600 mb-6">
+    <div className="bg-black p-6 rounded-lg shadow">
+      <h3 className="text-lg font-semibold mb-4 text-blue-400">Match History</h3>
+      <p className="text-sm text-gray-400 mb-6">
         Your recent matches with scores and rating changes
       </p>
 
@@ -167,15 +186,15 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
           return (
             <div
               key={match.id}
-              className="border rounded-lg p-4 hover:shadow-md transition-shadow bg-gray-50"
+              className="border border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow bg-gray-900"
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="font-medium text-gray-900">
+                    <span className="font-medium text-white">
                       vs {opponentName}
                     </span>
-                    <span className="text-xs px-2 py-1 rounded-full bg-gray-200 text-gray-700">
+                    <span className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-300">
                       {match.league_name}
                     </span>
                     {match.status === 'pending_confirmation' && (
@@ -189,26 +208,36 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
                       </span>
                     )}
                   </div>
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-gray-400">
                     {format(parseDatabaseDate(match.played_at), 'MMM d, yyyy')} •{' '}
                     {formatDistanceToNow(parseDatabaseDate(match.played_at), { addSuffix: true })}
                   </div>
                 </div>
                 
                 <div className="text-right">
-                  {won && (
-                    <span className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                  {match.status === 'pending_confirmation' && (
+                    <span className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-yellow-900 text-yellow-300 border border-yellow-700">
+                      PENDING
+                    </span>
+                  )}
+                  {match.status === 'completed' && won && (
+                    <span className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-green-900 text-green-300">
                       WIN
                     </span>
                   )}
-                  {!won && !draw && (
-                    <span className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                  {match.status === 'completed' && !won && !draw && (
+                    <span className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-red-900 text-red-300">
                       LOSS
                     </span>
                   )}
-                  {draw && (
-                    <span className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                  {match.status === 'completed' && draw && (
+                    <span className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-gray-700 text-gray-300">
                       DRAW
+                    </span>
+                  )}
+                  {match.status === 'disputed' && (
+                    <span className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-red-900 text-red-300">
+                      DISPUTED
                     </span>
                   )}
                 </div>
@@ -216,32 +245,32 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
 
               <div className="grid grid-cols-2 gap-4 mb-3">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900">{playerScore}</div>
-                  <div className="text-xs text-gray-500">Your Score</div>
+                  <div className="text-2xl font-bold text-white">{playerScore}</div>
+                  <div className="text-xs text-gray-400">Your Score</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900">{opponentScore}</div>
-                  <div className="text-xs text-gray-500">{opponentName}'s Score</div>
+                  <div className="text-2xl font-bold text-white">{opponentScore}</div>
+                  <div className="text-xs text-gray-400">{opponentName}'s Score</div>
                 </div>
               </div>
 
-              {ratingChange && (
-                <div className="pt-3 border-t border-gray-200">
+              {match.status === 'completed' && ratingChange && (
+                <div className="pt-3 border-t border-gray-700">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Rating Change:</span>
+                    <span className="text-sm text-gray-400">Rating Change:</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">
+                      <span className="text-sm text-gray-400">
                         {ratingChange.old_rating} →
                       </span>
-                      <span className="text-sm font-semibold text-gray-900">
+                      <span className="text-sm font-semibold text-white">
                         {ratingChange.new_rating}
                       </span>
                       {ratingChange.change !== 0 && (
                         <span
                           className={`text-sm font-medium ${
                             ratingChange.change > 0
-                              ? 'text-green-600'
-                              : 'text-red-600'
+                              ? 'text-green-400'
+                              : 'text-red-400'
                           }`}
                         >
                           ({ratingChange.change > 0 ? '+' : ''}{ratingChange.change})
@@ -252,9 +281,17 @@ export function MatchHistory({ currentPlayerId, limit = 20 }: MatchHistoryProps)
                 </div>
               )}
 
-              {!ratingChange && match.status === 'completed' && (
-                <div className="pt-3 border-t border-gray-200">
-                  <span className="text-xs text-gray-400">Rating update pending</span>
+              {match.status === 'pending_confirmation' && (
+                <div className="pt-3 border-t border-gray-700">
+                  <span className="text-xs text-yellow-400">
+                    ⏳ Waiting for opponent confirmation. Ratings will update after confirmation.
+                  </span>
+                </div>
+              )}
+
+              {match.status === 'completed' && !ratingChange && (
+                <div className="pt-3 border-t border-gray-700">
+                  <span className="text-xs text-gray-500">Rating update pending</span>
                 </div>
               )}
             </div>

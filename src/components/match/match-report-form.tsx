@@ -184,8 +184,8 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
 
   if (loading) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-lg font-semibold mb-4 text-blue-600">Report Match Results</h3>
+      <div className="bg-black p-6 rounded-lg shadow border border-gray-700">
+        <h3 className="text-lg font-semibold mb-4 text-blue-500">Report Match Results</h3>
         <LoadingState text="Loading accepted challenges..." />
       </div>
     )
@@ -193,31 +193,31 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
 
   if (acceptedChallenges.length === 0) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-lg font-semibold mb-4 text-blue-600">Report Match Results</h3>
-        <div className="text-center py-8 text-gray-500">
-          <p>No accepted challenges to report.</p>
-          <p className="text-sm mt-2">Accept a challenge first, then report the match results here.</p>
+      <div className="bg-black p-6 rounded-lg shadow border border-gray-700">
+        <h3 className="text-lg font-semibold mb-4 text-blue-500">Report Match Results</h3>
+        <div className="text-center py-8 text-gray-400">
+          <p className="text-white">No accepted challenges to report.</p>
+          <p className="text-sm mt-2 text-gray-400">Accept a challenge first, then report the match results here.</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
-      <h3 className="text-lg font-semibold mb-4 text-blue-600">Report Match Results</h3>
-      <p className="text-sm text-gray-600 mb-6">
+    <div className="bg-black p-6 rounded-lg shadow border border-gray-700">
+      <h3 className="text-lg font-semibold mb-4 text-blue-500">Report Match Results</h3>
+      <p className="text-sm text-gray-400 mb-6">
         Enter the final scores for your accepted challenges. Ratings will be updated automatically.
       </p>
 
       {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+        <div className="mb-4 bg-red-900/30 border border-red-700 text-red-300 px-4 py-3 rounded">
           {error}
         </div>
       )}
 
       {success && (
-        <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+        <div className="mb-4 bg-green-900/30 border border-green-700 text-green-300 px-4 py-3 rounded">
           {success}
         </div>
       )}
@@ -233,24 +233,24 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
           const player2ScoreValue = challengeScores.player2Score ?? ''
 
           return (
-            <div key={challenge.id} className="border rounded-lg p-4 bg-gray-50">
+            <div key={challenge.id} className="border rounded-lg p-4 bg-gray-900 border-gray-700">
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="font-medium text-gray-900">
+                  <div className="font-medium text-white">
                     {challenge.league_name || 'League'}
                   </div>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-400">
                     {formatDistanceToNow(parseDatabaseDate(challenge.created_at), { addSuffix: true })}
                   </span>
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-gray-300">
                   {player1} vs {player2}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
+                  <label className="block text-base font-medium text-white mb-2">
                     {player1} Score
                   </label>
                   <input
@@ -267,13 +267,13 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
                         nextInput?.focus()
                       }
                     }}
-                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                    className="w-full px-4 py-3 text-base border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white bg-gray-800"
                     placeholder="0"
                     disabled={isSubmitting}
                   />
                 </div>
                 <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
+                  <label className="block text-base font-medium text-white mb-2">
                     {player2} Score
                   </label>
                   <input
@@ -289,7 +289,7 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
                         handleSubmit(challenge)
                       }
                     }}
-                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                    className="w-full px-4 py-3 text-base border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white bg-gray-800"
                     placeholder="0"
                     disabled={isSubmitting}
                   />
