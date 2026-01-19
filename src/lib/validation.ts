@@ -48,7 +48,7 @@ export function validateRequest(options: ValidationOptions) {
           error: NextResponse.json(
             {
               error: errorMessage,
-              details: error.errors.map((e) => ({
+              details: error.issues.map((e) => ({
                 path: e.path.join("."),
                 message: e.message,
               })),

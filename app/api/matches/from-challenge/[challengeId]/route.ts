@@ -147,6 +147,7 @@ export async function POST(
     
     // Insert match with winner_id and reported_by set
     // reported_by is the player who reported the match (current player)
+    // This MUST match the regular matches endpoint exactly
     db.prepare(`
       INSERT INTO matches (
         id, challenge_id, player1_id, player2_id, league_id,
@@ -169,9 +170,11 @@ export async function POST(
     // Note: Challenge status will be updated to 'completed' when the match is confirmed
     // We don't update it here because the match is created as 'pending_confirmation'
     // The challenge will be marked as completed in the match confirmation endpoint
+    // This matches the behavior of the regular matches endpoint
 
     // ELO ratings should only be updated after match confirmation
     // If status is explicitly 'completed' (e.g., admin override), update ELO immediately
+    // This matches the behavior of the regular matches endpoint
     if (matchStatus === 'completed') {
       try {
         dbHelpers.updateEloRatings(matchId, elo)

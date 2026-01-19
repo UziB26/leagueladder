@@ -13,16 +13,16 @@ export interface MatchData {
   status?: string
 }
 
-export interface ValidationResult {
+export interface ValidationResult<T = MatchData> {
   valid: boolean
   errors: string[]
-  sanitized?: MatchData
+  sanitized?: T
 }
 
 /**
  * Validate match data before database operations
  */
-export function validateMatchData(data: Partial<MatchData>): ValidationResult {
+export function validateMatchData(data: Partial<MatchData>): ValidationResult<MatchData> {
   const errors: string[] = []
 
   // Validate required fields
@@ -114,7 +114,7 @@ export function validateMatchData(data: Partial<MatchData>): ValidationResult {
       leagueId: sanitizeString(data.leagueId!)!,
       player1Score: sanitizeInteger(data.player1Score!, 0, 1000)!,
       player2Score: sanitizeInteger(data.player2Score!, 0, 1000)!,
-      challengeId: data.challengeId ? sanitizeUUID(data.challengeId) : undefined,
+      challengeId: data.challengeId ? (sanitizeUUID(data.challengeId) ?? undefined) : undefined,
       status: data.status || 'pending_confirmation',
     },
   }
@@ -131,7 +131,7 @@ export interface ChallengeData {
 
 export function validateChallengeData(
   data: Partial<ChallengeData>
-): ValidationResult {
+): ValidationResult<ChallengeData> {
   const errors: string[] = []
 
   if (!data.challengerId) {

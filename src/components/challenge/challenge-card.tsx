@@ -114,8 +114,8 @@ export function ChallengeCard({
         },
         body: JSON.stringify({
           player1Score: p1Score,
-          player2Score: p2Score,
-          status: 'completed'
+          player2Score: p2Score
+          // Status will be set to 'pending_confirmation' automatically (same as Matches page)
         }),
       })
 

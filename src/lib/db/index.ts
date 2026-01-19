@@ -1,9 +1,22 @@
 import Database from 'better-sqlite3'
 import { join } from 'path'
 import { v4 as uuidv4 } from 'uuid'
+import { DatabaseTransaction } from './transactions'
 
 // Initialize database
-const dbPath = join(process.cwd(), 'league-ladder.db')
+// On Vercel, use /tmp directory for ephemeral storage
+// In development/local, use project root
+const getDbPath = () => {
+  if (process.env.DATABASE_PATH) {
+    return process.env.DATABASE_PATH
+  }
+  if (process.env.VERCEL === '1') {
+    return '/tmp/league-ladder.db'
+  }
+  return join(process.cwd(), 'league-ladder.db')
+}
+
+const dbPath = getDbPath()
 
 // Type alias for the Database instance
 type DatabaseInstance = InstanceType<typeof Database>

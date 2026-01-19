@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { ConfirmationDialog, useConfirmationDialog } from "@/components/ui/confirmation-dialog"
+import { FormModal } from "@/components/ui/form-modal"
 import { ErrorMessage } from "@/components/ui/error-state"
 import { SuccessMessage } from "@/components/ui/success-state"
 import { LoadingState } from "@/components/ui/loading-state"
@@ -87,6 +88,16 @@ interface Player {
   match_count: number
 }
 
+interface PlayerRating {
+  player_id: string
+  league_id: string
+  rating: number
+  wins: number
+  losses: number
+  draws: number
+  games_played: number
+}
+
 export function AdminPanel() {
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'players' | 'leagues' | 'matches'>('overview')
   const [stats, setStats] = useState<Stats | null>(null)
@@ -101,6 +112,12 @@ export function AdminPanel() {
   const deleteMatchDialog = useConfirmationDialog()
   const voidMatchDialog = useConfirmationDialog()
   const deletePlayerDialog = useConfirmationDialog()
+  const unvoidMatchDialog = useConfirmationDialog()
+  
+  // Modal states for correction features
+  const [adjustRatingModal, setAdjustRatingModal] = useState<{ open: boolean; playerId?: string; leagueId?: string; currentRating?: number }>({ open: false })
+  const [editMatchScoreModal, setEditMatchScoreModal] = useState<{ open: boolean; match?: Match }>({ open: false })
+  const [adjustStatsModal, setAdjustStatsModal] = useState<{ open: boolean; playerId?: string; leagueId?: string; stats?: PlayerRating }>({ open: false })
 
   useEffect(() => {
     fetchData()
@@ -126,16 +143,16 @@ export function AdminPanel() {
         if (!response.ok) throw new Error('Failed to fetch players')
         const data = await response.json()
         setPlayers(data.players || [])
-      } else if (activeTab === 'leagues') {
-        const response = await fetch('/api/admin/leagues')
-        if (!response.ok) throw new Error('Failed to fetch leagues')
-        const data = await response.json()
-        setLeagues(data.leagues || [])
       } else if (activeTab === 'matches') {
         const response = await fetch('/api/admin/matches')
         if (!response.ok) throw new Error('Failed to fetch matches')
         const data = await response.json()
         setMatches(data.matches || [])
+      } else if (activeTab === 'leagues') {
+        const response = await fetch('/api/admin/leagues')
+        if (!response.ok) throw new Error('Failed to fetch leagues')
+        const data = await response.json()
+        setLeagues(data.leagues || [])
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load data')
@@ -283,6 +300,156 @@ export function AdminPanel() {
     })
   }
 
+  const unvoidMatch = async (matchId: string) => {
+    unvoidMatchDialog.openDialog({
+      title: "Un-void Match",
+      message: "Are you sure you want to un-void this match? This will restore player ratings based on the match result. Ratings will be recalculated.",
+      confirmText: "Un-void Match",
+      cancelText: "Cancel",
+      variant: "default",
+      onConfirm: async () => {
+        try {
+          const response = await fetch(`/api/admin/matches/${matchId}/unvoid`, {
+            method: 'POST'
+          })
+
+          if (!response.ok) {
+            const data = await response.json()
+            throw new Error(data.error || 'Failed to un-void match')
+          }
+
+          const data = await response.json()
+          setSuccess(data.message || 'Match un-voided successfully')
+          setTimeout(() => setSuccess(""), 3000)
+          fetchData()
+        } catch (err: any) {
+          setError(err.message || 'Failed to un-void match')
+          setTimeout(() => setError(""), 5000)
+        }
+      },
+    })
+  }
+
+  const handleAdjustRating = async (formData: any) => {
+    try {
+      const { rating, reason } = formData
+      if (!adjustRatingModal.playerId || !adjustRatingModal.leagueId) return
+
+      const response = await fetch(`/api/admin/players/${adjustRatingModal.playerId}/ratings/${adjustRatingModal.leagueId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating: parseInt(rating), reason })
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to adjust rating')
+      }
+
+      const data = await response.json()
+      setSuccess(data.message || 'Rating adjusted successfully')
+      setTimeout(() => setSuccess(""), 3000)
+      setAdjustRatingModal({ open: false })
+      fetchData()
+    } catch (err: any) {
+      setError(err.message || 'Failed to adjust rating')
+      setTimeout(() => setError(""), 5000)
+    }
+  }
+
+  const handleEditMatchScore = async (formData: any) => {
+    try {
+      const { player1_score, player2_score, reason } = formData
+      if (!editMatchScoreModal.match) return
+
+      const response = await fetch(`/api/admin/matches/${editMatchScoreModal.match.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          player1_score: parseInt(player1_score), 
+          player2_score: parseInt(player2_score),
+          reason 
+        })
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to update match scores')
+      }
+
+      const data = await response.json()
+      setSuccess(data.message || 'Match scores updated successfully')
+      setTimeout(() => setSuccess(""), 3000)
+      setEditMatchScoreModal({ open: false })
+      fetchData()
+    } catch (err: any) {
+      setError(err.message || 'Failed to update match scores')
+      setTimeout(() => setError(""), 5000)
+    }
+  }
+
+  const handleAdjustStats = async (formData: any) => {
+    try {
+      if (!adjustStatsModal.playerId || !adjustStatsModal.leagueId) return
+
+      const body: any = { reason: formData.reason }
+      if (formData.wins) body.wins = parseInt(formData.wins)
+      if (formData.losses) body.losses = parseInt(formData.losses)
+      if (formData.draws) body.draws = parseInt(formData.draws)
+      if (formData.games_played) body.games_played = parseInt(formData.games_played)
+
+      const response = await fetch(`/api/admin/players/${adjustStatsModal.playerId}/stats/${adjustStatsModal.leagueId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to adjust stats')
+      }
+
+      const data = await response.json()
+      setSuccess(data.message || 'Stats adjusted successfully')
+      setTimeout(() => setSuccess(""), 3000)
+      setAdjustStatsModal({ open: false })
+      fetchData()
+    } catch (err: any) {
+      setError(err.message || 'Failed to adjust stats')
+      setTimeout(() => setError(""), 5000)
+    }
+  }
+
+  const openAdjustRatingModal = async (playerId: string, leagueId: string) => {
+    try {
+      const response = await fetch(`/api/admin/players/${playerId}`)
+      if (!response.ok) throw new Error('Failed to fetch player data')
+      const data = await response.json()
+      const rating = data.ratings?.find((r: any) => r.league_id === leagueId)
+      if (rating) {
+        setAdjustRatingModal({ open: true, playerId, leagueId, currentRating: rating.rating })
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to load player data')
+      setTimeout(() => setError(""), 5000)
+    }
+  }
+
+  const openAdjustStatsModal = async (playerId: string, leagueId: string) => {
+    try {
+      const response = await fetch(`/api/admin/players/${playerId}`)
+      if (!response.ok) throw new Error('Failed to fetch player data')
+      const data = await response.json()
+      const stats = data.ratings?.find((r: any) => r.league_id === leagueId)
+      if (stats) {
+        setAdjustStatsModal({ open: true, playerId, leagueId, stats })
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to load player data')
+      setTimeout(() => setError(""), 5000)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <ConfirmationDialog
@@ -325,6 +492,192 @@ export function AdminPanel() {
         cancelText={deletePlayerDialog.config?.cancelText}
         variant={deletePlayerDialog.config?.variant}
       />
+      <ConfirmationDialog
+        isOpen={unvoidMatchDialog.isOpen}
+        onClose={unvoidMatchDialog.closeDialog}
+        onConfirm={unvoidMatchDialog.handleConfirm}
+        title={unvoidMatchDialog.config?.title || ""}
+        message={unvoidMatchDialog.config?.message || ""}
+        confirmText={unvoidMatchDialog.config?.confirmText}
+        cancelText={unvoidMatchDialog.config?.cancelText}
+        variant={unvoidMatchDialog.config?.variant}
+      />
+      
+      {/* Rating Adjustment Modal */}
+      <FormModal
+        isOpen={adjustRatingModal.open}
+        onClose={() => setAdjustRatingModal({ open: false })}
+        onSubmit={handleAdjustRating}
+        title="Adjust Player Rating"
+        submitText="Adjust Rating"
+      >
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Current Rating: {adjustRatingModal.currentRating || 'N/A'}
+          </label>
+          <input
+            type="number"
+            name="rating"
+            required
+            min="0"
+            max="5000"
+            defaultValue={adjustRatingModal.currentRating}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="New rating"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Reason (optional)
+          </label>
+          <textarea
+            name="reason"
+            rows={3}
+            maxLength={500}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Reason for adjustment"
+          />
+        </div>
+      </FormModal>
+
+      {/* Edit Match Score Modal */}
+      <FormModal
+        isOpen={editMatchScoreModal.open}
+        onClose={() => setEditMatchScoreModal({ open: false })}
+        onSubmit={handleEditMatchScore}
+        title="Edit Match Scores"
+        submitText="Update Scores"
+      >
+        {editMatchScoreModal.match && (
+          <>
+            <div className="text-sm text-gray-300 mb-4">
+              <p>{editMatchScoreModal.match.player1_name || 'Player 1'} vs {editMatchScoreModal.match.player2_name || 'Player 2'}</p>
+              <p className="text-xs text-gray-400 mt-1">Current: {editMatchScoreModal.match.player1_score} - {editMatchScoreModal.match.player2_score}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  {editMatchScoreModal.match.player1_name || 'Player 1'} Score
+                </label>
+                <input
+                  type="number"
+                  name="player1_score"
+                  required
+                  min="0"
+                  max="1000"
+                  defaultValue={editMatchScoreModal.match.player1_score}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  {editMatchScoreModal.match.player2_name || 'Player 2'} Score
+                </label>
+                <input
+                  type="number"
+                  name="player2_score"
+                  required
+                  min="0"
+                  max="1000"
+                  defaultValue={editMatchScoreModal.match.player2_score}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Reason (optional)
+              </label>
+              <textarea
+                name="reason"
+                rows={3}
+                maxLength={500}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Reason for correction"
+              />
+            </div>
+          </>
+        )}
+      </FormModal>
+
+      {/* Adjust Stats Modal */}
+      <FormModal
+        isOpen={adjustStatsModal.open}
+        onClose={() => setAdjustStatsModal({ open: false })}
+        onSubmit={handleAdjustStats}
+        title="Adjust Player Stats"
+        submitText="Update Stats"
+      >
+        {adjustStatsModal.stats && (
+          <>
+            <div className="text-xs text-gray-400 mb-4">
+              Current: {adjustStatsModal.stats.wins}W - {adjustStatsModal.stats.losses}L - {adjustStatsModal.stats.draws}D ({adjustStatsModal.stats.games_played} games)
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Wins
+                </label>
+                <input
+                  type="number"
+                  name="wins"
+                  min="0"
+                  defaultValue={adjustStatsModal.stats.wins}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Losses
+                </label>
+                <input
+                  type="number"
+                  name="losses"
+                  min="0"
+                  defaultValue={adjustStatsModal.stats.losses}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Draws
+                </label>
+                <input
+                  type="number"
+                  name="draws"
+                  min="0"
+                  defaultValue={adjustStatsModal.stats.draws}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Games Played
+                </label>
+                <input
+                  type="number"
+                  name="games_played"
+                  min="0"
+                  defaultValue={adjustStatsModal.stats.games_played}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Reason (optional)
+              </label>
+              <textarea
+                name="reason"
+                rows={3}
+                maxLength={500}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Reason for adjustment"
+              />
+            </div>
+          </>
+        )}
+      </FormModal>
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
       </div>
@@ -548,7 +901,32 @@ export function AdminPanel() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
                           {parseDatabaseDate(player.created_at).toLocaleDateString()}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              // For now, use first league - in production, you'd want a dropdown
+                              const firstLeague = leagues[0]?.id || 'tt_league'
+                              openAdjustRatingModal(player.id, firstLeague)
+                            }}
+                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+                            title="Adjust rating (uses first league)"
+                          >
+                            Adjust Rating
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const firstLeague = leagues[0]?.id || 'tt_league'
+                              openAdjustStatsModal(player.id, firstLeague)
+                            }}
+                            className="text-xs bg-purple-600 hover:bg-purple-700 text-white border-purple-600"
+                            title="Adjust stats (uses first league)"
+                          >
+                            Adjust Stats
+                          </Button>
                           <Button
                             size="sm"
                             variant="outline"
@@ -644,13 +1022,43 @@ export function AdminPanel() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                           {match.status === 'completed' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditMatchScoreModal({ open: true, match })}
+                                className="text-xs bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+                              >
+                                Edit Score
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => voidMatch(match.id)}
+                                className="text-xs bg-orange-600 hover:bg-orange-700 text-white border-orange-600"
+                              >
+                                Void
+                              </Button>
+                            </>
+                          )}
+                          {match.status === 'voided' && (
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => voidMatch(match.id)}
-                              className="text-xs bg-orange-600 hover:bg-orange-700 text-white border-orange-600"
+                              onClick={() => unvoidMatch(match.id)}
+                              className="text-xs bg-green-600 hover:bg-green-700 text-white border-green-600"
                             >
-                              Void
+                              Un-void
+                            </Button>
+                          )}
+                          {match.status !== 'voided' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditMatchScoreModal({ open: true, match })}
+                              className="text-xs bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+                            >
+                              Edit Score
                             </Button>
                           )}
                           <Button

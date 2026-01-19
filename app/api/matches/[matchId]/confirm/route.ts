@@ -462,9 +462,8 @@ export async function POST(
           // Execute the transaction with error handling
           // better-sqlite3 transactions automatically commit on success or rollback on error
           try {
-            const transactionResult = transaction()
-            console.log('=== TRANSACTION EXECUTED ===', transactionResult)
-            console.log('=== TRANSACTION COMMITTED SUCCESSFULLY ===')
+            transaction()
+            console.log('=== TRANSACTION EXECUTED AND COMMITTED ===')
           } catch (txError: any) {
             console.error('=== TRANSACTION EXECUTION ERROR ===')
             console.error('Error type:', txError?.constructor?.name)
@@ -475,9 +474,14 @@ export async function POST(
             throw txError
           }
           
-          // Force a small delay to ensure transaction is fully committed
-          // This is a workaround for potential timing issues
-          await new Promise(resolve => setTimeout(resolve, 10))
+          // Verify transaction committed by checking if data was written
+          // Use a fresh query to ensure we're reading committed data
+          const testQuery = dbInstance.prepare('SELECT status FROM matches WHERE id = ?')
+          const matchStatusCheck = testQuery.get(sanitizedMatchId) as any
+          if (matchStatusCheck?.status !== 'completed') {
+            throw new Error(`Transaction may not have committed. Match status is: ${matchStatusCheck?.status}, expected: completed`)
+          }
+          console.log('Transaction verified: Match status is completed')
           
           // Verify ratings were updated after transaction commits
           // Use dbInstance to ensure we're querying the same database instance
@@ -495,18 +499,38 @@ export async function POST(
             player2: { id: match.player2_id, rating: finalRating2?.rating, updated_at: finalRating2?.updated_at }
           })
           
-          // Verify rating updates were inserted
+          // Verify rating updates were inserted - CRITICAL CHECK
           const ratingUpdatesQuery = dbInstance.prepare(`
             SELECT * FROM rating_updates WHERE match_id = ?
           `)
           const ratingUpdates = ratingUpdatesQuery.all(sanitizedMatchId) as any[]
           
           console.log('Rating updates in database:', ratingUpdates.length, 'records')
-          if (ratingUpdates.length > 0) {
-            console.log('Rating update details:', ratingUpdates)
-          } else {
-            console.error('WARNING: No rating updates found in database!')
+          if (ratingUpdates.length === 0) {
+            console.error('ERROR: No rating updates found in database after transaction!')
+            console.error('This means the rating_updates INSERT statements did not execute or commit.')
+            throw new Error('Rating updates were not inserted into database. Transaction may have failed silently.')
           }
+          
+          if (ratingUpdates.length !== 2) {
+            console.error(`ERROR: Expected 2 rating updates, found ${ratingUpdates.length}`)
+            throw new Error(`Expected 2 rating updates, found ${ratingUpdates.length}`)
+          }
+          
+          console.log('Rating update details:', ratingUpdates)
+          
+          // Verify both players have rating updates
+          const player1Update = ratingUpdates.find((ru: any) => ru.player_id === match.player1_id)
+          const player2Update = ratingUpdates.find((ru: any) => ru.player_id === match.player2_id)
+          
+          if (!player1Update || !player2Update) {
+            console.error('ERROR: Missing rating update for one or both players')
+            console.error('Player1 update:', player1Update)
+            console.error('Player2 update:', player2Update)
+            throw new Error('Rating updates missing for one or both players')
+          }
+          
+          console.log('✓ Both rating updates verified in database')
           
           // Double-check that ratings actually changed
           if (finalRating1?.rating === 1000 && finalRating2?.rating === 1000) {
