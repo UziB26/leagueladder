@@ -6,14 +6,12 @@ import { ErrorState } from "@/components/ui/error-state"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 
 export default function Home() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [logoError, setLogoError] = useState(false)
-  const imgRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
     // Small delay to show loading state if session is being checked
@@ -21,17 +19,6 @@ export default function Home() {
       setLoading(false)
     }
   }, [status])
-
-  useEffect(() => {
-    // Try to preload the logo image
-    if (imgRef.current) {
-      const img = new Image()
-      img.onload = () => setLogoError(false)
-      img.onerror = () => setLogoError(true)
-      // Try both encoded and non-encoded paths
-      img.src = '/app logo.png'
-    }
-  }, [])
 
   const handleJoinLeague = (gameType: 'fifa' | 'table-tennis') => {
     if (!session) {
@@ -56,22 +43,13 @@ export default function Home() {
     <main className="min-h-screen p-8">
       <div className="max-w-6xl mx-auto">
         <header className="mb-12">
-          <h1 className="text-4xl font-bold text-cyan-400 flex items-center gap-3">
-            {!logoError ? (
-              <img 
-                ref={imgRef}
-                src="/app logo.png" 
-                alt="League Ladder Logo" 
-                className="h-12 w-12 object-contain"
-                loading="eager"
-                decoding="async"
-                onError={() => setLogoError(true)}
-              />
-            ) : (
-              <div className="h-12 w-12 flex items-center justify-center bg-cyan-400/20 rounded-lg">
-                <span className="text-cyan-400 text-2xl">🏓</span>
-              </div>
-            )}
+          <h1 className="text-4xl font-bold text-blue-600 flex items-center gap-3">
+            <img 
+              src="/app logo.png" 
+              alt="League Ladder Logo" 
+              className="h-12 w-12 object-contain"
+              loading="eager"
+            />
             League Ladder
           </h1>
           <p className="text-gray-300 mt-2">Table Tennis & FIFA leagues with Elo rankings</p>
