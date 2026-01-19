@@ -152,7 +152,7 @@ export default function DashboardPage() {
         <header className="mb-12">
           <h1 className="text-4xl font-bold text-blue-600 flex items-center gap-3">
             <img 
-              src="/app logo.png" 
+              src="/APP LOGO.png" 
               alt="League Ladder Logo" 
               className="h-12 w-12 object-contain"
               loading="eager"

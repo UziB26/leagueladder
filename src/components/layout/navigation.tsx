@@ -82,7 +82,7 @@ export function Navigation() {
           <Link href="/" className="flex items-center gap-2 min-h-[44px] min-w-[44px] items-center justify-center">
             <div className="h-8 w-8 flex items-center justify-center">
               <img 
-                src="/app logo.png" 
+                src="/APP LOGO.png" 
                 alt="League Ladder Logo" 
                 className="h-8 w-8 object-contain"
                 loading="eager"
