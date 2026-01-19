@@ -2,6 +2,7 @@
 
 import { AuthButton } from "@/components/auth/auth-button"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { useState, useEffect } from "react"
@@ -80,10 +81,13 @@ export function Navigation() {
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2 min-h-[44px] min-w-[44px] items-center justify-center">
             <div className="h-8 w-8 flex items-center justify-center">
-              <img 
-                src="/app logo.png" 
+              <Image 
+                src="/app%20logo.png" 
                 alt="League Ladder Logo" 
-                className="h-8 w-8 object-contain"
+                width={32}
+                height={32}
+                className="object-contain"
+                unoptimized
               />
             </div>
             <span className="text-xl font-bold text-white hidden sm:inline">League Ladder</span>

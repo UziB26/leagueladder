@@ -50,7 +50,11 @@ git push origin main
    ```
    NEXTAUTH_SECRET=your-generated-secret-key
    ```
-   *(Generate with: `openssl rand -base64 32`)*
+   **Generate NEXTAUTH_SECRET:**
+   - **Windows PowerShell**: `[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Minimum 0 -Maximum 256 }))`
+   - **Linux/Mac**: `openssl rand -base64 32`
+   - **Node.js**: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+   - **Online**: Use [generate-secret.vercel.app](https://generate-secret.vercel.app/32) (32 bytes)
 
    ```
    DATABASE_PATH=/tmp/league-ladder.db
@@ -104,13 +108,40 @@ git push origin main
 
 ## Step 3: Post-Deployment Configuration
 
-### Update NEXTAUTH_URL
+### Update NEXTAUTH_URL and NEXT_PUBLIC_APP_URL
 
-After your first deployment, Vercel will provide you with a URL. Update the `NEXTAUTH_URL` environment variable:
+After your first deployment, Vercel will provide you with a URL (e.g., `https://your-project-name.vercel.app`). You need to update both environment variables:
 
-1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables
-2. Update `NEXTAUTH_URL` with your actual Vercel URL
-3. Redeploy (or wait for automatic redeploy)
+**Step-by-Step Instructions:**
+
+1. **Get Your Vercel URL**
+   - Go to Vercel Dashboard → Your Project
+   - Look at the top of the page - you'll see your deployment URL
+   - It will look like: `https://league-ladder-abc123.vercel.app` or `https://your-project-name.vercel.app`
+   - Copy this URL
+
+2. **Update Environment Variables**
+   - In your project, go to **Settings** → **Environment Variables**
+   - Find `NEXTAUTH_URL` in the list
+   - Click the **pencil/edit icon** (or click on the variable name)
+   - Replace the value with your actual Vercel URL (e.g., `https://your-project-name.vercel.app`)
+   - Make sure it's selected for **Production**, **Preview**, and **Development**
+   - Click **Save**
+
+3. **Update NEXT_PUBLIC_APP_URL**
+   - In the same Environment Variables page
+   - Find `NEXT_PUBLIC_APP_URL` (or add it if it doesn't exist)
+   - Click edit and set it to the same URL: `https://your-project-name.vercel.app`
+   - Select all environments (Production, Preview, Development)
+   - Click **Save**
+
+4. **Redeploy**
+   - Go to **Deployments** tab
+   - Click the **three dots (⋯)** on your latest deployment
+   - Click **Redeploy**
+   - Or simply push a new commit to trigger automatic redeploy
+
+**Important:** After updating these variables, you must redeploy for the changes to take effect!
 
 ### Create Admin User
 

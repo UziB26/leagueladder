@@ -31,7 +31,7 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
   /* Global background image for all pages */
-  background-image: url('/APP%20Background.png');
+  background-image: url('/App%20background.png');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;

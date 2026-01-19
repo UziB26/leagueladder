@@ -6,6 +6,7 @@ import { ErrorState } from "@/components/ui/error-state"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { useState, useEffect } from "react"
 
 export default function Home() {
@@ -44,10 +45,13 @@ export default function Home() {
       <div className="max-w-6xl mx-auto">
         <header className="mb-12">
           <h1 className="text-4xl font-bold text-white flex items-center gap-3">
-            <img 
-              src="/app logo.png" 
+            <Image 
+              src="/app%20logo.png" 
               alt="League Ladder Logo" 
-              className="h-12 w-12 object-contain"
+              width={48}
+              height={48}
+              className="object-contain"
+              unoptimized
             />
             League Ladder
           </h1>
