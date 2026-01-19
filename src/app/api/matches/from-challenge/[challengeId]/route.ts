@@ -176,17 +176,6 @@ export async function POST(
       )
     }
 
-    // Validate score format: must be non-negative integers
-    const sanitizedPlayer1Score = sanitizeInteger(player1Score, 0, 1000)
-    const sanitizedPlayer2Score = sanitizeInteger(player2Score, 0, 1000)
-
-    if (sanitizedPlayer1Score === null || sanitizedPlayer2Score === null) {
-      return NextResponse.json(
-        { error: 'Invalid score values. Scores must be non-negative integers between 0 and 1000' },
-        { status: 400 }
-      )
-    }
-
     // Validate reasonable score limits
     const MAX_REASONABLE_SCORE = 1000
     if (sanitizedPlayer1Score > MAX_REASONABLE_SCORE || sanitizedPlayer2Score > MAX_REASONABLE_SCORE) {
