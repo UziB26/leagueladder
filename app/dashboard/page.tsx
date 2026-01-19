@@ -8,7 +8,6 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ProgressIndicators } from "@/components/dashboard/progress-indicators"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import Image from "next/image"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 
@@ -152,13 +151,10 @@ export default function DashboardPage() {
       <div className="max-w-6xl mx-auto">
         <header className="mb-12">
           <h1 className="text-4xl font-bold text-white flex items-center gap-3">
-            <Image 
-              src="/app%20logo.png" 
+            <img 
+              src="/app logo.png" 
               alt="League Ladder Logo" 
-              width={48}
-              height={48}
-              className="object-contain"
-              unoptimized
+              className="h-12 w-12 object-contain"
             />
             League Ladder Dashboard
           </h1>

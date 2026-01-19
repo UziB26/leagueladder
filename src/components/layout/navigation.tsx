@@ -81,13 +81,10 @@ export function Navigation() {
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2 min-h-[44px] min-w-[44px] items-center justify-center">
             <div className="h-8 w-8 flex items-center justify-center">
-              <Image 
-                src="/app%20logo.png" 
+              <img 
+                src="/app logo.png" 
                 alt="League Ladder Logo" 
-                width={32}
-                height={32}
-                className="object-contain"
-                unoptimized
+                className="h-8 w-8 object-contain"
               />
             </div>
             <span className="text-xl font-bold text-white hidden sm:inline">League Ladder</span>
