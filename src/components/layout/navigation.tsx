@@ -85,6 +85,8 @@ export function Navigation() {
                 src="/app logo.png" 
                 alt="League Ladder Logo" 
                 className="h-8 w-8 object-contain"
+                loading="eager"
+                decoding="async"
               />
             </div>
             <span className="text-xl font-bold text-white hidden sm:inline">League Ladder</span>

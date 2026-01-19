@@ -150,11 +150,13 @@ export default function DashboardPage() {
     <main className="min-h-screen p-8">
       <div className="max-w-6xl mx-auto">
         <header className="mb-12">
-          <h1 className="text-4xl font-bold text-white flex items-center gap-3">
+          <h1 className="text-4xl font-bold text-cyan-400 flex items-center gap-3">
             <img 
               src="/app logo.png" 
               alt="League Ladder Logo" 
               className="h-12 w-12 object-contain"
+              loading="eager"
+              decoding="async"
             />
             League Ladder Dashboard
           </h1>
