@@ -109,6 +109,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // At this point, user is guaranteed to be defined
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      )
+    }
+
     // Check if player exists, create if not
     let player: Player | undefined
     if (usePostgres) {
