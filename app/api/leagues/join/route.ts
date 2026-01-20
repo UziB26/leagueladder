@@ -59,13 +59,32 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user from database
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+    let user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
     
+    // If user doesn't exist in database but has valid session, create them
+    // This handles cases where database was reset (e.g., on Vercel with ephemeral storage)
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
+      const userId = crypto.randomUUID()
+      const userName = session.user.name || session.user.email?.split('@')[0] || 'User'
+      
+      try {
+        db.prepare(`
+          INSERT INTO users (id, email, name, created_at) 
+          VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        `).run(userId, session.user.email, userName)
+        
+        user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User
+      } catch (error: any) {
+        // If insert fails (e.g., race condition), try to get user again
+        user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+        if (!user) {
+          console.error('Failed to create user:', error)
+          return NextResponse.json(
+            { error: 'Failed to create user account' },
+            { status: 500 }
+          )
+        }
+      }
     }
 
     // Check if player exists, create if not
