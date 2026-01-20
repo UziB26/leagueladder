@@ -81,3 +81,62 @@ function convertToPostgres(query: string, params: any[]): string {
 export function isPostgresAvailable(): boolean {
   return !!process.env.POSTGRES_URL
 }
+
+/**
+ * Execute a transaction with automatic rollback on error
+ * Usage:
+ * await pgTransaction(async (tx) => {
+ *   await tx.run('INSERT INTO ...', ...params)
+ *   const result = await tx.get('SELECT ...', ...params)
+ * })
+ */
+export async function pgTransaction<T>(
+  callback: (tx: {
+    get: (query: string, ...params: any[]) => Promise<any>
+    all: (query: string, ...params: any[]) => Promise<any[]>
+    run: (query: string, ...params: any[]) => Promise<{ changes: number }>
+  }) => Promise<T>
+): Promise<T> {
+  const { sql } = await import('@vercel/postgres')
+  
+  try {
+    // Begin transaction
+    await sql.query('BEGIN')
+    
+    // Create transaction object with helper methods
+    const tx = {
+      get: async (query: string, ...params: any[]): Promise<any> => {
+        const pgQuery = convertToPostgres(query, params)
+        const result = await sql.query(pgQuery, params)
+        return result.rows[0] || undefined
+      },
+      all: async (query: string, ...params: any[]): Promise<any[]> => {
+        const pgQuery = convertToPostgres(query, params)
+        const result = await sql.query(pgQuery, params)
+        return result.rows
+      },
+      run: async (query: string, ...params: any[]): Promise<{ changes: number }> => {
+        const pgQuery = convertToPostgres(query, params)
+        const result = await sql.query(pgQuery, params)
+        // PostgreSQL returns rowCount for UPDATE/INSERT/DELETE
+        return { changes: result.rowCount || 0 }
+      }
+    }
+    
+    // Execute callback
+    const result = await callback(tx)
+    
+    // Commit transaction
+    await sql.query('COMMIT')
+    
+    return result
+  } catch (error) {
+    // Rollback on error
+    try {
+      await sql.query('ROLLBACK')
+    } catch (rollbackError) {
+      console.error('Error during rollback:', rollbackError)
+    }
+    throw error
+  }
+}

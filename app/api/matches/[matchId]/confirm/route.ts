@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db, getDatabase, DatabaseTransaction, createBackup, restoreBackup } from '@/lib/db'
+import { pgGet, pgAll, pgRun, pgTransaction, isPostgresAvailable } from '@/lib/db/postgres'
 import { elo } from '@/lib/elo'
 import { apiRateLimit } from '@/lib/rate-limit'
 import { sanitizeUUID } from '@/lib/sanitize'
@@ -75,7 +76,15 @@ export async function POST(
       )
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+    const usePostgres = isPostgresAvailable()
+    
+    // Get user
+    let user: User | undefined
+    if (usePostgres) {
+      user = await pgGet('SELECT * FROM users WHERE email = $1', session.user.email) as User | undefined
+    } else {
+      user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+    }
     
     if (!user) {
       return NextResponse.json(
@@ -84,7 +93,13 @@ export async function POST(
       )
     }
 
-    const player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
+    // Get player
+    let player: Player | undefined
+    if (usePostgres) {
+      player = await pgGet('SELECT * FROM players WHERE user_id = $1', user.id) as Player | undefined
+    } else {
+      player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
+    }
     
     if (!player) {
       return NextResponse.json(
@@ -94,13 +109,24 @@ export async function POST(
     }
 
     // Get the match
-    const match = db.prepare(`
-      SELECT m.*, p1.name as player1_name, p2.name as player2_name
-      FROM matches m
-      JOIN players p1 ON m.player1_id = p1.id
-      JOIN players p2 ON m.player2_id = p2.id
-      WHERE m.id = ?
-    `).get(sanitizedMatchId) as any
+    let match: any
+    if (usePostgres) {
+      match = await pgGet(`
+        SELECT m.*, p1.name as player1_name, p2.name as player2_name
+        FROM matches m
+        JOIN players p1 ON m.player1_id = p1.id
+        JOIN players p2 ON m.player2_id = p2.id
+        WHERE m.id = $1
+      `, sanitizedMatchId)
+    } else {
+      match = db.prepare(`
+        SELECT m.*, p1.name as player1_name, p2.name as player2_name
+        FROM matches m
+        JOIN players p1 ON m.player1_id = p1.id
+        JOIN players p2 ON m.player2_id = p2.id
+        WHERE m.id = ?
+      `).get(sanitizedMatchId) as any
+    }
 
     if (!match) {
       return NextResponse.json(
@@ -142,10 +168,18 @@ export async function POST(
     }
 
     // Check if player already confirmed/disputed
-    const existingConfirmation = db.prepare(`
-      SELECT * FROM match_confirmations 
-      WHERE match_id = ? AND player_id = ?
-    `).get(sanitizedMatchId, player.id) as any
+    let existingConfirmation: any
+    if (usePostgres) {
+      existingConfirmation = await pgGet(`
+        SELECT * FROM match_confirmations 
+        WHERE match_id = $1 AND player_id = $2
+      `, sanitizedMatchId, player.id)
+    } else {
+      existingConfirmation = db.prepare(`
+        SELECT * FROM match_confirmations 
+        WHERE match_id = ? AND player_id = ?
+      `).get(sanitizedMatchId, player.id) as any
+    }
 
     if (existingConfirmation) {
       return NextResponse.json(
@@ -154,11 +188,14 @@ export async function POST(
       )
     }
 
-    // Create backup before making changes
-    const backup = createBackup({
-      matchIds: [sanitizedMatchId],
-      playerIds: [match.player1_id, match.player2_id],
-    })
+    // Create backup before making changes (only for SQLite)
+    let backup: any = null
+    if (!usePostgres) {
+      backup = createBackup({
+        matchIds: [sanitizedMatchId],
+        playerIds: [match.player1_id, match.player2_id],
+      })
+    }
 
     try {
       if (action === 'confirmed') {
@@ -166,6 +203,7 @@ export async function POST(
         console.log('=== MATCH CONFIRMATION START ===')
         console.log('Match ID:', sanitizedMatchId)
         console.log('Player confirming:', player.id)
+        console.log('Database:', usePostgres ? 'PostgreSQL' : 'SQLite')
         console.log('Match data:', {
           player1_id: match.player1_id,
           player2_id: match.player2_id,
@@ -175,12 +213,25 @@ export async function POST(
           status: match.status
         })
         
-        try {
-          // Get the actual database instance (not proxy) for transaction
-          // Transactions need the actual instance, not the proxy
-          const dbInstance = getDatabase()
+        if (usePostgres) {
+          // PostgreSQL transaction
+          const { confirmMatchPostgres } = await import('./confirm-postgres')
+          const pgResult = await confirmMatchPostgres(sanitizedMatchId, player.id, match)
           
-          // Use better-sqlite3's built-in transaction for better reliability
+          return NextResponse.json({
+            success: true,
+            message: 'Match confirmed successfully. Ratings have been updated.',
+            ratings: pgResult.ratings
+          }, {
+            headers: {
+              'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+            }
+          })
+        } else {
+          // SQLite transaction (original code)
+          const dbInstance = getDatabase()
           const transaction = dbInstance.transaction(() => {
             console.log('=== TRANSACTION STARTED ===')
             
@@ -584,40 +635,64 @@ export async function POST(
         }
       } else {
         // Player disputed the match
-        DatabaseTransaction.execute((tx) => {
-          // Record dispute
+        if (usePostgres) {
+          // PostgreSQL dispute handling
           const confirmationId = crypto.randomUUID()
-          tx.run(
-            db.prepare(`
-              INSERT INTO match_confirmations (
-                id, match_id, player_id, action, dispute_reason,
-                confirmed_score1, confirmed_score2, created_at
-              )
-              VALUES (?, ?, ?, 'disputed', ?, ?, ?, CURRENT_TIMESTAMP)
-            `),
-            confirmationId,
-            sanitizedMatchId,
-            player.id,
-            dispute_reason || '',
-            confirmed_score1 || null,
-            confirmed_score2 || null
-          )
+          await pgRun(`
+            INSERT INTO match_confirmations (
+              id, match_id, player_id, action, dispute_reason,
+              confirmed_score1, confirmed_score2, created_at
+            )
+            VALUES ($1, $2, $3, 'disputed', $4, $5, $6, CURRENT_TIMESTAMP)
+          `, confirmationId, sanitizedMatchId, player.id, dispute_reason || '', confirmed_score1 || null, confirmed_score2 || null)
 
-          // Update match status to disputed
-          tx.run(
-            db.prepare(`
-              UPDATE matches
-              SET status = 'disputed'
-              WHERE id = ?
-            `),
-            sanitizedMatchId
-          )
-        })
+          await pgRun(`
+            UPDATE matches
+            SET status = 'disputed'
+            WHERE id = $1
+          `, sanitizedMatchId)
 
-        return NextResponse.json({
-          success: true,
-          message: 'Match disputed. An admin will review the dispute.'
-        })
+          return NextResponse.json({
+            success: true,
+            message: 'Match disputed. An admin will review the dispute.'
+          })
+        } else {
+          // SQLite dispute handling
+          DatabaseTransaction.execute((tx) => {
+            // Record dispute
+            const confirmationId = crypto.randomUUID()
+            tx.run(
+              db.prepare(`
+                INSERT INTO match_confirmations (
+                  id, match_id, player_id, action, dispute_reason,
+                  confirmed_score1, confirmed_score2, created_at
+                )
+                VALUES (?, ?, ?, 'disputed', ?, ?, ?, CURRENT_TIMESTAMP)
+              `),
+              confirmationId,
+              sanitizedMatchId,
+              player.id,
+              dispute_reason || '',
+              confirmed_score1 || null,
+              confirmed_score2 || null
+            )
+
+            // Update match status to disputed
+            tx.run(
+              db.prepare(`
+                UPDATE matches
+                SET status = 'disputed'
+                WHERE id = ?
+              `),
+              sanitizedMatchId
+            )
+          })
+
+          return NextResponse.json({
+            success: true,
+            message: 'Match disputed. An admin will review the dispute.'
+          })
+        }
       }
     } catch (error: any) {
       // Rollback using backup if transaction fails

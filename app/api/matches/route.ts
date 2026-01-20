@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db, dbHelpers } from '@/lib/db'
+import { pgGet, pgAll, pgRun, isPostgresAvailable } from '@/lib/db/postgres'
 import { elo } from '@/lib/elo'
 import crypto from 'crypto'
 
@@ -25,7 +26,14 @@ export async function POST(request: Request) {
       )
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+    const usePostgres = isPostgresAvailable()
+    
+    let user: User | undefined
+    if (usePostgres) {
+      user = await pgGet('SELECT * FROM users WHERE email = $1', session.user.email) as User | undefined
+    } else {
+      user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+    }
     
     if (!user) {
       return NextResponse.json(
@@ -34,7 +42,12 @@ export async function POST(request: Request) {
       )
     }
 
-    const player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
+    let player: Player | undefined
+    if (usePostgres) {
+      player = await pgGet('SELECT * FROM players WHERE user_id = $1', user.id) as Player | undefined
+    } else {
+      player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
+    }
     
     if (!player) {
       return NextResponse.json(
@@ -85,7 +98,12 @@ export async function POST(request: Request) {
 
     // If challengeId is provided, verify the challenge exists and is accepted
     if (challengeId) {
-      const challenge = db.prepare('SELECT * FROM challenges WHERE id = ?').get(challengeId) as any
+      let challenge: any
+      if (usePostgres) {
+        challenge = await pgGet('SELECT * FROM challenges WHERE id = $1', challengeId)
+      } else {
+        challenge = db.prepare('SELECT * FROM challenges WHERE id = ?').get(challengeId) as any
+      }
       
       if (!challenge) {
         return NextResponse.json(
@@ -115,7 +133,13 @@ export async function POST(request: Request) {
 
     // Check if a match already exists for this challenge
     if (challengeId) {
-      const existingMatch = db.prepare('SELECT * FROM matches WHERE challenge_id = ?').get(challengeId) as any
+      let existingMatch: any
+      if (usePostgres) {
+        existingMatch = await pgGet('SELECT * FROM matches WHERE challenge_id = $1', challengeId)
+      } else {
+        existingMatch = db.prepare('SELECT * FROM matches WHERE challenge_id = ?').get(challengeId) as any
+      }
+      
       if (existingMatch) {
         return NextResponse.json(
           { error: 'A match already exists for this challenge' },
@@ -139,40 +163,61 @@ export async function POST(request: Request) {
     
     // Insert match with winner_id and reported_by set
     // reported_by is the player who reported the match (current player)
-    db.prepare(`
-      INSERT INTO matches (
-        id, challenge_id, player1_id, player2_id, league_id,
-        player1_score, player2_score, status, winner_id, reported_by, confirmed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE NULL END)
-    `).run(
-      matchId,
-      challengeId || null,
-      player1Id,
-      player2Id,
-      leagueId,
-      player1Score,
-      player2Score,
-      matchStatus,
-      winnerId,
-      player.id, // Set reported_by to current player
-      matchStatus
-    )
+    if (usePostgres) {
+      await pgRun(`
+        INSERT INTO matches (
+          id, challenge_id, player1_id, player2_id, league_id,
+          player1_score, player2_score, status, winner_id, reported_by, confirmed_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $8 = 'completed' THEN CURRENT_TIMESTAMP ELSE NULL END)
+      `, matchId, challengeId || null, player1Id, player2Id, leagueId, player1Score, player2Score, matchStatus, winnerId, player.id)
+    } else {
+      db.prepare(`
+        INSERT INTO matches (
+          id, challenge_id, player1_id, player2_id, league_id,
+          player1_score, player2_score, status, winner_id, reported_by, confirmed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE NULL END)
+      `).run(
+        matchId,
+        challengeId || null,
+        player1Id,
+        player2Id,
+        leagueId,
+        player1Score,
+        player2Score,
+        matchStatus,
+        winnerId,
+        player.id,
+        matchStatus
+      )
+    }
 
     // Mark challenge as completed if match is completed and challenge exists
     if (matchStatus === 'completed' && challengeId) {
-      db.prepare(`
-        UPDATE challenges
-        SET status = 'completed'
-        WHERE id = ? AND status = 'accepted'
-      `).run(challengeId)
+      if (usePostgres) {
+        await pgRun(`
+          UPDATE challenges
+          SET status = 'completed'
+          WHERE id = $1 AND status = 'accepted'
+        `, challengeId)
+      } else {
+        db.prepare(`
+          UPDATE challenges
+          SET status = 'completed'
+          WHERE id = ? AND status = 'accepted'
+        `).run(challengeId)
+      }
     }
-    // Note: Player stats are updated automatically by the update_player_stats_on_match_insert trigger
+    // Note: Player stats are updated automatically by the update_player_stats_on_match_insert trigger (SQLite only)
+    // For PostgreSQL, stats are updated in the confirmation route
 
     // ELO ratings should only be updated after match confirmation
     // If status is explicitly 'completed' (e.g., admin override), update ELO immediately
     if (matchStatus === 'completed') {
       try {
-        dbHelpers.updateEloRatings(matchId, elo)
+        if (!usePostgres) {
+          dbHelpers.updateEloRatings(matchId, elo)
+        }
+        // For PostgreSQL, Elo is handled in confirmation route
       } catch (error: any) {
         console.error('Error updating Elo ratings:', error)
         // Don't fail the request if rating update fails, but log it
@@ -213,7 +258,14 @@ export async function GET(request: Request) {
       )
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+    const usePostgres = isPostgresAvailable()
+    
+    let user: User | undefined
+    if (usePostgres) {
+      user = await pgGet('SELECT * FROM users WHERE email = $1', session.user.email) as User | undefined
+    } else {
+      user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+    }
     
     if (!user) {
       return NextResponse.json(
@@ -222,27 +274,50 @@ export async function GET(request: Request) {
       )
     }
 
-    const player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
+    let player: Player | undefined
+    if (usePostgres) {
+      player = await pgGet('SELECT * FROM players WHERE user_id = $1', user.id) as Player | undefined
+    } else {
+      player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
+    }
     
     if (!player) {
       return NextResponse.json({ matches: [] })
     }
 
     // Get matches for the current player
-    const matches = db.prepare(`
-      SELECT 
-        m.*,
-        l.name as league_name,
-        p1.name as player1_name,
-        p2.name as player2_name
-      FROM matches m
-      JOIN leagues l ON m.league_id = l.id
-      JOIN players p1 ON m.player1_id = p1.id
-      JOIN players p2 ON m.player2_id = p2.id
-      WHERE (m.player1_id = ? OR m.player2_id = ?)
-      ORDER BY m.played_at DESC
-      LIMIT 50
-    `).all(player.id, player.id)
+    let matches: any[]
+    if (usePostgres) {
+      matches = await pgAll(`
+        SELECT 
+          m.*,
+          l.name as league_name,
+          p1.name as player1_name,
+          p2.name as player2_name
+        FROM matches m
+        JOIN leagues l ON m.league_id = l.id
+        JOIN players p1 ON m.player1_id = p1.id
+        JOIN players p2 ON m.player2_id = p2.id
+        WHERE (m.player1_id = $1 OR m.player2_id = $1)
+        ORDER BY m.played_at DESC
+        LIMIT 50
+      `, player.id)
+    } else {
+      matches = db.prepare(`
+        SELECT 
+          m.*,
+          l.name as league_name,
+          p1.name as player1_name,
+          p2.name as player2_name
+        FROM matches m
+        JOIN leagues l ON m.league_id = l.id
+        JOIN players p1 ON m.player1_id = p1.id
+        JOIN players p2 ON m.player2_id = p2.id
+        WHERE (m.player1_id = ? OR m.player2_id = ?)
+        ORDER BY m.played_at DESC
+        LIMIT 50
+      `).all(player.id, player.id) as any[]
+    }
 
     return NextResponse.json({ matches })
 
