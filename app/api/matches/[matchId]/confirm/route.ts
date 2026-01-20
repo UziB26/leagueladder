@@ -626,13 +626,14 @@ export async function POST(
               }
             })
           } catch (txError: any) {
-          console.error('=== TRANSACTION ERROR ===')
-          console.error('Error type:', txError?.constructor?.name)
-          console.error('Error message:', txError?.message)
-          console.error('Error stack:', txError?.stack)
-          console.error('Full error:', txError)
-          console.error('=== END TRANSACTION ERROR ===')
-          throw txError
+            console.error('=== TRANSACTION ERROR ===')
+            console.error('Error type:', txError?.constructor?.name)
+            console.error('Error message:', txError?.message)
+            console.error('Error stack:', txError?.stack)
+            console.error('Full error:', txError)
+            console.error('=== END TRANSACTION ERROR ===')
+            throw txError
+          }
         }
       } else {
         // Player disputed the match
