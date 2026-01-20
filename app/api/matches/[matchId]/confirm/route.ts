@@ -527,104 +527,105 @@ export async function POST(
           
           // Verify transaction committed by checking if data was written
           // Use a fresh query to ensure we're reading committed data
-          const testQuery = dbInstance.prepare('SELECT status FROM matches WHERE id = ?')
-          const matchStatusCheck = testQuery.get(sanitizedMatchId) as any
-          if (matchStatusCheck?.status !== 'completed') {
-            throw new Error(`Transaction may not have committed. Match status is: ${matchStatusCheck?.status}, expected: completed`)
-          }
-          console.log('Transaction verified: Match status is completed')
-          
-          // Verify ratings were updated after transaction commits
-          // Use dbInstance to ensure we're querying the same database instance
-          // Create fresh prepared statements to avoid any caching issues
-          const verifyRatingQuery = dbInstance.prepare(`
-            SELECT rating, updated_at FROM player_ratings
-            WHERE player_id = ? AND league_id = ?
-          `)
-          
-          const finalRating1 = verifyRatingQuery.get(match.player1_id, match.league_id) as any
-          const finalRating2 = verifyRatingQuery.get(match.player2_id, match.league_id) as any
-          
-          console.log('Final ratings after transaction:', {
-            player1: { id: match.player1_id, rating: finalRating1?.rating, updated_at: finalRating1?.updated_at },
-            player2: { id: match.player2_id, rating: finalRating2?.rating, updated_at: finalRating2?.updated_at }
-          })
-          
-          // Verify rating updates were inserted - CRITICAL CHECK
-          const ratingUpdatesQuery = dbInstance.prepare(`
-            SELECT * FROM rating_updates WHERE match_id = ?
-          `)
-          const ratingUpdates = ratingUpdatesQuery.all(sanitizedMatchId) as any[]
-          
-          console.log('Rating updates in database:', ratingUpdates.length, 'records')
-          if (ratingUpdates.length === 0) {
-            console.error('ERROR: No rating updates found in database after transaction!')
-            console.error('This means the rating_updates INSERT statements did not execute or commit.')
-            throw new Error('Rating updates were not inserted into database. Transaction may have failed silently.')
-          }
-          
-          if (ratingUpdates.length !== 2) {
-            console.error(`ERROR: Expected 2 rating updates, found ${ratingUpdates.length}`)
-            throw new Error(`Expected 2 rating updates, found ${ratingUpdates.length}`)
-          }
-          
-          console.log('Rating update details:', ratingUpdates)
-          
-          // Verify both players have rating updates
-          const player1Update = ratingUpdates.find((ru: any) => ru.player_id === match.player1_id)
-          const player2Update = ratingUpdates.find((ru: any) => ru.player_id === match.player2_id)
-          
-          if (!player1Update || !player2Update) {
-            console.error('ERROR: Missing rating update for one or both players')
-            console.error('Player1 update:', player1Update)
-            console.error('Player2 update:', player2Update)
-            throw new Error('Rating updates missing for one or both players')
-          }
-          
-          console.log('✓ Both rating updates verified in database')
-          
-          // Double-check that ratings actually changed
-          if (finalRating1?.rating === 1000 && finalRating2?.rating === 1000) {
-            console.error('WARNING: Ratings are still at default 1000! This suggests the update did not work.')
-            // Try to get the match to see what happened
-            const matchCheck = dbInstance.prepare('SELECT * FROM matches WHERE id = ?').get(sanitizedMatchId) as any
-            console.error('Match status:', matchCheck?.status)
-            console.error('Match winner:', matchCheck?.winner_id)
-          }
-          
-          console.log('=== MATCH CONFIRMATION SUCCESS ===')
+          try {
+            const testQuery = dbInstance.prepare('SELECT status FROM matches WHERE id = ?')
+            const matchStatusCheck = testQuery.get(sanitizedMatchId) as any
+            if (matchStatusCheck?.status !== 'completed') {
+              throw new Error(`Transaction may not have committed. Match status is: ${matchStatusCheck?.status}, expected: completed`)
+            }
+            console.log('Transaction verified: Match status is completed')
+            
+            // Verify ratings were updated after transaction commits
+            // Use dbInstance to ensure we're querying the same database instance
+            // Create fresh prepared statements to avoid any caching issues
+            const verifyRatingQuery = dbInstance.prepare(`
+              SELECT rating, updated_at FROM player_ratings
+              WHERE player_id = ? AND league_id = ?
+            `)
+            
+            const finalRating1 = verifyRatingQuery.get(match.player1_id, match.league_id) as any
+            const finalRating2 = verifyRatingQuery.get(match.player2_id, match.league_id) as any
+            
+            console.log('Final ratings after transaction:', {
+              player1: { id: match.player1_id, rating: finalRating1?.rating, updated_at: finalRating1?.updated_at },
+              player2: { id: match.player2_id, rating: finalRating2?.rating, updated_at: finalRating2?.updated_at }
+            })
+            
+            // Verify rating updates were inserted - CRITICAL CHECK
+            const ratingUpdatesQuery = dbInstance.prepare(`
+              SELECT * FROM rating_updates WHERE match_id = ?
+            `)
+            const ratingUpdates = ratingUpdatesQuery.all(sanitizedMatchId) as any[]
+            
+            console.log('Rating updates in database:', ratingUpdates.length, 'records')
+            if (ratingUpdates.length === 0) {
+              console.error('ERROR: No rating updates found in database after transaction!')
+              console.error('This means the rating_updates INSERT statements did not execute or commit.')
+              throw new Error('Rating updates were not inserted into database. Transaction may have failed silently.')
+            }
+            
+            if (ratingUpdates.length !== 2) {
+              console.error(`ERROR: Expected 2 rating updates, found ${ratingUpdates.length}`)
+              throw new Error(`Expected 2 rating updates, found ${ratingUpdates.length}`)
+            }
+            
+            console.log('Rating update details:', ratingUpdates)
+            
+            // Verify both players have rating updates
+            const player1Update = ratingUpdates.find((ru: any) => ru.player_id === match.player1_id)
+            const player2Update = ratingUpdates.find((ru: any) => ru.player_id === match.player2_id)
+            
+            if (!player1Update || !player2Update) {
+              console.error('ERROR: Missing rating update for one or both players')
+              console.error('Player1 update:', player1Update)
+              console.error('Player2 update:', player2Update)
+              throw new Error('Rating updates missing for one or both players')
+            }
+            
+            console.log('✓ Both rating updates verified in database')
+            
+            // Double-check that ratings actually changed
+            if (finalRating1?.rating === 1000 && finalRating2?.rating === 1000) {
+              console.error('WARNING: Ratings are still at default 1000! This suggests the update did not work.')
+              // Try to get the match to see what happened
+              const matchCheck = dbInstance.prepare('SELECT * FROM matches WHERE id = ?').get(sanitizedMatchId) as any
+              console.error('Match status:', matchCheck?.status)
+              console.error('Match winner:', matchCheck?.winner_id)
+            }
+            
+            console.log('=== MATCH CONFIRMATION SUCCESS ===')
 
-          // Double-check ratings one more time before returning
-          const finalCheck1 = dbInstance.prepare(`
-            SELECT rating FROM player_ratings
-            WHERE player_id = ? AND league_id = ?
-          `).get(match.player1_id, match.league_id) as any
-          
-          const finalCheck2 = dbInstance.prepare(`
-            SELECT rating FROM player_ratings
-            WHERE player_id = ? AND league_id = ?
-          `).get(match.player2_id, match.league_id) as any
-          
-          console.log('Final check before response:', {
-            player1: finalCheck1?.rating,
-            player2: finalCheck2?.rating
-          })
-          
-          return NextResponse.json({
-            success: true,
-            message: 'Match confirmed successfully. Ratings have been updated.',
-            ratings: {
-              player1: finalCheck1?.rating || finalRating1?.rating,
-              player2: finalCheck2?.rating || finalRating2?.rating
-            }
-          }, {
-            headers: {
-              'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-              'Pragma': 'no-cache',
-              'Expires': '0',
-            }
-          })
-        } catch (txError: any) {
+            // Double-check ratings one more time before returning
+            const finalCheck1 = dbInstance.prepare(`
+              SELECT rating FROM player_ratings
+              WHERE player_id = ? AND league_id = ?
+            `).get(match.player1_id, match.league_id) as any
+            
+            const finalCheck2 = dbInstance.prepare(`
+              SELECT rating FROM player_ratings
+              WHERE player_id = ? AND league_id = ?
+            `).get(match.player2_id, match.league_id) as any
+            
+            console.log('Final check before response:', {
+              player1: finalCheck1?.rating,
+              player2: finalCheck2?.rating
+            })
+            
+            return NextResponse.json({
+              success: true,
+              message: 'Match confirmed successfully. Ratings have been updated.',
+              ratings: {
+                player1: finalCheck1?.rating || finalRating1?.rating,
+                player2: finalCheck2?.rating || finalRating2?.rating
+              }
+            }, {
+              headers: {
+                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma': 'no-cache',
+                'Expires': '0',
+              }
+            })
+          } catch (txError: any) {
           console.error('=== TRANSACTION ERROR ===')
           console.error('Error type:', txError?.constructor?.name)
           console.error('Error message:', txError?.message)
