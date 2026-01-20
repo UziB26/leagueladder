@@ -47,3 +47,6 @@ league-ladder-*.db
 
 # Database backups
 *.db.backup
+
+.vercel
+.env*.local
