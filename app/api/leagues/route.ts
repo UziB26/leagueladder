@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+export const runtime = 'nodejs' // Required for Prisma on Vercel
+
 export async function GET() {
   try {
     const leagues = db.prepare('SELECT * FROM leagues').all()

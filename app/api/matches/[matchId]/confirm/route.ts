@@ -8,6 +8,8 @@ import { sanitizeUUID } from '@/lib/sanitize'
 import { z } from 'zod'
 import crypto from 'crypto'
 
+export const runtime = 'nodejs' // Required for Prisma on Vercel
+
 interface User {
   id: string
   email: string

@@ -29,15 +29,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Validation
-    const validation = await validateRequest(request, requestSchemas.joinLeague)
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: validation.error },
-        { status: 400 }
-      )
+    const validator = validateRequest({
+      schema: requestSchemas.joinLeague,
+      errorMessage: 'Invalid league join request',
+    })
+    const { data, error } = await validator(request)
+    if (error) {
+      return error
     }
 
-    const { leagueId } = validation.data
+    const { leagueId } = data
     const sanitizedLeagueId = sanitizeString(leagueId)
 
     // Get or create user

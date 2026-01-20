@@ -7,6 +7,8 @@ import { validateRequest, requestSchemas } from '@/lib/validation'
 import { sanitizeString } from '@/lib/sanitize'
 import crypto from 'crypto'
 
+export const runtime = 'nodejs' // Required for Prisma on Vercel
+
 interface User {
   id: string;
   email: string;

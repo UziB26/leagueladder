@@ -4,6 +4,8 @@ import { db } from '@/lib/db'
 import { Challenge } from '@/types/database'
 import crypto from 'crypto'
 
+export const runtime = 'nodejs' // Required for Prisma on Vercel
+
 interface User {
   id: string;
   email: string;

@@ -5,6 +5,8 @@ import { pgGet, pgAll, pgRun, isPostgresAvailable } from '@/lib/db/postgres'
 import { elo } from '@/lib/elo'
 import crypto from 'crypto'
 
+export const runtime = 'nodejs' // Required for Prisma on Vercel
+
 interface User {
   id: string
   email: string

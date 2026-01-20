@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { Challenge } from '@/types/database'
 
+export const runtime = 'nodejs' // Required for Prisma on Vercel
+
 interface User {
   id: string;
   email: string;
