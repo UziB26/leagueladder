@@ -93,6 +93,7 @@ model League {
   ratings     PlayerRating[]
   challenges  Challenge[]
   matches     Match[]
+  ratingUpdates RatingUpdate[]
 
   @@map("leagues")
 }
