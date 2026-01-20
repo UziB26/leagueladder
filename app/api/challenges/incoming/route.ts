@@ -56,7 +56,18 @@ export async function GET() {
         createdAt: 'desc'
       },
       take: 50
-    })
+    }) as Array<{
+      id: string
+      createdAt: Date
+      expiresAt: Date | null
+      status: string
+      challengeeId: string
+      challengerId: string
+      leagueId: string
+      challenger: { name: string }
+      challengee: { name: string }
+      league: { name: string }
+    }>
 
     // Transform to match expected format
     const formattedChallenges = challenges.map(c => ({
