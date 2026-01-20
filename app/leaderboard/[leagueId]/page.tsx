@@ -16,24 +16,52 @@ interface LeaguePageProps {
 export default async function LeagueLeaderboardPage({ params }: LeaguePageProps) {
   const { leagueId } = await params
   
-  // Fetch league
-  const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(leagueId) as League | undefined
+  // Fetch league using Prisma
+  const leagueData = await db.league.findUnique({
+    where: { id: leagueId }
+  })
   
-  if (!league) {
+  if (!leagueData) {
     notFound()
   }
   
-  // Fetch leaderboard
-  const players = db.prepare(`
-    SELECT 
-      p.id, p.name, p.email, p.avatar,
-      pr.rating, pr.games_played, pr.wins, pr.losses, pr.draws
-    FROM players p
-    JOIN player_ratings pr ON p.id = pr.player_id
-    WHERE pr.league_id = ?
-    ORDER BY pr.rating DESC
-    LIMIT 100
-  `).all(leagueId) as LeaderboardEntry[]
+  // Transform to match League type (convert camelCase to snake_case)
+  const league: League = {
+    id: leagueData.id,
+    name: leagueData.name,
+    game_type: leagueData.gameType as 'table-tennis' | 'fifa',
+    created_at: leagueData.createdAt.toISOString()
+  }
+  
+  // Fetch leaderboard using Prisma
+  const playerRatingsRaw = await db.playerRating.findMany({
+    where: { leagueId },
+    include: {
+      player: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          avatar: true
+        }
+      }
+    },
+    orderBy: { rating: 'desc' },
+    take: 100
+  })
+  
+  // Transform to match expected format
+  const players: LeaderboardEntry[] = playerRatingsRaw.map(pr => ({
+    id: pr.player.id,
+    name: pr.player.name,
+    email: pr.player.email || undefined,
+    avatar: pr.player.avatar || undefined,
+    rating: pr.rating,
+    games_played: pr.gamesPlayed,
+    wins: pr.wins,
+    losses: pr.losses,
+    draws: pr.draws
+  }))
 
   return (
     <div className="container mx-auto px-4 py-8">

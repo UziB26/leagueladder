@@ -35,37 +35,114 @@ interface PlayerPageProps {
 export default async function PlayerPage({ params }: PlayerPageProps) {
   const { playerId } = await params
   
-  // Fetch player
-  const player = db.prepare('SELECT * FROM players WHERE id = ?').get(playerId) as Player | undefined
+  // Fetch player using Prisma
+  const playerData = await db.player.findUnique({
+    where: { id: playerId }
+  })
   
-  if (!player) {
+  if (!playerData) {
     notFound()
   }
   
-  // Fetch ratings with league info
-  const ratings = db.prepare(`
-    SELECT pr.*, l.name as league_name, l.game_type
-    FROM player_ratings pr
-    JOIN leagues l ON pr.league_id = l.id
-    WHERE pr.player_id = ?
-  `).all(playerId) as RatingWithLeague[]
+  // Transform to match Player type
+  const player: Player = {
+    id: playerData.id,
+    user_id: playerData.userId,
+    name: playerData.name,
+    email: playerData.email || undefined,
+    avatar: playerData.avatar || undefined,
+    created_at: playerData.createdAt.toISOString()
+  }
   
-  // Fetch recent matches
-  const matches = db.prepare(`
-    SELECT 
-      m.*,
-      l.name as league_name,
-      p1.name as player1_name,
-      p2.name as player2_name
-    FROM matches m
-    JOIN leagues l ON m.league_id = l.id
-    JOIN players p1 ON m.player1_id = p1.id
-    JOIN players p2 ON m.player2_id = p2.id
-    WHERE (m.player1_id = ? OR m.player2_id = ?)
-      AND m.status = 'completed'
-    ORDER BY m.played_at DESC
-    LIMIT 20
-  `).all(playerId, playerId) as MatchWithDetails[]
+  // Fetch ratings with league info using Prisma
+  const playerRatings = await db.playerRating.findMany({
+    where: { playerId },
+    include: {
+      league: {
+        select: {
+          name: true,
+          gameType: true
+        }
+      }
+    }
+  }) as Array<{
+    id: string
+    playerId: string
+    leagueId: string
+    rating: number
+    gamesPlayed: number
+    wins: number
+    losses: number
+    draws: number
+    updatedAt: Date
+    league: {
+      name: string
+      gameType: string
+    }
+  }>
+  
+  // Transform to match expected format
+  const ratings: RatingWithLeague[] = playerRatings.map(pr => ({
+    id: pr.id,
+    player_id: pr.playerId,
+    league_id: pr.leagueId,
+    rating: pr.rating,
+    games_played: pr.gamesPlayed,
+    wins: pr.wins,
+    losses: pr.losses,
+    draws: pr.draws,
+    updated_at: pr.updatedAt.toISOString(),
+    league_name: pr.league.name,
+    game_type: pr.league.gameType
+  }))
+  
+  // Fetch recent matches using Prisma
+  const matchRecordsRaw = await db.match.findMany({
+    where: {
+      OR: [
+        { player1Id: playerId },
+        { player2Id: playerId }
+      ],
+      status: 'completed'
+    },
+    include: {
+      league: {
+        select: {
+          name: true
+        }
+      },
+      player1: {
+        select: {
+          name: true
+        }
+      },
+      player2: {
+        select: {
+          name: true
+        }
+      }
+    },
+    orderBy: { playedAt: 'desc' },
+    take: 20
+  })
+  
+  // Transform to match expected format
+  const matches: MatchWithDetails[] = matchRecordsRaw.map(m => ({
+    id: m.id,
+    challenge_id: m.challengeId || undefined,
+    player1_id: m.player1Id,
+    player2_id: m.player2Id,
+    league_id: m.leagueId,
+    player1_score: m.player1Score,
+    player2_score: m.player2Score,
+    winner_id: m.winnerId || undefined,
+    status: m.status,
+    played_at: m.playedAt.toISOString(),
+    confirmed_at: m.confirmedAt?.toISOString(),
+    league_name: m.league.name,
+    player1_name: m.player1.name,
+    player2_name: m.player2.name
+  }))
 
   return (
     <div className="container mx-auto px-4 py-8">

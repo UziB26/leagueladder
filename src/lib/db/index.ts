@@ -46,3 +46,8 @@ export const db = prisma
 
 // Also export as 'prisma' for direct access
 export { prisma }
+
+// Export database utilities (Note: These use SQLite syntax and may not work with Prisma)
+// TODO: Migrate these to use Prisma instead of raw SQL
+export { DatabaseTransaction, createBackup, restoreBackup } from './transactions'
+export { validateMatchData, validateChallengeData, validatePlayerLeagueMembership } from './validation'

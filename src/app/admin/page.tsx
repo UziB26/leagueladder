@@ -12,9 +12,12 @@ export default async function AdminPage() {
   }
 
   // Verify admin status from database (more secure than trusting session alone)
-  const user = db.prepare('SELECT id, email, is_admin FROM users WHERE email = ?').get(session.user.email) as { id?: string; email?: string; is_admin?: boolean } | undefined
+  const user = await db.user.findUnique({
+    where: { email: session.user.email },
+    select: { id: true, email: true, isAdmin: true }
+  })
   
-  if (!user || !user.is_admin) {
+  if (!user || !user.isAdmin) {
     redirect('/dashboard')
   }
 
