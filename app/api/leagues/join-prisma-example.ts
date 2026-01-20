@@ -14,11 +14,9 @@ export async function POST(request: NextRequest) {
   try {
     // Rate limiting
     const rateLimitResult = await apiRateLimit(request)
-    if (!rateLimitResult.success) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429 }
-      )
+    if (rateLimitResult) {
+      // Rate limit exceeded, return the response
+      return rateLimitResult
     }
 
     // Authentication

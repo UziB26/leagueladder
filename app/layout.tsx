@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/auth-provider";
@@ -20,24 +20,25 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: "cover",
+  // Prevent zoom on input focus (iOS)
+  interactiveWidget: "resizes-content",
+  themeColor: "#2563eb",
+};
+
 export const metadata: Metadata = {
   title: "League Ladder",
   description: "Table Tennis & FIFA leagues with Elo rankings",
   manifest: "/manifest.json",
-  themeColor: "#2563eb",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "League Ladder",
-  },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 5,
-    userScalable: true,
-    viewportFit: "cover",
-    // Prevent zoom on input focus (iOS)
-    interactiveWidget: "resizes-content",
   },
   icons: {
     icon: [

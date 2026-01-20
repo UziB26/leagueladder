@@ -215,7 +215,7 @@ export async function POST(
         
         if (usePostgres) {
           // PostgreSQL transaction
-          const { confirmMatchPostgres } = await import('./confirm-postgres')
+          const { confirmMatchPostgres } = await import('../confirm-postgres')
           const pgResult = await confirmMatchPostgres(sanitizedMatchId, player.id, match)
           
           return NextResponse.json({
