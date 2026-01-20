@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         include: {
           player: {
             include: {
-              playerRatings: {
+              ratings: {
                 where: { leagueId },
                 take: 1,
                 orderBy: { updatedAt: 'desc' }
@@ -60,12 +60,30 @@ export async function GET(request: NextRequest) {
             name: 'asc'
           }
         }
-      })
+      }) as Array<{
+        id: string
+        playerId: string
+        leagueId: string
+        joinedAt: Date
+        isActive: boolean
+        player: {
+          id: string
+          name: string
+          ratings: Array<{
+            id: string
+            rating: number
+            gamesPlayed: number
+            wins: number
+            losses: number
+            draws: number
+          }>
+        }
+      }>
       
       players = memberships.map(m => ({
         id: m.player.id,
         name: m.player.name,
-        rating: m.player.playerRatings[0]?.rating ?? 1000
+        rating: m.player.ratings[0]?.rating ?? 1000
       }))
     } else {
       // Get all players who are in at least one league (excluding current player)
@@ -77,7 +95,7 @@ export async function GET(request: NextRequest) {
         include: {
           player: {
             include: {
-              playerRatings: {
+              ratings: {
                 take: 1,
                 orderBy: { updatedAt: 'desc' }
               }
@@ -85,13 +103,31 @@ export async function GET(request: NextRequest) {
           }
         },
         distinct: ['playerId']
-      })
+      }) as Array<{
+        id: string
+        playerId: string
+        leagueId: string
+        joinedAt: Date
+        isActive: boolean
+        player: {
+          id: string
+          name: string
+          ratings: Array<{
+            id: string
+            rating: number
+            gamesPlayed: number
+            wins: number
+            losses: number
+            draws: number
+          }>
+        }
+      }>
       
       // Group by player and get max rating
       const playerMap = new Map()
       memberships.forEach(m => {
         const existing = playerMap.get(m.player.id)
-        const rating = m.player.playerRatings[0]?.rating ?? 1000
+        const rating = m.player.ratings[0]?.rating ?? 1000
         if (!existing || rating > existing.rating) {
           playerMap.set(m.player.id, {
             id: m.player.id,

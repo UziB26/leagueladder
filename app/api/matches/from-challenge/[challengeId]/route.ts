@@ -176,7 +176,23 @@ export async function POST(
           }
         }
       }
-    })
+    }) as {
+      id: string
+      challengeId: string | null
+      player1Id: string
+      player2Id: string
+      leagueId: string
+      player1Score: number
+      player2Score: number
+      winnerId: string | null
+      status: string
+      reportedBy: string | null
+      playedAt: Date
+      confirmedAt: Date | null
+      league: { name: string }
+      player1: { name: string }
+      player2: { name: string }
+    }
 
     // Mark challenge as completed if match is completed
     if (matchStatus === 'completed') {

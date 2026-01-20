@@ -407,7 +407,23 @@ export async function GET(request: Request) {
         playedAt: 'desc'
       },
       take: 50
-    })
+    }) as Array<{
+      id: string
+      challengeId: string | null
+      player1Id: string
+      player2Id: string
+      leagueId: string
+      player1Score: number
+      player2Score: number
+      winnerId: string | null
+      status: string
+      reportedBy: string | null
+      playedAt: Date
+      confirmedAt: Date | null
+      league: { name: string }
+      player1: { name: string }
+      player2: { name: string }
+    }>
 
     // Transform to match expected format
     const formattedMatches = matches.map(m => ({

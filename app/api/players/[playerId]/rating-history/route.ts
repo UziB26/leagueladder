@@ -85,7 +85,27 @@ export async function GET(
         createdAt: 'desc'
       },
       take: limit
-    })
+    }) as Array<{
+      id: string
+      matchId: string
+      playerId: string
+      leagueId: string
+      oldRating: number
+      newRating: number
+      change: number
+      createdAt: Date
+      league: { name: string }
+      match: {
+        id: string
+        player1Id: string
+        player2Id: string
+        player1Score: number
+        player2Score: number
+        playedAt: Date | null
+        player1: { id: string; name: string }
+        player2: { id: string; name: string }
+      }
+    }>
 
     // Enrich with opponent information
     const enrichedHistory: RatingHistoryEntry[] = ratingUpdates.map((ru) => {

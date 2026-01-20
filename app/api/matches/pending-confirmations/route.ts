@@ -43,7 +43,6 @@ export async function GET(request: NextRequest) {
       where: {
         status: 'pending_confirmation',
         reportedBy: {
-          not: null,
           not: player.id
         },
         OR: [
@@ -76,7 +75,24 @@ export async function GET(request: NextRequest) {
       orderBy: {
         playedAt: 'desc'
       }
-    })
+    }) as Array<{
+      id: string
+      challengeId: string | null
+      player1Id: string
+      player2Id: string
+      leagueId: string
+      player1Score: number
+      player2Score: number
+      winnerId: string | null
+      status: string
+      reportedBy: string | null
+      playedAt: Date
+      confirmedAt: Date | null
+      league: { name: string }
+      player1: { name: string }
+      player2: { name: string }
+      reporter: { name: string } | null
+    }>
 
     // Transform to match expected format
     const formattedMatches = matches.map(m => ({
