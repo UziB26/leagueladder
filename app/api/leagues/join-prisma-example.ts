@@ -9,6 +9,7 @@ import { prisma } from '@/lib/db/prisma'
 import { apiRateLimit } from '@/lib/rate-limit'
 import { validateRequest, requestSchemas } from '@/lib/validation'
 import { sanitizeString } from '@/lib/sanitize'
+import type { Prisma } from 'app/generated-prisma-client'
 
 export async function POST(request: NextRequest) {
   try {
@@ -89,7 +90,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Join league and create rating in a transaction
-    const result = await prisma.$transaction(async (tx) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await prisma.$transaction(async (tx: any) => {
       // Create membership
       const membership = await tx.leagueMembership.create({
         data: {
