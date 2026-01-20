@@ -19,11 +19,13 @@ export const authOptions = {
       name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
+        name: { label: "Name", type: "text" }
       },
       async authorize(credentials) {
         const email = credentials?.email
         const password = credentials?.password
+        const name = credentials?.name
 
         if (typeof email !== "string" || typeof password !== "string") {
           return null
@@ -58,7 +60,9 @@ export const authOptions = {
         if (!user) {
           // Create new user
           const userId = crypto.randomUUID()
-          const sanitizedName = sanitizeString(email.split('@')[0]) || 'User'
+          // Use provided name if available, otherwise fallback to email prefix
+          const providedName = typeof name === "string" && name.trim() ? sanitizeString(name.trim()) : null
+          const sanitizedName = providedName || sanitizeString(email.split('@')[0]) || 'User'
           
           db.prepare(`
             INSERT INTO users (id, email, name, created_at) 
@@ -101,6 +105,7 @@ export const authOptions = {
         // Initial login - set user data
         token.id = (user as DBUser).id
         token.email = (user as DBUser).email
+        token.name = (user as DBUser).name
         token.is_admin = (user as DBUser).is_admin || false
       } else if (token.email) {
         // Refresh admin status from database on each request
@@ -122,6 +127,17 @@ export const authOptions = {
         ;(session.user as typeof session.user & { id?: string; email?: string; is_admin?: boolean }).id = token.id as string
         ;(session.user as typeof session.user & { id?: string; email?: string; is_admin?: boolean }).email = token.email as string
         ;(session.user as typeof session.user & { id?: string; email?: string; is_admin?: boolean }).is_admin = token.is_admin as boolean
+        
+        // Refresh name from database to ensure it's up to date
+        try {
+          const dbUser = db.prepare('SELECT name FROM users WHERE email = ?').get(token.email) as DBUser | undefined
+          if (dbUser?.name) {
+            session.user.name = dbUser.name
+          }
+        } catch (error) {
+          // If database query fails, keep existing session name
+          console.error('Error refreshing user name:', error)
+        }
       }
       return session
     }

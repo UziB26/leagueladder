@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
     // This handles cases where database was reset (e.g., on Vercel with ephemeral storage)
     if (!user) {
       const userId = crypto.randomUUID()
+      // Use name from session if available, otherwise fallback to email prefix
       const userName = session.user.name || session.user.email?.split('@')[0] || 'User'
       
       try {
