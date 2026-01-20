@@ -89,7 +89,7 @@ export function Navigation() {
                 decoding="async"
               />
             </div>
-            <span className="text-xl font-bold text-white hidden sm:inline">League Ladder</span>
+            <span className="text-xl font-bold text-blue-600 hidden sm:inline">League Ladder</span>
           </Link>
           
           {/* Desktop Navigation - Hidden on mobile */}

@@ -43,7 +43,7 @@ export default function Home() {
     <main className="min-h-screen p-8">
       <div className="max-w-6xl mx-auto">
         <header className="mb-12">
-          <h1 className="text-4xl font-bold text-blue-600 flex items-center gap-3">
+          <h1 className="text-4xl font-bold text-white flex items-center gap-3">
             <img 
               src="/APP LOGO.png" 
               alt="League Ladder Logo" 
