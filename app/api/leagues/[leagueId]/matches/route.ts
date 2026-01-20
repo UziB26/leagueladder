@@ -51,7 +51,10 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '50', 10)
 
     // Verify league exists
-    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(leagueId)
+    const league = await db.league.findUnique({
+      where: { id: leagueId }
+    })
+    
     if (!league) {
       return NextResponse.json(
         { error: 'League not found' },
@@ -60,55 +63,68 @@ export async function GET(
     }
 
     // Fetch completed matches for this league
-    const matches = db.prepare(`
-      SELECT 
-        m.id,
-        m.player1_id,
-        m.player2_id,
-        m.player1_score,
-        m.player2_score,
-        m.winner_id,
-        m.status,
-        m.played_at,
-        l.name as league_name,
-        p1.name as player1_name,
-        p2.name as player2_name
-      FROM matches m
-      JOIN leagues l ON m.league_id = l.id
-      JOIN players p1 ON m.player1_id = p1.id
-      JOIN players p2 ON m.player2_id = p2.id
-      WHERE m.league_id = ?
-        AND m.status = 'completed'
-      ORDER BY m.played_at DESC
-      LIMIT ?
-    `).all(leagueId, limit) as any[]
+    const matches = await db.match.findMany({
+      where: {
+        leagueId,
+        status: 'completed'
+      },
+      include: {
+        league: {
+          select: {
+            name: true
+          }
+        },
+        player1: {
+          select: {
+            name: true
+          }
+        },
+        player2: {
+          select: {
+            name: true
+          }
+        },
+        ratingUpdates: {
+          select: {
+            playerId: true,
+            oldRating: true,
+            newRating: true,
+            change: true
+          }
+        }
+      },
+      orderBy: {
+        playedAt: 'desc'
+      },
+      take: limit
+    })
 
-    // Fetch rating updates for each match
+    // Transform matches with rating updates
     const matchesWithRatings: MatchWithDetails[] = matches.map((match) => {
-      const ratingUpdates = db.prepare(`
-        SELECT 
-          ru.player_id,
-          ru.old_rating,
-          ru.new_rating,
-          (ru.new_rating - ru.old_rating) as change
-        FROM rating_updates ru
-        WHERE ru.match_id = ?
-      `).all(match.id) as any[]
-
-      const player1Update = ratingUpdates.find(ru => ru.player_id === match.player1_id)
-      const player2Update = ratingUpdates.find(ru => ru.player_id === match.player2_id)
+      const player1Update = match.ratingUpdates.find(ru => ru.playerId === match.player1Id)
+      const player2Update = match.ratingUpdates.find(ru => ru.playerId === match.player2Id)
 
       return {
-        ...match,
+        id: match.id,
+        player1_id: match.player1Id,
+        player2_id: match.player2Id,
+        player1_name: match.player1.name,
+        player2_name: match.player2.name,
+        player1_score: match.player1Score,
+        player2_score: match.player2Score,
+        winner_id: match.winnerId,
+        league_name: match.league.name,
+        played_at: match.playedAt?.toISOString() || '',
+        status: match.status,
         rating_updates: {
           player1: player1Update ? {
-            old_rating: player1Update.old_rating,
-            new_rating: player1Update.new_rating,
+            old_rating: player1Update.oldRating,
+            new_rating: player1Update.newRating,
             change: player1Update.change
           } : undefined,
           player2: player2Update ? {
-            old_rating: player2Update.old_rating,
-            new_rating: player2Update.new_rating,
+            old_rating: player2Update.oldRating,
+            new_rating: player2Update.newRating,
             change: player2Update.change
           } : undefined
         }

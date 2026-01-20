@@ -1,26 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { pgGet, pgAll, pgRun, isPostgresAvailable } from '@/lib/db/postgres'
 import { apiRateLimit } from '@/lib/rate-limit'
 import { validateRequest, requestSchemas } from '@/lib/validation'
 import { sanitizeString } from '@/lib/sanitize'
-import crypto from 'crypto'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
-
-interface User {
-  id: string;
-  email: string;
-  name: string | null;
-}
-
-interface Player {
-  id: string;
-  user_id: string;
-  name: string;
-  email: string | null;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -61,46 +46,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Use PostgreSQL if available, otherwise SQLite
-    const usePostgres = isPostgresAvailable()
-
-    // Get user from database
-    let user: User | undefined
-    if (usePostgres) {
-      user = await pgGet('SELECT * FROM users WHERE email = $1', session.user.email) as User | undefined
-    } else {
-      user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
-    }
+    // Get or create user using Prisma
+    let user = await db.user.findUnique({
+      where: { email: session.user.email }
+    })
     
     // If user doesn't exist in database but has valid session, create them
-    // This handles cases where database was reset (e.g., on Vercel with ephemeral storage)
     if (!user) {
-      const userId = crypto.randomUUID()
-      // Use name from session if available, otherwise fallback to email prefix
       const userName = session.user.name || session.user.email?.split('@')[0] || 'User'
       
       try {
-        if (usePostgres) {
-          await pgRun(`
-            INSERT INTO users (id, email, name, created_at) 
-            VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-            ON CONFLICT (email) DO NOTHING
-          `, userId, session.user.email, userName)
-          user = await pgGet('SELECT * FROM users WHERE email = $1', session.user.email) as User | undefined
-        } else {
-          db.prepare(`
-            INSERT INTO users (id, email, name, created_at) 
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-          `).run(userId, session.user.email, userName)
-          user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User
-        }
+        user = await db.user.create({
+          data: {
+            email: session.user.email,
+            name: userName
+          }
+        })
       } catch (error: any) {
         // If insert fails (e.g., race condition), try to get user again
-        if (usePostgres) {
-          user = await pgGet('SELECT * FROM users WHERE email = $1', session.user.email) as User | undefined
-        } else {
-          user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
-        }
+        user = await db.user.findUnique({
+          where: { email: session.user.email }
+        })
+        
         if (!user) {
           console.error('Failed to create user:', error)
           return NextResponse.json(
@@ -111,52 +78,45 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // At this point, user is guaranteed to be defined
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
-    }
-
     // Check if player exists, create if not
-    let player: Player | undefined
-    if (usePostgres) {
-      player = await pgGet('SELECT * FROM players WHERE user_id = $1', user.id) as Player | undefined
-    } else {
-      player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
-    }
+    let player = await db.player.findFirst({
+      where: { userId: user.id }
+    })
     
     if (!player) {
-      const playerId = crypto.randomUUID()
-      if (usePostgres) {
-        await pgRun(`
-          INSERT INTO players (id, user_id, name, email) 
-          VALUES ($1, $2, $3, $4)
-        `, playerId, user.id, user.name || session.user.name || 'Player', user.email)
-        player = await pgGet('SELECT * FROM players WHERE user_id = $1', user.id) as Player
-      } else {
-        db.prepare(`
-          INSERT INTO players (id, user_id, name, email) 
-          VALUES (?, ?, ?, ?)
-        `).run(playerId, user.id, user.name || session.user.name || 'Player', user.email)
-        player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player
+      try {
+        player = await db.player.create({
+          data: {
+            userId: user.id,
+            name: user.name || session.user.name || 'Player',
+            email: user.email
+          }
+        })
+      } catch (error: any) {
+        // If insert fails, try to get player again
+        player = await db.player.findFirst({
+          where: { userId: user.id }
+        })
+        
+        if (!player) {
+          console.error('Failed to create player:', error)
+          return NextResponse.json(
+            { error: 'Failed to create player profile' },
+            { status: 500 }
+          )
+        }
       }
     }
 
-    // Check if already joined
-    let existingMembership
-    if (usePostgres) {
-      existingMembership = await pgGet(`
-        SELECT * FROM league_memberships 
-        WHERE player_id = $1 AND league_id = $2
-      `, player.id, sanitizedLeagueId)
-    } else {
-      existingMembership = db.prepare(`
-        SELECT * FROM league_memberships 
-        WHERE player_id = ? AND league_id = ?
-      `).get(player.id, sanitizedLeagueId)
-    }
+    // Check if already joined using Prisma
+    const existingMembership = await db.leagueMembership.findUnique({
+      where: {
+        playerId_leagueId: {
+          playerId: player.id,
+          leagueId: sanitizedLeagueId
+        }
+      }
+    })
 
     if (existingMembership) {
       return NextResponse.json(
@@ -165,179 +125,66 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if rating already exists (shouldn't happen, but handle gracefully)
-    let existingRating
-    if (usePostgres) {
-      existingRating = await pgGet(`
-        SELECT * FROM player_ratings 
-        WHERE player_id = $1 AND league_id = $2
-      `, player.id, sanitizedLeagueId)
-    } else {
-      existingRating = db.prepare(`
-        SELECT * FROM player_ratings 
-        WHERE player_id = ? AND league_id = ?
-      `).get(player.id, sanitizedLeagueId)
-    }
-
-    // Join league
-    const membershipId = crypto.randomUUID()
-    try {
-      if (usePostgres) {
-        await pgRun(`
-          INSERT INTO league_memberships (id, player_id, league_id, is_active) 
-          VALUES ($1, $2, $3, TRUE)
-          ON CONFLICT (player_id, league_id) DO NOTHING
-        `, membershipId, player.id, sanitizedLeagueId)
-        
-        // Verify the membership was created
-        const verifyMembership = await pgGet(`
-          SELECT * FROM league_memberships 
-          WHERE player_id = $1 AND league_id = $2
-        `, player.id, sanitizedLeagueId)
-        
-        if (!verifyMembership) {
-          console.error('Membership was not created successfully')
-          throw new Error('Failed to create league membership')
-        }
-      } else {
-        db.prepare(`
-          INSERT INTO league_memberships (id, player_id, league_id, is_active) 
-          VALUES (?, ?, ?, 1)
-        `).run(membershipId, player.id, sanitizedLeagueId)
-        
-        // Verify the membership was created
-        const verifyMembership = db.prepare(`
-          SELECT * FROM league_memberships 
-          WHERE player_id = ? AND league_id = ?
-        `).get(player.id, sanitizedLeagueId)
-        
-        if (!verifyMembership) {
-          console.error('Membership was not created successfully')
-          throw new Error('Failed to create league membership')
-        }
-      }
-    } catch (error: any) {
-      // If membership insert fails due to unique constraint, check if it already exists
-      if (error?.code === 'SQLITE_CONSTRAINT_UNIQUE' || 
-          error?.code === '23505' || // PostgreSQL unique violation
-          error?.message?.includes('UNIQUE constraint') ||
-          error?.message?.includes('duplicate key')) {
-        // Membership already exists, return success silently
-        return NextResponse.json({ 
-          success: true, 
-          message: 'Successfully joined league' 
-        }, { status: 200 })
-      }
-      throw error
-    }
-
-    // Initialize rating with seed rating of 1000 and zero stats (only if it doesn't exist)
-    if (!existingRating) {
-      const ratingId = crypto.randomUUID()
-      try {
-        if (usePostgres) {
-          await pgRun(`
-            INSERT INTO player_ratings (
-              id, player_id, league_id, rating, 
-              games_played, wins, losses, draws
-            ) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            ON CONFLICT (player_id, league_id) DO NOTHING
-          `, ratingId, player.id, sanitizedLeagueId, 1000, 0, 0, 0, 0)
-          
-          // Verify the rating was created
-          const verifyRating = await pgGet(`
-            SELECT * FROM player_ratings 
-            WHERE player_id = $1 AND league_id = $2
-          `, player.id, sanitizedLeagueId)
-          
-          if (!verifyRating) {
-            console.error('Rating was not created successfully')
-            throw new Error('Failed to create player rating')
+    // Join league and initialize rating in a transaction
+    const result = await db.$transaction(async (tx) => {
+      // Create league membership
+      const membership = await tx.leagueMembership.upsert({
+        where: {
+          playerId_leagueId: {
+            playerId: player.id,
+            leagueId: sanitizedLeagueId
           }
-        } else {
-          db.prepare(`
-            INSERT INTO player_ratings (
-              id, player_id, league_id, rating, 
-              games_played, wins, losses, draws
-            ) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(ratingId, player.id, sanitizedLeagueId, 1000, 0, 0, 0, 0)
-          
-          // Verify the rating was created
-          const verifyRating = db.prepare(`
-            SELECT * FROM player_ratings 
-            WHERE player_id = ? AND league_id = ?
-          `).get(player.id, sanitizedLeagueId)
-          
-          if (!verifyRating) {
-            console.error('Rating was not created successfully')
-            throw new Error('Failed to create player rating')
+        },
+        update: {
+          isActive: true // Reactivate if it was deactivated
+        },
+        create: {
+          playerId: player.id,
+          leagueId: sanitizedLeagueId,
+          isActive: true
+        }
+      })
+
+      // Initialize rating (only if it doesn't exist)
+      const rating = await tx.playerRating.upsert({
+        where: {
+          playerId_leagueId: {
+            playerId: player.id,
+            leagueId: sanitizedLeagueId
           }
+        },
+        update: {}, // Don't update if it exists
+        create: {
+          playerId: player.id,
+          leagueId: sanitizedLeagueId,
+          rating: 1000,
+          gamesPlayed: 0,
+          wins: 0,
+          losses: 0,
+          draws: 0
         }
-      } catch (error: any) {
-        // If rating insert fails due to unique constraint, it's okay - rating already exists
-        // This can happen in race conditions or if the rating was created elsewhere
-        if (error?.code !== 'SQLITE_CONSTRAINT_UNIQUE' && 
-            error?.code !== '23505' &&
-            !error?.message?.includes('UNIQUE constraint') &&
-            !error?.message?.includes('duplicate key')) {
-          throw error
-        }
-        // Rating already exists, which is fine - continue with success
-      }
-    }
-    
-    // Final verification - check that everything was created correctly
-    let finalCheck
-    if (usePostgres) {
-      finalCheck = await pgGet(`
-        SELECT 
-          lm.id as membership_id,
-          pr.id as rating_id
-        FROM league_memberships lm
-        LEFT JOIN player_ratings pr ON lm.player_id = pr.player_id AND lm.league_id = pr.league_id
-        WHERE lm.player_id = $1 AND lm.league_id = $2
-      `, player.id, sanitizedLeagueId)
-    } else {
-      finalCheck = db.prepare(`
-        SELECT 
-          lm.id as membership_id,
-          pr.id as rating_id
-        FROM league_memberships lm
-        LEFT JOIN player_ratings pr ON lm.player_id = pr.player_id AND lm.league_id = pr.league_id
-        WHERE lm.player_id = ? AND lm.league_id = ?
-      `).get(player.id, sanitizedLeagueId)
-    }
-    
-    if (!finalCheck || !finalCheck.membership_id) {
-      console.error('Final verification failed - membership not found')
-      throw new Error('Failed to verify league membership')
-    }
-    
-    if (!finalCheck.rating_id) {
-      console.error('Final verification failed - rating not found')
-      throw new Error('Failed to verify player rating')
-    }
-    
+      })
+
+      return { membership, rating }
+    })
+
     console.log('Successfully joined league:', {
       playerId: player.id,
       playerName: player.name,
       leagueId: sanitizedLeagueId,
-      membershipId: finalCheck.membership_id,
-      ratingId: finalCheck.rating_id,
-      database: usePostgres ? 'PostgreSQL' : 'SQLite'
+      membershipId: result.membership.id,
+      ratingId: result.rating.id
     })
 
-    // Return detailed success response for debugging
+    // Return detailed success response
     return NextResponse.json({ 
       success: true, 
       message: 'Successfully joined league',
       data: {
         playerId: player.id,
         leagueId: sanitizedLeagueId,
-        membershipId: finalCheck.membership_id,
-        ratingId: finalCheck.rating_id
+        membershipId: result.membership.id,
+        ratingId: result.rating.id
       }
     }, { status: 200 })
 

@@ -54,41 +54,47 @@ export const authOptions = {
           return null // Prevent extremely long passwords
         }
 
-        // Check if user exists
-        const user = db.prepare('SELECT id, email, name, is_admin FROM users WHERE email = ?').get(sanitizedEmail) as DBUser | undefined
+        // Check if user exists using Prisma
+        const user = await db.user.findUnique({
+          where: { email: sanitizedEmail },
+          select: { id: true, email: true, name: true, isAdmin: true }
+        })
         
         if (!user) {
-          // Create new user
-          const userId = crypto.randomUUID()
+          // Create new user using Prisma
           // Use provided name if available, otherwise fallback to email prefix
           const providedName = typeof name === "string" && name.trim() ? sanitizeString(name.trim()) : null
           const sanitizedName = providedName || sanitizeString(email.split('@')[0]) || 'User'
           
-          db.prepare(`
-            INSERT INTO users (id, email, name, created_at) 
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-          `).run(userId, sanitizedEmail, sanitizedName)
-          
-          // Store password (in real app, use separate table)
-          db.prepare(`
-            INSERT INTO accounts (id, userId, type, provider, providerAccountId) 
-            VALUES (?, ?, 'credentials', 'credentials', ?)
-          `).run(crypto.randomUUID(), userId, userId)
+          const newUser = await db.user.create({
+            data: {
+              email: sanitizedEmail,
+              name: sanitizedName,
+              isAdmin: false,
+              accounts: {
+                create: {
+                  type: 'credentials',
+                  provider: 'credentials',
+                  providerAccountId: crypto.randomUUID(),
+                }
+              }
+            }
+          })
           
           return {
-            id: userId,
-            email: sanitizedEmail,
-            name: sanitizedName,
+            id: newUser.id,
+            email: newUser.email,
+            name: newUser.name || sanitizedName,
             is_admin: false
           }
         }
         
         // In real app, verify password here
         return {
-          id: user.id!,
+          id: user.id,
           email: user.email,
-          name: user.name,
-          is_admin: user.is_admin || false
+          name: user.name || undefined,
+          is_admin: user.isAdmin || false
         }
       }
     })
@@ -111,9 +117,12 @@ export const authOptions = {
         // Refresh admin status from database on each request
         // This ensures admin status changes are reflected immediately
         try {
-          const dbUser = db.prepare('SELECT is_admin FROM users WHERE email = ?').get(token.email) as DBUser | undefined
+          const dbUser = await db.user.findUnique({
+            where: { email: token.email as string },
+            select: { isAdmin: true }
+          })
           if (dbUser) {
-            token.is_admin = dbUser.is_admin || false
+            token.is_admin = dbUser.isAdmin || false
           }
         } catch (error) {
           // If database query fails, keep existing token value
@@ -130,7 +139,10 @@ export const authOptions = {
         
         // Refresh name from database to ensure it's up to date
         try {
-          const dbUser = db.prepare('SELECT name FROM users WHERE email = ?').get(token.email) as DBUser | undefined
+          const dbUser = await db.user.findUnique({
+            where: { email: token.email as string },
+            select: { name: true }
+          })
           if (dbUser?.name) {
             session.user.name = dbUser.name
           }

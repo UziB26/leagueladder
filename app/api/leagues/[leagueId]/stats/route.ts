@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+export const runtime = 'nodejs' // Required for Prisma on Vercel
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ leagueId: string }> }
@@ -9,13 +11,12 @@ export async function GET(
     const { leagueId } = await params
     
     // Get player count for this league
-    const result = db.prepare(`
-      SELECT COUNT(DISTINCT player_id) as count
-      FROM league_memberships
-      WHERE league_id = ? AND is_active = 1
-    `).get(leagueId) as { count: number } | undefined
-
-    const playerCount = result?.count || 0
+    const playerCount = await db.leagueMembership.count({
+      where: {
+        leagueId,
+        isActive: true
+      }
+    })
 
     return NextResponse.json({ 
       playerCount 

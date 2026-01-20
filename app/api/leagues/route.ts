@@ -5,9 +5,12 @@ export const runtime = 'nodejs' // Required for Prisma on Vercel
 
 export async function GET() {
   try {
-    const leagues = db.prepare('SELECT * FROM leagues').all()
+    const leagues = await db.league.findMany({
+      orderBy: { createdAt: 'asc' }
+    })
     return NextResponse.json({ leagues })
   } catch (error) {
+    console.error('Error fetching leagues:', error)
     return NextResponse.json(
       { error: 'Failed to fetch leagues' },
       { status: 500 }

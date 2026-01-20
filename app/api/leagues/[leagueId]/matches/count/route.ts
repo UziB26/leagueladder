@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+export const runtime = 'nodejs' // Required for Prisma on Vercel
+
 /**
  * GET /api/leagues/[leagueId]/matches/count
  * Get count of completed matches for a specific league
@@ -12,14 +14,15 @@ export async function GET(
   try {
     const { leagueId } = await params
     
-    const result = db.prepare(`
-      SELECT COUNT(*) as count
-      FROM matches
-      WHERE league_id = ? AND status = 'completed'
-    `).get(leagueId) as { count: number } | undefined
+    const count = await db.match.count({
+      where: {
+        leagueId,
+        status: 'completed'
+      }
+    })
 
     return NextResponse.json({ 
-      count: result?.count || 0 
+      count 
     })
   } catch (error) {
     console.error('Error fetching league matches count:', error)

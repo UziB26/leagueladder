@@ -2,15 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 
-interface User {
-  id: string;
-  email: string;
-}
-
-interface Player {
-  id: string;
-  user_id: string;
-}
+export const runtime = 'nodejs' // Required for Prisma on Vercel
 
 export async function GET(
   request: Request,
@@ -27,24 +19,30 @@ export async function GET(
     }
 
     // Get user from database
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+    const user = await db.user.findUnique({
+      where: { email: session.user.email }
+    })
     
     if (!user) {
       return NextResponse.json({ isMember: false })
     }
 
     // Get player
-    const player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
+    const player = await db.player.findFirst({
+      where: { userId: user.id }
+    })
     
     if (!player) {
       return NextResponse.json({ isMember: false })
     }
 
     // Check membership
-    const membership = db.prepare(`
-      SELECT * FROM league_memberships 
-      WHERE player_id = ? AND league_id = ?
-    `).get(player.id, leagueId)
+    const membership = await db.leagueMembership.findFirst({
+      where: {
+        playerId: player.id,
+        leagueId
+      }
+    })
 
     return NextResponse.json({ 
       isMember: !!membership 

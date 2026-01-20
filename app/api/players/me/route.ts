@@ -21,7 +21,9 @@ export async function GET() {
       )
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+    const user = await db.user.findUnique({
+      where: { email: session.user.email }
+    })
     
     if (!user) {
       return NextResponse.json(
@@ -30,7 +32,9 @@ export async function GET() {
       )
     }
 
-    const player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
+    const player = await db.player.findFirst({
+      where: { userId: user.id }
+    })
     
     if (!player) {
       return NextResponse.json(

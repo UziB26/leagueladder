@@ -1,8 +1,9 @@
 import { NextResponse, NextRequest } from "next/server"
 import { apiHandlers } from "@/lib/api-helpers"
-import { db, DatabaseTransaction } from "@/lib/db"
+import { db } from "@/lib/db"
 import { sanitizeUUID, sanitizeString } from "@/lib/sanitize"
-import crypto from "crypto"
+
+export const runtime = 'nodejs' // Required for Prisma on Vercel
 
 export const GET = apiHandlers.admin(async (
   request: NextRequest & { session?: any },
@@ -15,56 +16,97 @@ export const GET = apiHandlers.admin(async (
       return NextResponse.json({ error: "Invalid player ID" }, { status: 400 })
     }
 
-    const player = db.prepare(`
-      SELECT 
-        p.*,
-        u.email as user_email,
-        u.is_admin,
-        COUNT(DISTINCT lm.league_id) as league_count,
-        COUNT(DISTINCT m.id) as match_count
-      FROM players p
-      LEFT JOIN users u ON p.user_id = u.id
-      LEFT JOIN league_memberships lm ON p.id = lm.player_id AND lm.is_active = 1
-      LEFT JOIN matches m ON (m.player1_id = p.id OR m.player2_id = p.id)
-      WHERE p.id = ?
-      GROUP BY p.id
-    `).get(sanitizedPlayerId)
+    const player = await db.player.findUnique({
+      where: { id: sanitizedPlayerId },
+      include: {
+        user: {
+          select: {
+            email: true,
+            isAdmin: true
+          }
+        },
+        memberships: {
+          where: { isActive: true },
+          select: { leagueId: true }
+        },
+        _count: {
+          select: {
+            matchesAsPlayer1: true,
+            matchesAsPlayer2: true
+          }
+        },
+        playerRatings: {
+          include: {
+            league: {
+              select: {
+                name: true,
+                gameType: true
+              }
+            }
+          }
+        }
+      }
+    })
 
     if (!player) {
       return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
-    // Get player ratings
-    const ratings = db.prepare(`
-      SELECT 
-        pr.*,
-        l.name as league_name,
-        l.game_type
-      FROM player_ratings pr
-      JOIN leagues l ON pr.league_id = l.id
-      WHERE pr.player_id = ?
-    `).all(sanitizedPlayerId)
-
     // Get recent matches
-    const matches = db.prepare(`
-      SELECT 
-        m.*,
-        l.name as league_name,
-        p1.name as player1_name,
-        p2.name as player2_name
-      FROM matches m
-      JOIN leagues l ON m.league_id = l.id
-      JOIN players p1 ON m.player1_id = p1.id
-      JOIN players p2 ON m.player2_id = p2.id
-      WHERE (m.player1_id = ? OR m.player2_id = ?)
-      ORDER BY m.played_at DESC
-      LIMIT 10
-    `).all(sanitizedPlayerId, sanitizedPlayerId)
+    const matches = await db.match.findMany({
+      where: {
+        OR: [
+          { player1Id: sanitizedPlayerId },
+          { player2Id: sanitizedPlayerId }
+        ]
+      },
+      take: 10,
+      orderBy: { playedAt: 'desc' },
+      include: {
+        league: {
+          select: {
+            name: true
+          }
+        },
+        player1: {
+          select: {
+            name: true
+          }
+        },
+        player2: {
+          select: {
+            name: true
+          }
+        }
+      }
+    })
+
+    // Transform to match expected format
+    const formattedPlayer = {
+      ...player,
+      user_email: player.user.email,
+      is_admin: player.user.isAdmin,
+      league_count: player.memberships.length,
+      match_count: player._count.matchesAsPlayer1 + player._count.matchesAsPlayer2
+    }
+
+    const formattedRatings = player.playerRatings.map(pr => ({
+      ...pr,
+      league_name: pr.league.name,
+      game_type: pr.league.gameType
+    }))
+
+    const formattedMatches = matches.map(m => ({
+      ...m,
+      league_name: m.league.name,
+      player1_name: m.player1.name,
+      player2_name: m.player2.name
+    }))
 
     return NextResponse.json({
-      player,
-      ratings,
-      matches
+      player: formattedPlayer,
+      ratings: formattedRatings,
+      matches: formattedMatches
     })
   } catch (error: any) {
     console.error('Error fetching player:', error)
@@ -90,53 +132,46 @@ export const PUT = apiHandlers.admin(async (
     const { name, email } = request.validatedData || await request.json()
 
     // Validate player exists
-    const existingPlayer = db.prepare('SELECT * FROM players WHERE id = ?').get(sanitizedPlayerId)
+    const existingPlayer = await db.player.findUnique({
+      where: { id: sanitizedPlayerId }
+    })
+    
     if (!existingPlayer) {
       return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
-    // Update player
-    DatabaseTransaction.execute((tx) => {
-      const updates: string[] = []
-      const values: any[] = []
-
-      if (name !== undefined) {
-        const sanitizedName = sanitizeString(name)
-        if (sanitizedName && sanitizedName.length > 0) {
-          updates.push('name = ?')
-          values.push(sanitizedName)
-        }
+    // Build update data
+    const updateData: { name?: string; email?: string } = {}
+    if (name !== undefined) {
+      const sanitizedName = sanitizeString(name)
+      if (sanitizedName && sanitizedName.length > 0) {
+        updateData.name = sanitizedName
       }
+    }
 
-      if (email !== undefined) {
-        // Email validation would go here
-        updates.push('email = ?')
-        values.push(email)
-      }
+    if (email !== undefined) {
+      updateData.email = email
+    }
 
-      if (updates.length === 0) {
-        throw new Error('No fields to update')
-      }
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    }
 
-      values.push(sanitizedPlayerId)
-      tx.run(
-        db.prepare(`UPDATE players SET ${updates.join(', ')} WHERE id = ?`),
-        ...values
-      )
+    // Update player using Prisma
+    await db.player.update({
+      where: { id: sanitizedPlayerId },
+      data: updateData
     })
 
     // Log admin action
-    const actionId = crypto.randomUUID()
-    db.prepare(`
-      INSERT INTO admin_actions (id, user_id, action, target_id, details, created_at)
-      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(
-      actionId,
-      user.id,
-      'update_player',
-      sanitizedPlayerId,
-      JSON.stringify({ name, email })
-    )
+    await db.adminAction.create({
+      data: {
+        userId: user.id!,
+        action: 'update_player',
+        targetId: sanitizedPlayerId,
+        details: JSON.stringify({ name, email })
+      }
+    })
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
@@ -161,26 +196,28 @@ export const DELETE = apiHandlers.admin(async (
     }
 
     // Get player info before deletion
-    const player = db.prepare('SELECT * FROM players WHERE id = ?').get(sanitizedPlayerId)
+    const player = await db.player.findUnique({
+      where: { id: sanitizedPlayerId }
+    })
+    
     if (!player) {
       return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
-    // Delete player (cascade will handle related records)
-    db.prepare('DELETE FROM players WHERE id = ?').run(sanitizedPlayerId)
+    // Delete player using Prisma (cascade will handle related records)
+    await db.player.delete({
+      where: { id: sanitizedPlayerId }
+    })
 
     // Log admin action
-    const actionId = crypto.randomUUID()
-    db.prepare(`
-      INSERT INTO admin_actions (id, user_id, action, target_id, details, created_at)
-      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(
-      actionId,
-      user.id,
-      'delete_player',
-      sanitizedPlayerId,
-      JSON.stringify({ player_id: sanitizedPlayerId })
-    )
+    await db.adminAction.create({
+      data: {
+        userId: user.id!,
+        action: 'delete_player',
+        targetId: sanitizedPlayerId,
+        details: JSON.stringify({ player_id: sanitizedPlayerId })
+      }
+    })
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

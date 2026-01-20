@@ -1,7 +1,8 @@
 import { NextResponse, NextRequest } from "next/server"
 import { apiHandlers } from "@/lib/api-helpers"
 import { db } from "@/lib/db"
-import crypto from "crypto"
+
+export const runtime = 'nodejs' // Required for Prisma on Vercel
 
 export const DELETE = apiHandlers.admin(async (
   request: NextRequest & { session?: any },
@@ -23,21 +24,20 @@ export const DELETE = apiHandlers.admin(async (
       )
     }
 
-    // Delete user (cascade will handle related records)
-    db.prepare('DELETE FROM users WHERE id = ?').run(userId)
+    // Delete user using Prisma (cascade will handle related records)
+    await db.user.delete({
+      where: { id: userId }
+    })
 
     // Log admin action
-    const actionId = crypto.randomUUID()
-    db.prepare(`
-      INSERT INTO admin_actions (id, user_id, action, target_id, details, created_at)
-      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(
-      actionId,
-      user.id,
-      'delete_user',
-      userId,
-      JSON.stringify({ user_id: userId })
-    )
+    await db.adminAction.create({
+      data: {
+        userId: user.id,
+        action: 'delete_user',
+        targetId: userId,
+        details: JSON.stringify({ user_id: userId })
+      }
+    })
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

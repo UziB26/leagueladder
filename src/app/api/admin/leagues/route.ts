@@ -2,23 +2,31 @@ import { NextResponse } from "next/server"
 import { apiHandlers } from "@/lib/api-helpers"
 import { db } from "@/lib/db"
 
+export const runtime = 'nodejs' // Required for Prisma on Vercel
+
 export const GET = apiHandlers.admin(async (request) => {
   try {
+    const leagues = await db.league.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        _count: {
+          select: {
+            memberships: true
+          }
+        }
+      }
+    })
 
-    const leagues = db.prepare(`
-      SELECT 
-        l.id,
-        l.name,
-        l.game_type,
-        l.created_at,
-        COUNT(DISTINCT lm.player_id) as member_count
-      FROM leagues l
-      LEFT JOIN league_memberships lm ON l.id = lm.league_id
-      GROUP BY l.id, l.name, l.game_type, l.created_at
-      ORDER BY l.created_at DESC
-    `).all()
+    // Transform to match expected format
+    const formattedLeagues = leagues.map(l => ({
+      id: l.id,
+      name: l.name,
+      game_type: l.gameType,
+      created_at: l.createdAt.toISOString(),
+      member_count: l._count.memberships
+    }))
 
-    return NextResponse.json({ leagues })
+    return NextResponse.json({ leagues: formattedLeagues })
   } catch (error: any) {
     console.error('Error fetching leagues:', error)
     return NextResponse.json(

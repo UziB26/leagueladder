@@ -1,24 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { db, getDatabase, DatabaseTransaction, createBackup, restoreBackup } from '@/lib/db'
-import { pgGet, pgAll, pgRun, pgTransaction, isPostgresAvailable } from '@/lib/db/postgres'
+import { db } from '@/lib/db'
 import { elo } from '@/lib/elo'
 import { apiRateLimit } from '@/lib/rate-limit'
 import { sanitizeUUID } from '@/lib/sanitize'
-import { z } from 'zod'
-import crypto from 'crypto'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
-
-interface User {
-  id: string
-  email: string
-}
-
-interface Player {
-  id: string
-  user_id: string
-}
 
 /**
  * POST /api/matches/[matchId]/confirm
@@ -78,15 +65,10 @@ export async function POST(
       )
     }
 
-    const usePostgres = isPostgresAvailable()
-    
-    // Get user
-    let user: User | undefined
-    if (usePostgres) {
-      user = await pgGet('SELECT * FROM users WHERE email = $1', session.user.email) as User | undefined
-    } else {
-      user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
-    }
+    // Get user using Prisma
+    const user = await db.user.findUnique({
+      where: { email: session.user.email }
+    })
     
     if (!user) {
       return NextResponse.json(
@@ -95,13 +77,10 @@ export async function POST(
       )
     }
 
-    // Get player
-    let player: Player | undefined
-    if (usePostgres) {
-      player = await pgGet('SELECT * FROM players WHERE user_id = $1', user.id) as Player | undefined
-    } else {
-      player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
-    }
+    // Get player using Prisma
+    const player = await db.player.findFirst({
+      where: { userId: user.id }
+    })
     
     if (!player) {
       return NextResponse.json(
@@ -110,25 +89,22 @@ export async function POST(
       )
     }
 
-    // Get the match
-    let match: any
-    if (usePostgres) {
-      match = await pgGet(`
-        SELECT m.*, p1.name as player1_name, p2.name as player2_name
-        FROM matches m
-        JOIN players p1 ON m.player1_id = p1.id
-        JOIN players p2 ON m.player2_id = p2.id
-        WHERE m.id = $1
-      `, sanitizedMatchId)
-    } else {
-      match = db.prepare(`
-        SELECT m.*, p1.name as player1_name, p2.name as player2_name
-        FROM matches m
-        JOIN players p1 ON m.player1_id = p1.id
-        JOIN players p2 ON m.player2_id = p2.id
-        WHERE m.id = ?
-      `).get(sanitizedMatchId) as any
-    }
+    // Get the match using Prisma
+    const match = await db.match.findUnique({
+      where: { id: sanitizedMatchId },
+      include: {
+        player1: {
+          select: {
+            name: true
+          }
+        },
+        player2: {
+          select: {
+            name: true
+          }
+        }
+      }
+    })
 
     if (!match) {
       return NextResponse.json(
@@ -140,13 +116,13 @@ export async function POST(
     console.log('Match found:', {
       id: match.id,
       status: match.status,
-      player1_id: match.player1_id,
-      player2_id: match.player2_id,
-      league_id: match.league_id
+      player1Id: match.player1Id,
+      player2Id: match.player2Id,
+      leagueId: match.leagueId
     })
 
     // Verify the player is part of this match
-    if (player.id !== match.player1_id && player.id !== match.player2_id) {
+    if (player.id !== match.player1Id && player.id !== match.player2Id) {
       return NextResponse.json(
         { error: 'You can only confirm matches you participated in' },
         { status: 403 }
@@ -162,26 +138,20 @@ export async function POST(
     }
 
     // Verify player is not the one who reported
-    if (match.reported_by === player.id) {
+    if (match.reportedBy === player.id) {
       return NextResponse.json(
         { error: 'You cannot confirm your own match report' },
         { status: 400 }
       )
     }
 
-    // Check if player already confirmed/disputed
-    let existingConfirmation: any
-    if (usePostgres) {
-      existingConfirmation = await pgGet(`
-        SELECT * FROM match_confirmations 
-        WHERE match_id = $1 AND player_id = $2
-      `, sanitizedMatchId, player.id)
-    } else {
-      existingConfirmation = db.prepare(`
-        SELECT * FROM match_confirmations 
-        WHERE match_id = ? AND player_id = ?
-      `).get(sanitizedMatchId, player.id) as any
-    }
+    // Check if player already confirmed/disputed using Prisma
+    const existingConfirmation = await db.matchConfirmation.findFirst({
+      where: {
+        matchId: sanitizedMatchId,
+        playerId: player.id
+      }
+    })
 
     if (existingConfirmation) {
       return NextResponse.json(
@@ -190,537 +160,230 @@ export async function POST(
       )
     }
 
-    // Create backup before making changes (only for SQLite)
-    let backup: any = null
-    if (!usePostgres) {
-      backup = createBackup({
-        matchIds: [sanitizedMatchId],
-        playerIds: [match.player1_id, match.player2_id],
-      })
-    }
-
     try {
       if (action === 'confirmed') {
-        // Player confirmed the match
+        // Player confirmed the match - use Prisma transaction
         console.log('=== MATCH CONFIRMATION START ===')
         console.log('Match ID:', sanitizedMatchId)
         console.log('Player confirming:', player.id)
-        console.log('Database:', usePostgres ? 'PostgreSQL' : 'SQLite')
         console.log('Match data:', {
-          player1_id: match.player1_id,
-          player2_id: match.player2_id,
-          league_id: match.league_id,
-          player1_score: match.player1_score,
-          player2_score: match.player2_score,
+          player1Id: match.player1Id,
+          player2Id: match.player2Id,
+          leagueId: match.leagueId,
+          player1Score: match.player1Score,
+          player2Score: match.player2Score,
           status: match.status
         })
         
-        if (usePostgres) {
-          // PostgreSQL transaction
-          const { confirmMatchPostgres } = await import('../confirm-postgres')
-          const pgResult = await confirmMatchPostgres(sanitizedMatchId, player.id, match)
-          
-          return NextResponse.json({
-            success: true,
-            message: 'Match confirmed successfully. Ratings have been updated.',
-            ratings: pgResult.ratings
-          }, {
-            headers: {
-              'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-              'Pragma': 'no-cache',
-              'Expires': '0',
+        // Use Prisma transaction for atomicity
+        const result = await db.$transaction(async (tx) => {
+          // Record confirmation
+          await tx.matchConfirmation.create({
+            data: {
+              matchId: sanitizedMatchId,
+              playerId: player.id,
+              action: 'confirmed'
             }
           })
-        } else {
-          // SQLite transaction (original code)
-          const dbInstance = getDatabase()
-          const transaction = dbInstance.transaction(() => {
-            console.log('=== TRANSACTION STARTED ===')
-            
-            // Prepare all statements inside transaction
-            const insertConfirmation = dbInstance.prepare(`
-              INSERT INTO match_confirmations (id, match_id, player_id, action, created_at)
-              VALUES (?, ?, ?, 'confirmed', CURRENT_TIMESTAMP)
-            `)
-            
-            const updateMatchStatus = dbInstance.prepare(`
-              UPDATE matches
-              SET status = 'completed', confirmed_at = CURRENT_TIMESTAMP
-              WHERE id = ?
-            `)
-            
-            const getRating = dbInstance.prepare(`
-              SELECT rating FROM player_ratings
-              WHERE player_id = ? AND league_id = ?
-            `)
-            
-            const updateRating = dbInstance.prepare(`
-              UPDATE player_ratings
-              SET rating = ?, updated_at = CURRENT_TIMESTAMP
-              WHERE player_id = ? AND league_id = ?
-            `)
-            
-            const insertRatingUpdate = dbInstance.prepare(`
-              INSERT INTO rating_updates (id, match_id, player_id, league_id, old_rating, new_rating, change)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
-            `)
-            
-            const updateChallenge = dbInstance.prepare(`
-              UPDATE challenges
-              SET status = 'completed'
-              WHERE id = ? AND status = 'accepted'
-            `)
-            
-            // Record confirmation
-            const confirmationId = crypto.randomUUID()
-            console.log('Inserting confirmation:', confirmationId)
-            const confResult = insertConfirmation.run(confirmationId, sanitizedMatchId, player.id)
-            console.log('Confirmation inserted, changes:', confResult.changes)
 
-            // Update match status to completed
-            // This will trigger update_player_stats_on_match_completion which updates wins/losses/draws
-            console.log('Updating match status to completed')
-            const matchStatusResult = updateMatchStatus.run(sanitizedMatchId)
-            console.log('Match status updated, changes:', matchStatusResult.changes)
-
-            // Ensure player ratings exist (create if they don't)
-            const ensureRating = dbInstance.prepare(`
-              INSERT OR IGNORE INTO player_ratings (id, player_id, league_id, rating, games_played, wins, losses, draws)
-              VALUES (?, ?, ?, 1000, 0, 0, 0, 0)
-            `)
-            
-            const ratingId1 = crypto.randomUUID()
-            const ratingId2 = crypto.randomUUID()
-            ensureRating.run(ratingId1, match.player1_id, match.league_id)
-            ensureRating.run(ratingId2, match.player2_id, match.league_id)
-            
-            // Get current ratings BEFORE updating (to avoid trigger interference)
-            console.log('Fetching current ratings...')
-            const rating1 = getRating.get(match.player1_id, match.league_id) as any
-            const rating2 = getRating.get(match.player2_id, match.league_id) as any
-            
-            if (!rating1) {
-              console.error('Player1 rating not found after creation attempt:', {
-                playerId: match.player1_id,
-                leagueId: match.league_id,
-                matchId: sanitizedMatchId
-              })
-              throw new Error(`Player1 rating not found. Player ID: ${match.player1_id}, League: ${match.league_id}`)
-            }
-            
-            if (!rating2) {
-              console.error('Player2 rating not found after creation attempt:', {
-                playerId: match.player2_id,
-                leagueId: match.league_id,
-                matchId: sanitizedMatchId
-              })
-              throw new Error(`Player2 rating not found. Player ID: ${match.player2_id}, League: ${match.league_id}`)
-            }
-            
-            console.log('Current ratings before update:', {
-              player1: { id: match.player1_id, rating: rating1.rating },
-              player2: { id: match.player2_id, rating: rating2.rating }
-            })
-            
-            // Calculate new Elo ratings
-            console.log('Calculating ELO with inputs:', {
-              player1Rating: rating1.rating,
-              player2Rating: rating2.rating,
-              player1Score: match.player1_score,
-              player2Score: match.player2_score
-            })
-            
-            const result = elo.calculateForMatch(
-              rating1.rating,
-              rating2.rating,
-              match.player1_score,
-              match.player2_score
-            )
-            
-            console.log('Elo calculation result:', {
-              player1: { 
-                old: rating1.rating, 
-                new: result.newRatingA, 
-                change: result.changeA,
-                willChange: rating1.rating !== result.newRatingA
-              },
-              player2: { 
-                old: rating2.rating, 
-                new: result.newRatingB, 
-                change: result.changeB,
-                willChange: rating2.rating !== result.newRatingB
-              },
-              matchId: sanitizedMatchId
-            })
-            
-            // Verify that ratings will actually change
-            if (result.newRatingA === rating1.rating && result.newRatingB === rating2.rating) {
-              console.error('ERROR: ELO calculation returned unchanged ratings!', {
-                player1: { old: rating1.rating, new: result.newRatingA },
-                player2: { old: rating2.rating, new: result.newRatingB },
-                scores: { player1: match.player1_score, player2: match.player2_score }
-              })
-              // Don't throw - let it continue to see what happens
-            }
-            
-            // Update player 1 rating
-            // Ensure rating is an integer
-            const newRating1 = Math.round(result.newRatingA)
-            console.log('Updating player1 rating...', {
-              playerId: match.player1_id,
-              leagueId: match.league_id,
-              old: rating1.rating,
-              new: newRating1,
-              change: result.changeA
-            })
-            
-            // Verify the rating will actually change
-            if (rating1.rating === newRating1) {
-              console.warn('WARNING: Player1 rating would not change!', {
-                current: rating1.rating,
-                calculated: newRating1
-              })
-            }
-            
-            const updateResult1 = updateRating.run(
-              newRating1,
-              match.player1_id,
-              match.league_id
-            )
-            console.log('Player1 rating update result:', {
-              changes: updateResult1.changes,
-              lastInsertRowid: updateResult1.lastInsertRowid
-            })
-            
-            if (updateResult1.changes === 0) {
-              // Check if rating already matches (might be a no-op)
-              const currentRating = getRating.get(match.player1_id, match.league_id) as any
-              if (currentRating?.rating !== newRating1) {
-                throw new Error(`Failed to update rating for player1: ${match.player1_id} in league: ${match.league_id}. Current: ${currentRating?.rating}, Expected: ${newRating1}`)
-              } else {
-                console.log('Player1 rating already at expected value, skipping update')
+          // Get or create player ratings
+          const rating1 = await tx.playerRating.upsert({
+            where: {
+              playerId_leagueId: {
+                playerId: match.player1Id,
+                leagueId: match.leagueId
               }
+            },
+            update: {},
+            create: {
+              playerId: match.player1Id,
+              leagueId: match.leagueId,
+              rating: 1000,
+              gamesPlayed: 0,
+              wins: 0,
+              losses: 0,
+              draws: 0
             }
-            
-            // Update player 2 rating
-            // Ensure rating is an integer
-            const newRating2 = Math.round(result.newRatingB)
-            console.log('Updating player2 rating...', {
-              playerId: match.player2_id,
-              leagueId: match.league_id,
-              old: rating2.rating,
-              new: newRating2,
-              change: result.changeB
-            })
-            
-            // Verify the rating will actually change
-            if (rating2.rating === newRating2) {
-              console.warn('WARNING: Player2 rating would not change!', {
-                current: rating2.rating,
-                calculated: newRating2
-              })
-            }
-            
-            const updateResult2 = updateRating.run(
-              newRating2,
-              match.player2_id,
-              match.league_id
-            )
-            console.log('Player2 rating update result:', {
-              changes: updateResult2.changes,
-              lastInsertRowid: updateResult2.lastInsertRowid
-            })
-            
-            if (updateResult2.changes === 0) {
-              // Check if rating already matches (might be a no-op)
-              const currentRating = getRating.get(match.player2_id, match.league_id) as any
-              if (currentRating?.rating !== newRating2) {
-                throw new Error(`Failed to update rating for player2: ${match.player2_id} in league: ${match.league_id}. Current: ${currentRating?.rating}, Expected: ${newRating2}`)
-              } else {
-                console.log('Player2 rating already at expected value, skipping update')
-              }
-            }
-            
-            // Verify the updates were applied
-            const verifyRating1 = getRating.get(match.player1_id, match.league_id) as any
-            const verifyRating2 = getRating.get(match.player2_id, match.league_id) as any
-            
-            console.log('Verification - ratings after update:', {
-              player1: verifyRating1?.rating,
-              player2: verifyRating2?.rating,
-              expected1: newRating1,
-              expected2: newRating2
-            })
-            
-            if (verifyRating1?.rating !== newRating1 || verifyRating2?.rating !== newRating2) {
-              console.error('Rating verification failed:', {
-                expected: { player1: newRating1, player2: newRating2 },
-                actual: { player1: verifyRating1?.rating, player2: verifyRating2?.rating }
-              })
-              throw new Error(`Rating update verification failed. Expected: player1=${newRating1}, player2=${newRating2}. Actual: player1=${verifyRating1?.rating}, player2=${verifyRating2?.rating}`)
-            }
-            
-            // Record rating updates
-            console.log('Inserting rating updates...')
-            const updateId1 = crypto.randomUUID()
-            const insertResult1 = insertRatingUpdate.run(
-              updateId1,
-              sanitizedMatchId,
-              match.player1_id,
-              match.league_id,
-              rating1.rating,
-              newRating1,
-              result.changeA
-            )
-            console.log('Rating update 1 inserted, changes:', insertResult1.changes)
-            
-            if (insertResult1.changes === 0) {
-              throw new Error(`Failed to insert rating update for player1: ${match.player1_id}`)
-            }
-            
-            const updateId2 = crypto.randomUUID()
-            const insertResult2 = insertRatingUpdate.run(
-              updateId2,
-              sanitizedMatchId,
-              match.player2_id,
-              match.league_id,
-              rating2.rating,
-              newRating2,
-              result.changeB
-            )
-            console.log('Rating update 2 inserted, changes:', insertResult2.changes)
-            
-            if (insertResult2.changes === 0) {
-              throw new Error(`Failed to insert rating update for player2: ${match.player2_id}`)
-            }
-            
-            console.log('Rating updates recorded:', {
-              player1: { updateId: updateId1, old: rating1.rating, new: newRating1, change: result.changeA },
-              player2: { updateId: updateId2, old: rating2.rating, new: newRating2, change: result.changeB }
-            })
-
-            // Note: Player stats (wins/losses/draws) are automatically updated by the 
-            // update_player_stats_on_match_completion trigger when status changes to 'completed'
-
-            // Mark challenge as completed if exists
-            if (match.challenge_id) {
-              console.log('Updating challenge status...')
-              const challengeResult = updateChallenge.run(match.challenge_id)
-              console.log('Challenge updated, changes:', challengeResult.changes)
-            }
-            
-            console.log('=== TRANSACTION COMPLETING (about to commit) ===')
           })
-          
-          // Execute the transaction with error handling
-          // better-sqlite3 transactions automatically commit on success or rollback on error
-          try {
-            transaction()
-            console.log('=== TRANSACTION EXECUTED AND COMMITTED ===')
-          } catch (txError: any) {
-            console.error('=== TRANSACTION EXECUTION ERROR ===')
-            console.error('Error type:', txError?.constructor?.name)
-            console.error('Error message:', txError?.message)
-            console.error('Error stack:', txError?.stack)
-            console.error('Full error:', txError)
-            console.error('=== END TRANSACTION EXECUTION ERROR ===')
-            throw txError
-          }
-          
-          // Verify transaction committed by checking if data was written
-          // Use a fresh query to ensure we're reading committed data
-          try {
-            const testQuery = dbInstance.prepare('SELECT status FROM matches WHERE id = ?')
-            const matchStatusCheck = testQuery.get(sanitizedMatchId) as any
-            if (matchStatusCheck?.status !== 'completed') {
-              throw new Error(`Transaction may not have committed. Match status is: ${matchStatusCheck?.status}, expected: completed`)
-            }
-            console.log('Transaction verified: Match status is completed')
-            
-            // Verify ratings were updated after transaction commits
-            // Use dbInstance to ensure we're querying the same database instance
-            // Create fresh prepared statements to avoid any caching issues
-            const verifyRatingQuery = dbInstance.prepare(`
-              SELECT rating, updated_at FROM player_ratings
-              WHERE player_id = ? AND league_id = ?
-            `)
-            
-            const finalRating1 = verifyRatingQuery.get(match.player1_id, match.league_id) as any
-            const finalRating2 = verifyRatingQuery.get(match.player2_id, match.league_id) as any
-            
-            console.log('Final ratings after transaction:', {
-              player1: { id: match.player1_id, rating: finalRating1?.rating, updated_at: finalRating1?.updated_at },
-              player2: { id: match.player2_id, rating: finalRating2?.rating, updated_at: finalRating2?.updated_at }
-            })
-            
-            // Verify rating updates were inserted - CRITICAL CHECK
-            const ratingUpdatesQuery = dbInstance.prepare(`
-              SELECT * FROM rating_updates WHERE match_id = ?
-            `)
-            const ratingUpdates = ratingUpdatesQuery.all(sanitizedMatchId) as any[]
-            
-            console.log('Rating updates in database:', ratingUpdates.length, 'records')
-            if (ratingUpdates.length === 0) {
-              console.error('ERROR: No rating updates found in database after transaction!')
-              console.error('This means the rating_updates INSERT statements did not execute or commit.')
-              throw new Error('Rating updates were not inserted into database. Transaction may have failed silently.')
-            }
-            
-            if (ratingUpdates.length !== 2) {
-              console.error(`ERROR: Expected 2 rating updates, found ${ratingUpdates.length}`)
-              throw new Error(`Expected 2 rating updates, found ${ratingUpdates.length}`)
-            }
-            
-            console.log('Rating update details:', ratingUpdates)
-            
-            // Verify both players have rating updates
-            const player1Update = ratingUpdates.find((ru: any) => ru.player_id === match.player1_id)
-            const player2Update = ratingUpdates.find((ru: any) => ru.player_id === match.player2_id)
-            
-            if (!player1Update || !player2Update) {
-              console.error('ERROR: Missing rating update for one or both players')
-              console.error('Player1 update:', player1Update)
-              console.error('Player2 update:', player2Update)
-              throw new Error('Rating updates missing for one or both players')
-            }
-            
-            console.log('✓ Both rating updates verified in database')
-            
-            // Double-check that ratings actually changed
-            if (finalRating1?.rating === 1000 && finalRating2?.rating === 1000) {
-              console.error('WARNING: Ratings are still at default 1000! This suggests the update did not work.')
-              // Try to get the match to see what happened
-              const matchCheck = dbInstance.prepare('SELECT * FROM matches WHERE id = ?').get(sanitizedMatchId) as any
-              console.error('Match status:', matchCheck?.status)
-              console.error('Match winner:', matchCheck?.winner_id)
-            }
-            
-            console.log('=== MATCH CONFIRMATION SUCCESS ===')
 
-            // Double-check ratings one more time before returning
-            const finalCheck1 = dbInstance.prepare(`
-              SELECT rating FROM player_ratings
-              WHERE player_id = ? AND league_id = ?
-            `).get(match.player1_id, match.league_id) as any
-            
-            const finalCheck2 = dbInstance.prepare(`
-              SELECT rating FROM player_ratings
-              WHERE player_id = ? AND league_id = ?
-            `).get(match.player2_id, match.league_id) as any
-            
-            console.log('Final check before response:', {
-              player1: finalCheck1?.rating,
-              player2: finalCheck2?.rating
-            })
-            
-            return NextResponse.json({
-              success: true,
-              message: 'Match confirmed successfully. Ratings have been updated.',
-              ratings: {
-                player1: finalCheck1?.rating || finalRating1?.rating,
-                player2: finalCheck2?.rating || finalRating2?.rating
+          const rating2 = await tx.playerRating.upsert({
+            where: {
+              playerId_leagueId: {
+                playerId: match.player2Id,
+                leagueId: match.leagueId
               }
-            }, {
-              headers: {
-                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-                'Pragma': 'no-cache',
-                'Expires': '0',
+            },
+            update: {},
+            create: {
+              playerId: match.player2Id,
+              leagueId: match.leagueId,
+              rating: 1000,
+              gamesPlayed: 0,
+              wins: 0,
+              losses: 0,
+              draws: 0
+            }
+          })
+
+          console.log('Current ratings before update:', {
+            player1: { id: match.player1Id, rating: rating1.rating },
+            player2: { id: match.player2Id, rating: rating2.rating }
+          })
+
+          // Calculate new Elo ratings
+          const eloResult = elo.calculateForMatch(
+            rating1.rating,
+            rating2.rating,
+            match.player1Score,
+            match.player2Score
+          )
+
+          const newRating1 = Math.round(eloResult.newRatingA)
+          const newRating2 = Math.round(eloResult.newRatingB)
+
+          console.log('Elo calculation result:', {
+            player1: { old: rating1.rating, new: newRating1, change: eloResult.changeA },
+            player2: { old: rating2.rating, new: newRating2, change: eloResult.changeB }
+          })
+
+          // Determine winner for stats
+          const isDraw = match.player1Score === match.player2Score
+          const player1Won = match.player1Score > match.player2Score
+          const player2Won = match.player2Score > match.player1Score
+
+          // Update player 1 rating and stats
+          await tx.playerRating.update({
+            where: { id: rating1.id },
+            data: {
+              rating: newRating1,
+              gamesPlayed: { increment: 1 },
+              wins: player1Won ? { increment: 1 } : undefined,
+              losses: player2Won ? { increment: 1 } : undefined,
+              draws: isDraw ? { increment: 1 } : undefined,
+              updatedAt: new Date()
+            }
+          })
+
+          // Update player 2 rating and stats
+          await tx.playerRating.update({
+            where: { id: rating2.id },
+            data: {
+              rating: newRating2,
+              gamesPlayed: { increment: 1 },
+              wins: player2Won ? { increment: 1 } : undefined,
+              losses: player1Won ? { increment: 1 } : undefined,
+              draws: isDraw ? { increment: 1 } : undefined,
+              updatedAt: new Date()
+            }
+          })
+
+          // Record rating updates
+          await tx.ratingUpdate.createMany({
+            data: [
+              {
+                matchId: sanitizedMatchId,
+                playerId: match.player1Id,
+                leagueId: match.leagueId,
+                oldRating: rating1.rating,
+                newRating: newRating1,
+                change: eloResult.changeA
+              },
+              {
+                matchId: sanitizedMatchId,
+                playerId: match.player2Id,
+                leagueId: match.leagueId,
+                oldRating: rating2.rating,
+                newRating: newRating2,
+                change: eloResult.changeB
+              }
+            ]
+          })
+
+          // Update match status to completed
+          await tx.match.update({
+            where: { id: sanitizedMatchId },
+            data: {
+              status: 'completed',
+              confirmedAt: new Date()
+            }
+          })
+
+          // Mark challenge as completed if exists
+          if (match.challengeId) {
+            await tx.challenge.updateMany({
+              where: {
+                id: match.challengeId,
+                status: 'accepted'
+              },
+              data: {
+                status: 'completed'
               }
             })
-          } catch (txError: any) {
-            console.error('=== TRANSACTION ERROR ===')
-            console.error('Error type:', txError?.constructor?.name)
-            console.error('Error message:', txError?.message)
-            console.error('Error stack:', txError?.stack)
-            console.error('Full error:', txError)
-            console.error('=== END TRANSACTION ERROR ===')
-            throw txError
           }
-        }
+
+          return {
+            player1Rating: newRating1,
+            player2Rating: newRating2
+          }
+        })
+
+        console.log('=== MATCH CONFIRMATION SUCCESS ===')
+
+        return NextResponse.json({
+          success: true,
+          message: 'Match confirmed successfully. Ratings have been updated.',
+          ratings: {
+            player1: result.player1Rating,
+            player2: result.player2Rating
+          }
+        }, {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          }
+        })
       } else {
-        // Player disputed the match
-        if (usePostgres) {
-          // PostgreSQL dispute handling
-          const confirmationId = crypto.randomUUID()
-          await pgRun(`
-            INSERT INTO match_confirmations (
-              id, match_id, player_id, action, dispute_reason,
-              confirmed_score1, confirmed_score2, created_at
-            )
-            VALUES ($1, $2, $3, 'disputed', $4, $5, $6, CURRENT_TIMESTAMP)
-          `, confirmationId, sanitizedMatchId, player.id, dispute_reason || '', confirmed_score1 || null, confirmed_score2 || null)
-
-          await pgRun(`
-            UPDATE matches
-            SET status = 'disputed'
-            WHERE id = $1
-          `, sanitizedMatchId)
-
-          return NextResponse.json({
-            success: true,
-            message: 'Match disputed. An admin will review the dispute.'
-          })
-        } else {
-          // SQLite dispute handling
-          DatabaseTransaction.execute((tx) => {
-            // Record dispute
-            const confirmationId = crypto.randomUUID()
-            tx.run(
-              db.prepare(`
-                INSERT INTO match_confirmations (
-                  id, match_id, player_id, action, dispute_reason,
-                  confirmed_score1, confirmed_score2, created_at
-                )
-                VALUES (?, ?, ?, 'disputed', ?, ?, ?, CURRENT_TIMESTAMP)
-              `),
-              confirmationId,
-              sanitizedMatchId,
-              player.id,
-              dispute_reason || '',
-              confirmed_score1 || null,
-              confirmed_score2 || null
-            )
-
-            // Update match status to disputed
-            tx.run(
-              db.prepare(`
-                UPDATE matches
-                SET status = 'disputed'
-                WHERE id = ?
-              `),
-              sanitizedMatchId
-            )
+        // Player disputed the match - use Prisma
+        await db.$transaction(async (tx) => {
+          // Record dispute
+          await tx.matchConfirmation.create({
+            data: {
+              matchId: sanitizedMatchId,
+              playerId: player.id,
+              action: 'disputed',
+              disputeReason: dispute_reason || undefined,
+              confirmedScore1: confirmed_score1 || undefined,
+              confirmedScore2: confirmed_score2 || undefined
+            }
           })
 
-          return NextResponse.json({
-            success: true,
-            message: 'Match disputed. An admin will review the dispute.'
+          // Update match status to disputed
+          await tx.match.update({
+            where: { id: sanitizedMatchId },
+            data: {
+              status: 'disputed'
+            }
           })
-        }
+        })
+
+        return NextResponse.json({
+          success: true,
+          message: 'Match disputed. An admin will review the dispute.'
+        })
       }
     } catch (error: any) {
-      // Rollback using backup if transaction fails
-      console.error('=== OUTER CATCH ERROR ===')
-      console.error('Error type:', error?.constructor?.name)
-      console.error('Error message:', error?.message)
-      console.error('Error stack:', error?.stack)
-      console.error('Full error:', error)
-      console.error('=== END OUTER CATCH ERROR ===')
-      try {
-        restoreBackup(backup)
-        console.log('Backup restored successfully')
-      } catch (restoreError) {
-        console.error('Error restoring backup:', restoreError)
-      }
-      throw error
+      console.error('Error in match confirmation:', error)
+      return NextResponse.json(
+        { 
+          error: error.message || 'Failed to confirm match',
+          details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        },
+        { status: 500 }
+      )
     }
   } catch (error: any) {
-    console.error('=== FINAL CATCH ERROR ===')
-    console.error('Error type:', error?.constructor?.name)
-    console.error('Error message:', error?.message)
-    console.error('Error stack:', error?.stack)
-    console.error('Full error:', error)
-    console.error('=== END FINAL CATCH ERROR ===')
+    console.error('Error in match confirmation route:', error)
     return NextResponse.json(
       { 
         error: error.message || 'Failed to confirm match',

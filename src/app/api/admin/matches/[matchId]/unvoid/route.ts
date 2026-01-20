@@ -1,8 +1,9 @@
 import { NextResponse, NextRequest } from "next/server"
 import { apiHandlers } from "@/lib/api-helpers"
-import { db, DatabaseTransaction, createBackup, restoreBackup } from "@/lib/db"
-import { EloCalculator } from "@/lib/elo"
-import crypto from "crypto"
+import { db } from "@/lib/db"
+import { elo } from "@/lib/elo"
+
+export const runtime = 'nodejs' // Required for Prisma on Vercel
 
 export const POST = apiHandlers.admin(async (
   request: NextRequest & { session?: any },
@@ -17,8 +18,11 @@ export const POST = apiHandlers.admin(async (
 
     const { matchId } = await (context?.params || Promise.resolve({ matchId: '' }))
 
-    // Get the match
-    const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId) as any
+    // Get the match using Prisma
+    const match = await db.match.findUnique({
+      where: { id: matchId }
+    })
+
     if (!match) {
       return NextResponse.json({ error: "Match not found" }, { status: 404 })
     }
@@ -27,201 +31,137 @@ export const POST = apiHandlers.admin(async (
       return NextResponse.json({ error: "Match is not voided" }, { status: 400 })
     }
 
-    // Create backup before un-voiding
-    const backup = createBackup({
-      matchIds: [matchId],
-      playerIds: [match.player1_id, match.player2_id],
-    })
-
-    // Use transaction to un-void match and restore ratings
-    try {
-      DatabaseTransaction.execute((tx) => {
-        // Get the rating updates that were deleted when match was voided
-        // We need to restore them - check if there are any rating_updates records
-        // If not, we'll need to recalculate based on the match result
-        
-        // First, check if we can find the original rating updates
-        // Since voiding deletes rating_updates, we need to recalculate
-        
-        // Get current ratings for both players
-        const player1Rating = tx.get(
-          db.prepare('SELECT * FROM player_ratings WHERE player_id = ? AND league_id = ?'),
-          match.player1_id,
-          match.league_id
-        ) as any
-
-        const player2Rating = tx.get(
-          db.prepare('SELECT * FROM player_ratings WHERE player_id = ? AND league_id = ?'),
-          match.player2_id,
-          match.league_id
-        ) as any
-
-        if (!player1Rating || !player2Rating) {
-          throw new Error('Player ratings not found')
-        }
-
-        // Determine winner
-        let winnerId: string | null = null
-        if (match.player1_score > match.player2_score) {
-          winnerId = match.player1_id
-        } else if (match.player2_score > match.player1_score) {
-          winnerId = match.player2_id
-        }
-
-        // Recalculate Elo ratings
-        const eloCalculator = new EloCalculator()
-        const player1OldRating = player1Rating.rating
-        const player2OldRating = player2Rating.rating
-
-        const player1Expected = eloCalculator.expectedScore(player1OldRating, player2OldRating)
-        const player2Expected = eloCalculator.expectedScore(player2OldRating, player1OldRating)
-
-        let player1Actual = 0.5 // Draw
-        if (winnerId === match.player1_id) {
-          player1Actual = 1.0
-        } else if (winnerId === match.player2_id) {
-          player1Actual = 0.0
-        }
-
-        const player2Actual = 1.0 - player1Actual
-
-        // Calculate margin of victory multiplier
-        const scoreDiff = Math.abs(match.player1_score - match.player2_score)
-        const multiplier = eloCalculator.marginOfVictoryMultiplier(
-          scoreDiff,
-          winnerId === match.player1_id ? player1OldRating : player2OldRating,
-          winnerId === match.player1_id ? player2OldRating : player1OldRating
-        )
-
-        // Calculate rating changes
-        const kFactor = 32
-        const player1Change = Math.round(
-          kFactor * multiplier * (player1Actual - player1Expected)
-        )
-        const player2Change = Math.round(
-          kFactor * multiplier * (player2Actual - player2Expected)
-        )
-
-        const player1NewRating = player1OldRating + player1Change
-        const player2NewRating = player2OldRating + player2Change
-
-        // Update ratings
-        tx.run(
-          db.prepare(`
-            UPDATE player_ratings
-            SET rating = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE player_id = ? AND league_id = ?
-          `),
-          player1NewRating,
-          match.player1_id,
-          match.league_id
-        )
-
-        tx.run(
-          db.prepare(`
-            UPDATE player_ratings
-            SET rating = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE player_id = ? AND league_id = ?
-          `),
-          player2NewRating,
-          match.player2_id,
-          match.league_id
-        )
-
-        // Create rating update records
-        const update1Id = crypto.randomUUID()
-        tx.run(
-          db.prepare(`
-            INSERT INTO rating_updates (
-              id, match_id, player_id, league_id, old_rating, new_rating, change, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-          `),
-          update1Id,
-          matchId,
-          match.player1_id,
-          match.league_id,
-          player1OldRating,
-          player1NewRating,
-          player1Change
-        )
-
-        const update2Id = crypto.randomUUID()
-        tx.run(
-          db.prepare(`
-            INSERT INTO rating_updates (
-              id, match_id, player_id, league_id, old_rating, new_rating, change, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-          `),
-          update2Id,
-          matchId,
-          match.player2_id,
-          match.league_id,
-          player2OldRating,
-          player2NewRating,
-          player2Change
-        )
-
-        // Update match status to completed
-        tx.run(
-          db.prepare(`
-            UPDATE matches
-            SET status = 'completed'
-            WHERE id = ?
-          `),
-          matchId
-        )
-
-        // If match had a challenge, restore challenge status
-        if (match.challenge_id) {
-          const challenge = tx.get(
-            db.prepare('SELECT * FROM challenges WHERE id = ?'),
-            match.challenge_id
-          ) as any
-          
-          if (challenge && challenge.status !== 'completed') {
-            tx.run(
-              db.prepare(`
-                UPDATE challenges
-                SET status = 'completed'
-                WHERE id = ?
-              `),
-              match.challenge_id
-            )
+    // Use Prisma transaction to un-void match and restore ratings
+    await db.$transaction(async (tx) => {
+      // Get current ratings for both players
+      const player1Rating = await tx.playerRating.findUnique({
+        where: {
+          playerId_leagueId: {
+            playerId: match.player1Id,
+            leagueId: match.leagueId
           }
         }
       })
 
-      // Log admin action
-      const actionId = crypto.randomUUID()
-      db.prepare(`
-        INSERT INTO admin_actions (id, user_id, action, target_id, details, created_at)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `).run(
-        actionId,
-        user.id,
-        'unvoid_match',
-        matchId,
-        JSON.stringify({ 
-          match_id: matchId,
-          player1_id: match.player1_id,
-          player2_id: match.player2_id
-        })
+      const player2Rating = await tx.playerRating.findUnique({
+        where: {
+          playerId_leagueId: {
+            playerId: match.player2Id,
+            leagueId: match.leagueId
+          }
+        }
+      })
+
+      if (!player1Rating || !player2Rating) {
+        throw new Error('Player ratings not found')
+      }
+
+      // Recalculate Elo ratings
+      const eloResult = elo.calculateForMatch(
+        player1Rating.rating,
+        player2Rating.rating,
+        match.player1Score,
+        match.player2Score
       )
 
-      return NextResponse.json({ 
-        success: true,
-        message: "Match un-voided successfully. Ratings have been restored."
+      const newRating1 = Math.round(eloResult.newRatingA)
+      const newRating2 = Math.round(eloResult.newRatingB)
+
+      // Determine winner for stats
+      const isDraw = match.player1Score === match.player2Score
+      const player1Won = match.player1Score > match.player2Score
+      const player2Won = match.player2Score > match.player1Score
+
+      // Update player 1 rating and stats
+      await tx.playerRating.update({
+        where: { id: player1Rating.id },
+        data: {
+          rating: newRating1,
+          gamesPlayed: { increment: 1 },
+          wins: player1Won ? { increment: 1 } : undefined,
+          losses: player2Won ? { increment: 1 } : undefined,
+          draws: isDraw ? { increment: 1 } : undefined,
+          updatedAt: new Date()
+        }
       })
-    } catch (error: any) {
-      // Rollback using backup if transaction fails
-      console.error('Error un-voiding match:', error)
-      try {
-        restoreBackup(backup)
-      } catch (restoreError) {
-        console.error('Error restoring backup:', restoreError)
+
+      // Update player 2 rating and stats
+      await tx.playerRating.update({
+        where: { id: player2Rating.id },
+        data: {
+          rating: newRating2,
+          gamesPlayed: { increment: 1 },
+          wins: player2Won ? { increment: 1 } : undefined,
+          losses: player1Won ? { increment: 1 } : undefined,
+          draws: isDraw ? { increment: 1 } : undefined,
+          updatedAt: new Date()
+        }
+      })
+
+      // Create rating update records
+      await tx.ratingUpdate.createMany({
+        data: [
+          {
+            matchId: matchId,
+            playerId: match.player1Id,
+            leagueId: match.leagueId,
+            oldRating: player1Rating.rating,
+            newRating: newRating1,
+            change: eloResult.changeA
+          },
+          {
+            matchId: matchId,
+            playerId: match.player2Id,
+            leagueId: match.leagueId,
+            oldRating: player2Rating.rating,
+            newRating: newRating2,
+            change: eloResult.changeB
+          }
+        ]
+      })
+
+      // Update match status to completed
+      await tx.match.update({
+        where: { id: matchId },
+        data: {
+          status: 'completed',
+          confirmedAt: new Date()
+        }
+      })
+
+      // If match had a challenge, restore challenge status
+      if (match.challengeId) {
+        const challenge = await tx.challenge.findUnique({
+          where: { id: match.challengeId }
+        })
+        
+        if (challenge && challenge.status !== 'completed') {
+          await tx.challenge.update({
+            where: { id: match.challengeId },
+            data: { status: 'completed' }
+          })
+        }
       }
-      throw error
-    }
+    })
+
+    // Log admin action
+    await db.adminAction.create({
+      data: {
+        userId: user.id,
+        action: 'unvoid_match',
+        targetId: matchId,
+        details: JSON.stringify({ 
+          match_id: matchId,
+          player1_id: match.player1Id,
+          player2_id: match.player2Id
+        })
+      }
+    })
+
+    return NextResponse.json({ 
+      success: true,
+      message: "Match un-voided successfully. Ratings have been restored."
+    })
   } catch (error: any) {
     console.error('Error un-voiding match:', error)
     return NextResponse.json(

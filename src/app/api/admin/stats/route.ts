@@ -2,107 +2,143 @@ import { NextResponse } from "next/server"
 import { apiHandlers } from "@/lib/api-helpers"
 import { db } from "@/lib/db"
 
+export const runtime = 'nodejs' // Required for Prisma on Vercel
+
 export const GET = apiHandlers.admin(async (request) => {
   try {
+    // Get all counts in parallel
+    const [
+      totalUsers,
+      totalPlayers,
+      totalLeagues,
+      totalMatches,
+      totalChallenges,
+      completedMatches,
+      pendingMatches,
+      voidedMatches,
+      pendingChallenges,
+      acceptedChallenges,
+      completedChallenges,
+      activePlayersCount,
+      totalRatings,
+      avgRatingResult,
+    ] = await Promise.all([
+      db.user.count(),
+      db.player.count(),
+      db.league.count(),
+      db.match.count(),
+      db.challenge.count(),
+      db.match.count({ where: { status: 'completed' } }),
+      db.match.count({ where: { status: 'pending' } }),
+      db.match.count({ where: { status: 'voided' } }),
+      db.challenge.count({ where: { status: 'pending' } }),
+      db.challenge.count({ where: { status: 'accepted' } }),
+      db.challenge.count({ where: { status: 'completed' } }),
+      db.leagueMembership.count({ where: { isActive: true } }),
+      db.playerRating.count(),
+      db.playerRating.aggregate({
+        _avg: { rating: true }
+      })
+    ])
 
-    // Basic counts
-    const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }
-    const totalPlayers = db.prepare('SELECT COUNT(*) as count FROM players').get() as { count: number }
-    const totalLeagues = db.prepare('SELECT COUNT(*) as count FROM leagues').get() as { count: number }
-    const totalMatches = db.prepare('SELECT COUNT(*) as count FROM matches').get() as { count: number }
-    const totalChallenges = db.prepare('SELECT COUNT(*) as count FROM challenges').get() as { count: number }
+    // Get league stats with member and match counts
+    const leagues = await db.league.findMany({
+      include: {
+        memberships: {
+          where: { isActive: true },
+          select: { playerId: true }
+        },
+        _count: {
+          select: { matches: true }
+        }
+      }
+    })
 
-    // Match statistics
-    const completedMatches = db.prepare("SELECT COUNT(*) as count FROM matches WHERE status = 'completed'").get() as { count: number }
-    const pendingMatches = db.prepare("SELECT COUNT(*) as count FROM matches WHERE status = 'pending'").get() as { count: number }
-    const voidedMatches = db.prepare("SELECT COUNT(*) as count FROM matches WHERE status = 'voided'").get() as { count: number }
+    const leagueStats = leagues.map(l => ({
+      id: l.id,
+      name: l.name,
+      game_type: l.gameType,
+      member_count: l.memberships.length,
+      match_count: l._count.matches
+    }))
 
-    // Challenge statistics
-    const pendingChallenges = db.prepare("SELECT COUNT(*) as count FROM challenges WHERE status = 'pending'").get() as { count: number }
-    const acceptedChallenges = db.prepare("SELECT COUNT(*) as count FROM challenges WHERE status = 'accepted'").get() as { count: number }
-    const completedChallenges = db.prepare("SELECT COUNT(*) as count FROM challenges WHERE status = 'completed'").get() as { count: number }
+    // Get recent activity (last 7 days)
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
-    // League statistics
-    const leagueStats = db.prepare(`
-      SELECT 
-        l.id,
-        l.name,
-        l.game_type,
-        COUNT(DISTINCT lm.player_id) as member_count,
-        COUNT(DISTINCT m.id) as match_count
-      FROM leagues l
-      LEFT JOIN league_memberships lm ON l.id = lm.league_id AND lm.is_active = 1
-      LEFT JOIN matches m ON l.id = m.league_id
-      GROUP BY l.id
-    `).all() as any[]
+    const [recentMatches, recentChallenges, recentUsers] = await Promise.all([
+      db.match.count({
+        where: {
+          playedAt: {
+            gte: sevenDaysAgo
+          }
+        }
+      }),
+      db.challenge.count({
+        where: {
+          createdAt: {
+            gte: sevenDaysAgo
+          }
+        }
+      }),
+      db.user.count({
+        where: {
+          createdAt: {
+            gte: sevenDaysAgo
+          }
+        }
+      })
+    ])
 
-    // Player statistics
-    const activePlayers = db.prepare(`
-      SELECT COUNT(DISTINCT player_id) as count 
-      FROM league_memberships 
-      WHERE is_active = 1
-    `).get() as { count: number }
+    // Get top players by rating
+    const topPlayersData = await db.playerRating.findMany({
+      take: 10,
+      orderBy: { rating: 'desc' },
+      include: {
+        player: {
+          select: {
+            name: true
+          }
+        },
+        league: {
+          select: {
+            name: true
+          }
+        }
+      }
+    })
 
-    const totalRatings = db.prepare('SELECT COUNT(*) as count FROM player_ratings').get() as { count: number }
-    const avgRating = db.prepare('SELECT AVG(rating) as avg FROM player_ratings').get() as { avg: number }
-
-    // Recent activity (last 7 days)
-    const recentMatches = db.prepare(`
-      SELECT COUNT(*) as count 
-      FROM matches 
-      WHERE played_at >= datetime('now', '-7 days')
-    `).get() as { count: number }
-
-    const recentChallenges = db.prepare(`
-      SELECT COUNT(*) as count 
-      FROM challenges 
-      WHERE created_at >= datetime('now', '-7 days')
-    `).get() as { count: number }
-
-    const recentUsers = db.prepare(`
-      SELECT COUNT(*) as count 
-      FROM users 
-      WHERE created_at >= datetime('now', '-7 days')
-    `).get() as { count: number }
-
-    // Top players by rating
-    const topPlayers = db.prepare(`
-      SELECT 
-        p.name,
-        pr.rating,
-        l.name as league_name,
-        pr.games_played,
-        pr.wins,
-        pr.losses
-      FROM player_ratings pr
-      JOIN players p ON pr.player_id = p.id
-      JOIN leagues l ON pr.league_id = l.id
-      ORDER BY pr.rating DESC
-      LIMIT 10
-    `).all() as any[]
+    const topPlayers = topPlayersData.map(pr => ({
+      name: pr.player.name,
+      rating: pr.rating,
+      league_name: pr.league.name,
+      games_played: pr.gamesPlayed,
+      wins: pr.wins,
+      losses: pr.losses
+    }))
 
     return NextResponse.json({
       // Basic counts
-      totalUsers: totalUsers.count,
-      totalPlayers: totalPlayers.count,
-      totalLeagues: totalLeagues.count,
-      totalMatches: totalMatches.count,
-      totalChallenges: totalChallenges.count,
+      totalUsers,
+      totalPlayers,
+      totalLeagues,
+      totalMatches,
+      totalChallenges,
       
       // Match statistics
       matches: {
-        total: totalMatches.count,
-        completed: completedMatches.count,
-        pending: pendingMatches.count,
-        voided: voidedMatches.count,
+        total: totalMatches,
+        completed: completedMatches,
+        pending: pendingMatches,
+        voided: voidedMatches,
       },
       
       // Challenge statistics
       challenges: {
-        total: totalChallenges.count,
-        pending: pendingChallenges.count,
-        accepted: acceptedChallenges.count,
-        completed: completedChallenges.count,
+        total: totalChallenges,
+        pending: pendingChallenges,
+        accepted: acceptedChallenges,
+        completed: completedChallenges,
       },
       
       // League statistics
@@ -110,17 +146,17 @@ export const GET = apiHandlers.admin(async (request) => {
       
       // Player statistics
       players: {
-        total: totalPlayers.count,
-        active: activePlayers.count,
-        totalRatings: totalRatings.count,
-        averageRating: Math.round(avgRating.avg || 1000),
+        total: totalPlayers,
+        active: activePlayersCount,
+        totalRatings,
+        averageRating: Math.round(avgRatingResult._avg.rating || 1000),
       },
       
       // Recent activity
       recentActivity: {
-        matches: recentMatches.count,
-        challenges: recentChallenges.count,
-        users: recentUsers.count,
+        matches: recentMatches,
+        challenges: recentChallenges,
+        users: recentUsers,
       },
       
       // Top players

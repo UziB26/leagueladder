@@ -1,19 +1,9 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { db, dbHelpers } from '@/lib/db'
-import { pgGet, pgAll, pgRun, isPostgresAvailable } from '@/lib/db/postgres'
+import { db } from '@/lib/db'
 import { elo } from '@/lib/elo'
-import crypto from 'crypto'
 
-interface User {
-  id: string
-  email: string
-}
-
-interface Player {
-  id: string
-  user_id: string
-}
+export const runtime = 'nodejs' // Required for Prisma on Vercel
 
 /**
  * POST /api/matches/from-challenge/[challengeId]
@@ -26,7 +16,7 @@ interface Player {
  * {
  *   player1Score: number,      // Required: Score for the challenger
  *   player2Score: number,       // Required: Score for the challengee
- *   status?: string            // Optional: Match status (defaults to 'completed')
+ *   status?: string            // Optional: Match status (defaults to 'pending_confirmation')
  * }
  * 
  * Response:
@@ -50,14 +40,10 @@ export async function POST(
       )
     }
 
-    const usePostgres = isPostgresAvailable()
-    
-    let user: User | undefined
-    if (usePostgres) {
-      user = await pgGet('SELECT * FROM users WHERE email = $1', session.user.email) as User | undefined
-    } else {
-      user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
-    }
+    // Get user using Prisma
+    const user = await db.user.findUnique({
+      where: { email: session.user.email }
+    })
     
     if (!user) {
       return NextResponse.json(
@@ -66,12 +52,10 @@ export async function POST(
       )
     }
 
-    let player: Player | undefined
-    if (usePostgres) {
-      player = await pgGet('SELECT * FROM players WHERE user_id = $1', user.id) as Player | undefined
-    } else {
-      player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
-    }
+    // Get player using Prisma
+    const player = await db.player.findFirst({
+      where: { userId: user.id }
+    })
     
     if (!player) {
       return NextResponse.json(
@@ -98,27 +82,17 @@ export async function POST(
       )
     }
 
-    // Get the challenge
-    let challenge: any
-    if (usePostgres) {
-      challenge = await pgGet(`
-        SELECT 
-          c.*,
-          l.id as league_id
-        FROM challenges c
-        JOIN leagues l ON c.league_id = l.id
-        WHERE c.id = $1
-      `, challengeId)
-    } else {
-      challenge = db.prepare(`
-        SELECT 
-          c.*,
-          l.id as league_id
-        FROM challenges c
-        JOIN leagues l ON c.league_id = l.id
-        WHERE c.id = ?
-      `).get(challengeId) as any
-    }
+    // Get the challenge using Prisma
+    const challenge = await db.challenge.findUnique({
+      where: { id: challengeId },
+      include: {
+        league: {
+          select: {
+            id: true
+          }
+        }
+      }
+    })
 
     if (!challenge) {
       return NextResponse.json(
@@ -136,7 +110,7 @@ export async function POST(
     }
 
     // Verify the current player is part of this challenge
-    if (player.id !== challenge.challenger_id && player.id !== challenge.challengee_id) {
+    if (player.id !== challenge.challengerId && player.id !== challenge.challengeeId) {
       return NextResponse.json(
         { error: 'You can only report matches for challenges you are involved in' },
         { status: 403 }
@@ -144,12 +118,9 @@ export async function POST(
     }
 
     // Check if a match already exists for this challenge
-    let existingMatch: any
-    if (usePostgres) {
-      existingMatch = await pgGet('SELECT * FROM matches WHERE challenge_id = $1', challengeId)
-    } else {
-      existingMatch = db.prepare('SELECT * FROM matches WHERE challenge_id = ?').get(challengeId) as any
-    }
+    const existingMatch = await db.match.findUnique({
+      where: { challengeId }
+    })
     
     if (existingMatch) {
       return NextResponse.json(
@@ -160,11 +131,9 @@ export async function POST(
 
     // Determine player1 and player2 based on challenge
     // player1Score corresponds to challenger, player2Score corresponds to challengee
-    const player1Id = challenge.challenger_id
-    const player2Id = challenge.challengee_id
+    const player1Id = challenge.challengerId
+    const player2Id = challenge.challengeeId
 
-    // Create the match
-    const matchId = crypto.randomUUID()
     // Matches should be created as 'pending_confirmation' to require opponent confirmation
     // Only set to 'completed' if explicitly requested (e.g., admin override)
     const matchStatus = status || 'pending_confirmation'
@@ -176,101 +145,168 @@ export async function POST(
       ? player2Id 
       : null
     
-    // Insert match with winner_id and reported_by set
-    // reported_by is the player who reported the match (current player)
-    // This MUST match the regular matches endpoint exactly
-    if (usePostgres) {
-      await pgRun(`
-        INSERT INTO matches (
-          id, challenge_id, player1_id, player2_id, league_id,
-          player1_score, player2_score, status, winner_id, reported_by, confirmed_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $8 = 'completed' THEN CURRENT_TIMESTAMP ELSE NULL END)
-      `, matchId, challengeId, player1Id, player2Id, challenge.league_id, player1Score, player2Score, matchStatus, winnerId, player.id)
-    } else {
-      db.prepare(`
-        INSERT INTO matches (
-          id, challenge_id, player1_id, player2_id, league_id,
-          player1_score, player2_score, status, winner_id, reported_by, confirmed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE NULL END)
-      `).run(
-        matchId,
+    // Create match using Prisma
+    const match = await db.match.create({
+      data: {
         challengeId,
         player1Id,
         player2Id,
-        challenge.league_id,
+        leagueId: challenge.leagueId,
         player1Score,
         player2Score,
-        matchStatus,
-        winnerId,
-        player.id,
-        matchStatus
-      )
-    }
-
-    // Note: Challenge status will be updated to 'completed' when the match is confirmed
-    // We don't update it here because the match is created as 'pending_confirmation'
-    // The challenge will be marked as completed in the match confirmation endpoint
-    // This matches the behavior of the regular matches endpoint
-
-    // ELO ratings should only be updated after match confirmation
-    // If status is explicitly 'completed' (e.g., admin override), update ELO immediately
-    // This matches the behavior of the regular matches endpoint
-    if (matchStatus === 'completed') {
-      try {
-        if (!usePostgres) {
-          dbHelpers.updateEloRatings(matchId, elo)
+        status: matchStatus,
+        winnerId: winnerId || undefined,
+        reportedBy: player.id,
+        confirmedAt: matchStatus === 'completed' ? new Date() : undefined
+      },
+      include: {
+        league: {
+          select: {
+            name: true
+          }
+        },
+        player1: {
+          select: {
+            name: true
+          }
+        },
+        player2: {
+          select: {
+            name: true
+          }
         }
-        // For PostgreSQL, Elo is handled in confirmation route
+      }
+    })
+
+    // Mark challenge as completed if match is completed
+    if (matchStatus === 'completed') {
+      await db.challenge.updateMany({
+        where: {
+          id: challengeId,
+          status: 'accepted'
+        },
+        data: {
+          status: 'completed'
+        }
+      })
+
+      // Update Elo ratings immediately if match is completed directly (admin override)
+      try {
+        const rating1 = await db.playerRating.upsert({
+          where: {
+            playerId_leagueId: {
+              playerId: match.player1Id,
+              leagueId: match.leagueId
+            }
+          },
+          update: {},
+          create: {
+            playerId: match.player1Id,
+            leagueId: match.leagueId,
+            rating: 1000,
+            gamesPlayed: 0,
+            wins: 0,
+            losses: 0,
+            draws: 0
+          }
+        })
+
+        const rating2 = await db.playerRating.upsert({
+          where: {
+            playerId_leagueId: {
+              playerId: match.player2Id,
+              leagueId: match.leagueId
+            }
+          },
+          update: {},
+          create: {
+            playerId: match.player2Id,
+            leagueId: match.leagueId,
+            rating: 1000,
+            gamesPlayed: 0,
+            wins: 0,
+            losses: 0,
+            draws: 0
+          }
+        })
+
+        const eloResult = elo.calculateForMatch(
+          rating1.rating,
+          rating2.rating,
+          player1Score,
+          player2Score
+        )
+
+        const isDraw = player1Score === player2Score
+        const player1Won = player1Score > player2Score
+        const player2Won = player2Score > player1Score
+
+        await db.$transaction(async (tx) => {
+          await tx.playerRating.update({
+            where: { id: rating1.id },
+            data: {
+              rating: Math.round(eloResult.newRatingA),
+              gamesPlayed: { increment: 1 },
+              wins: player1Won ? { increment: 1 } : undefined,
+              losses: player2Won ? { increment: 1 } : undefined,
+              draws: isDraw ? { increment: 1 } : undefined,
+              updatedAt: new Date()
+            }
+          })
+
+          await tx.playerRating.update({
+            where: { id: rating2.id },
+            data: {
+              rating: Math.round(eloResult.newRatingB),
+              gamesPlayed: { increment: 1 },
+              wins: player2Won ? { increment: 1 } : undefined,
+              losses: player1Won ? { increment: 1 } : undefined,
+              draws: isDraw ? { increment: 1 } : undefined,
+              updatedAt: new Date()
+            }
+          })
+
+          await tx.ratingUpdate.createMany({
+            data: [
+              {
+                matchId: match.id,
+                playerId: match.player1Id,
+                leagueId: match.leagueId,
+                oldRating: rating1.rating,
+                newRating: Math.round(eloResult.newRatingA),
+                change: eloResult.changeA
+              },
+              {
+                matchId: match.id,
+                playerId: match.player2Id,
+                leagueId: match.leagueId,
+                oldRating: rating2.rating,
+                newRating: Math.round(eloResult.newRatingB),
+                change: eloResult.changeB
+              }
+            ]
+          })
+        })
       } catch (error: any) {
         console.error('Error updating Elo ratings:', error)
         // Don't fail the request if rating update fails, but log it
       }
     }
 
-    // Get the created match with player names
-    let createdMatch: any
-    if (usePostgres) {
-      createdMatch = await pgGet(`
-        SELECT 
-          m.*,
-          l.name as league_name,
-          p1.name as player1_name,
-          p2.name as player2_name
-        FROM matches m
-        JOIN leagues l ON m.league_id = l.id
-        JOIN players p1 ON m.player1_id = p1.id
-        JOIN players p2 ON m.player2_id = p2.id
-        WHERE m.id = $1
-      `, matchId)
-    } else {
-      createdMatch = db.prepare(`
-        SELECT 
-          m.*,
-          l.name as league_name,
-          p1.name as player1_name,
-          p2.name as player2_name
-        FROM matches m
-        JOIN leagues l ON m.league_id = l.id
-        JOIN players p1 ON m.player1_id = p1.id
-        JOIN players p2 ON m.player2_id = p2.id
-        WHERE m.id = ?
-      `).get(matchId) as any
-    }
-
     return NextResponse.json({
       success: true,
       match: {
-        id: matchId,
+        id: match.id,
         challengeId,
         player1Id,
         player2Id,
-        leagueId: challenge.league_id,
+        leagueId: challenge.leagueId,
         player1Score,
         player2Score,
         status: matchStatus,
-        player1_name: createdMatch.player1_name,
-        player2_name: createdMatch.player2_name,
-        league_name: createdMatch.league_name
+        player1_name: match.player1.name,
+        player2_name: match.player2.name,
+        league_name: match.league.name
       }
     }, { status: 201 })
 

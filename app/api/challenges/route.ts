@@ -27,7 +27,9 @@ export async function GET() {
       )
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+    const user = await db.user.findUnique({
+      where: { email: session.user.email }
+    })
     
     if (!user) {
       return NextResponse.json(
@@ -36,26 +38,29 @@ export async function GET() {
       )
     }
 
-    const player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
+    const player = await db.player.findFirst({
+      where: { userId: user.id }
+    })
     
     if (!player) {
       return NextResponse.json({ challenges: [] })
     }
 
-    const challenges = db.prepare(`
-      SELECT 
-        c.*,
-        p1.name as challenger_name,
-        p2.name as challengee_name,
-        l.name as league_name
-      FROM challenges c
-      JOIN players p1 ON c.challenger_id = p1.id
-      JOIN players p2 ON c.challengee_id = p2.id
-      JOIN leagues l ON c.league_id = l.id
-      WHERE c.challenger_id = ? OR c.challengee_id = ?
-      ORDER BY c.created_at DESC
-      LIMIT 50
-    `).all(player.id, player.id) as Challenge[]
+    const challenges = await db.challenge.findMany({
+      where: {
+        OR: [
+          { challengerId: player.id },
+          { challengeeId: player.id }
+        ]
+      },
+      include: {
+        challenger: true,
+        challengee: true,
+        league: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    })
     
     return NextResponse.json({ challenges })
     
@@ -88,7 +93,9 @@ export async function POST(request: Request) {
       )
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+    const user = await db.user.findUnique({
+      where: { email: session.user.email }
+    })
     
     if (!user) {
       return NextResponse.json(
@@ -97,7 +104,9 @@ export async function POST(request: Request) {
       )
     }
 
-    const challenger = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
+    const challenger = await db.player.findFirst({
+      where: { userId: user.id }
+    })
     
     if (!challenger) {
       return NextResponse.json(
@@ -107,15 +116,21 @@ export async function POST(request: Request) {
     }
     
     // Check if players are in the same league
-    const challengerInLeague = db.prepare(`
-      SELECT 1 FROM league_memberships 
-      WHERE player_id = ? AND league_id = ? AND is_active = 1
-    `).get(challenger.id, leagueId)
+    const challengerInLeague = await db.leagueMembership.findFirst({
+      where: {
+        playerId: challenger.id,
+        leagueId: leagueId,
+        isActive: true
+      }
+    })
     
-    const challengeeInLeague = db.prepare(`
-      SELECT 1 FROM league_memberships 
-      WHERE player_id = ? AND league_id = ? AND is_active = 1
-    `).get(challengeeId, leagueId)
+    const challengeeInLeague = await db.leagueMembership.findFirst({
+      where: {
+        playerId: challengeeId,
+        leagueId: leagueId,
+        isActive: true
+      }
+    })
     
     if (!challengerInLeague || !challengeeInLeague) {
       return NextResponse.json(
@@ -125,10 +140,14 @@ export async function POST(request: Request) {
     }
     
     // Check for existing pending challenge
-    const existingChallenge = db.prepare(`
-      SELECT 1 FROM challenges 
-      WHERE challenger_id = ? AND challengee_id = ? AND league_id = ? AND status = 'pending'
-    `).get(challenger.id, challengeeId, leagueId)
+    const existingChallenge = await db.challenge.findFirst({
+      where: {
+        challengerId: challenger.id,
+        challengeeId: challengeeId,
+        leagueId: leagueId,
+        status: 'pending'
+      }
+    })
     
     if (existingChallenge) {
       return NextResponse.json(
@@ -146,18 +165,22 @@ export async function POST(request: Request) {
     }
     
     // Create challenge
-    const challengeId = crypto.randomUUID()
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7) // Challenge expires in 7 days
     
-    db.prepare(`
-      INSERT INTO challenges (id, challenger_id, challengee_id, league_id, expires_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(challengeId, challenger.id, challengeeId, leagueId, expiresAt.toISOString())
+    const challenge = await db.challenge.create({
+      data: {
+        challengerId: challenger.id,
+        challengeeId: challengeeId,
+        leagueId: leagueId,
+        expiresAt: expiresAt,
+        status: 'pending'
+      }
+    })
     
     return NextResponse.json({ 
       success: true, 
-      challengeId,
+      challengeId: challenge.id,
       message: 'Challenge created successfully' 
     })
     

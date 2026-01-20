@@ -1,12 +1,15 @@
 // Prisma Schema for League Ladder
-// Supports both PostgreSQL (production) and SQLite (local dev)
+// PostgreSQL database for production and development
 
-generator client {
-  provider = "prisma-client-js"
-}
-
+// Note: Connection URL is configured in prisma.config.ts (Prisma 7 requirement)
 datasource db {
   provider = "postgresql"
+}
+
+// Define custom output path for generated Prisma Client
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated-prisma-client"
 }
 
 // NextAuth.js tables

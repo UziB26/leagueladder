@@ -1,18 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { pgGet, pgAll, isPostgresAvailable } from '@/lib/db/postgres'
 
-interface User {
-  id: string;
-  email: string;
-}
-
-interface Player {
-  id: string;
-  user_id: string;
-  name: string;
-}
+export const runtime = 'nodejs' // Required for Prisma on Vercel
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,25 +15,17 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const usePostgres = isPostgresAvailable()
-    
-    let user: User | undefined
-    if (usePostgres) {
-      user = await pgGet('SELECT * FROM users WHERE email = $1', session.user.email) as User | undefined
-    } else {
-      user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
-    }
+    const user = await db.user.findUnique({
+      where: { email: session.user.email }
+    })
     
     if (!user) {
       return NextResponse.json({ players: [] })
     }
 
-    let currentPlayer: Player | undefined
-    if (usePostgres) {
-      currentPlayer = await pgGet('SELECT * FROM players WHERE user_id = $1', user.id) as Player | undefined
-    } else {
-      currentPlayer = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
-    }
+    const currentPlayer = await db.player.findFirst({
+      where: { userId: user.id }
+    })
     
     if (!currentPlayer) {
       return NextResponse.json({ players: [] })
@@ -56,66 +38,70 @@ export async function GET(request: NextRequest) {
     
     if (leagueId) {
       // Get players in the specific league
-      if (usePostgres) {
-        players = await pgAll(`
-          SELECT DISTINCT 
-            p.id, 
-            p.name,
-            COALESCE(pr.rating, 1000)::int as rating
-          FROM players p
-          JOIN league_memberships lm ON p.id = lm.player_id
-          LEFT JOIN player_ratings pr ON p.id = pr.player_id AND pr.league_id = $1
-          WHERE lm.league_id = $1
-          AND p.id != $2
-          AND lm.is_active = TRUE
-          ORDER BY p.name
-        `, leagueId, currentPlayer.id)
-      } else {
-        players = db.prepare(`
-          SELECT DISTINCT 
-            p.id, 
-            p.name,
-            COALESCE(pr.rating, 1000) as rating
-          FROM players p
-          JOIN league_memberships lm ON p.id = lm.player_id
-          LEFT JOIN player_ratings pr ON p.id = pr.player_id AND pr.league_id = ?
-          WHERE lm.league_id = ?
-          AND p.id != ?
-          AND lm.is_active = 1
-          ORDER BY p.name
-        `).all(leagueId, leagueId, currentPlayer.id)
-      }
+      const memberships = await db.leagueMembership.findMany({
+        where: {
+          leagueId,
+          isActive: true,
+          playerId: { not: currentPlayer.id }
+        },
+        include: {
+          player: {
+            include: {
+              playerRatings: {
+                where: { leagueId },
+                take: 1,
+                orderBy: { updatedAt: 'desc' }
+              }
+            }
+          }
+        },
+        orderBy: {
+          player: {
+            name: 'asc'
+          }
+        }
+      })
+      
+      players = memberships.map(m => ({
+        id: m.player.id,
+        name: m.player.name,
+        rating: m.player.playerRatings[0]?.rating ?? 1000
+      }))
     } else {
       // Get all players who are in at least one league (excluding current player)
-      if (usePostgres) {
-        players = await pgAll(`
-          SELECT DISTINCT 
-            p.id, 
-            p.name,
-            COALESCE(MAX(pr.rating), 1000)::int as rating
-          FROM players p
-          JOIN league_memberships lm ON p.id = lm.player_id
-          LEFT JOIN player_ratings pr ON p.id = pr.player_id
-          WHERE p.id != $1
-          AND lm.is_active = TRUE
-          GROUP BY p.id, p.name
-          ORDER BY p.name
-        `, currentPlayer.id)
-      } else {
-        players = db.prepare(`
-          SELECT DISTINCT 
-            p.id, 
-            p.name,
-            COALESCE(MAX(pr.rating), 1000) as rating
-          FROM players p
-          JOIN league_memberships lm ON p.id = lm.player_id
-          LEFT JOIN player_ratings pr ON p.id = pr.player_id
-          WHERE p.id != ?
-          AND lm.is_active = 1
-          GROUP BY p.id, p.name
-          ORDER BY p.name
-        `).all(currentPlayer.id)
-      }
+      const memberships = await db.leagueMembership.findMany({
+        where: {
+          isActive: true,
+          playerId: { not: currentPlayer.id }
+        },
+        include: {
+          player: {
+            include: {
+              playerRatings: {
+                take: 1,
+                orderBy: { updatedAt: 'desc' }
+              }
+            }
+          }
+        },
+        distinct: ['playerId']
+      })
+      
+      // Group by player and get max rating
+      const playerMap = new Map()
+      memberships.forEach(m => {
+        const existing = playerMap.get(m.player.id)
+        const rating = m.player.playerRatings[0]?.rating ?? 1000
+        if (!existing || rating > existing.rating) {
+          playerMap.set(m.player.id, {
+            id: m.player.id,
+            name: m.player.name,
+            rating
+          })
+        }
+      })
+      
+      players = Array.from(playerMap.values()).sort((a, b) => a.name.localeCompare(b.name))
     }
     
     return NextResponse.json({ players })

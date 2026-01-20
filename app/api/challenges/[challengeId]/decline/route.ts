@@ -1,19 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { Challenge } from '@/types/database'
 import { apiRateLimit } from '@/lib/rate-limit'
 import { sanitizeUUID } from '@/lib/sanitize'
 
-interface User {
-  id: string;
-  email: string;
-}
-
-interface Player {
-  id: string;
-  user_id: string;
-}
+export const runtime = 'nodejs' // Required for Prisma on Vercel
 
 export async function POST(
   request: NextRequest,
@@ -46,7 +37,9 @@ export async function POST(
       )
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+    const user = await db.user.findUnique({
+      where: { email: session.user.email }
+    })
     
     if (!user) {
       return NextResponse.json(
@@ -55,7 +48,9 @@ export async function POST(
       )
     }
 
-    const player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
+    const player = await db.player.findFirst({
+      where: { userId: user.id }
+    })
     
     if (!player) {
       return NextResponse.json(
@@ -65,9 +60,12 @@ export async function POST(
     }
     
     // Check if challenge exists and user is the challengee
-    const challenge = db.prepare(`
-      SELECT * FROM challenges WHERE id = ? AND challengee_id = ?
-    `).get(sanitizedChallengeId, player.id) as Challenge | undefined
+    const challenge = await db.challenge.findFirst({
+      where: {
+        id: sanitizedChallengeId,
+        challengeeId: player.id
+      }
+    })
     
     if (!challenge) {
       return NextResponse.json(
@@ -83,19 +81,11 @@ export async function POST(
       )
     }
     
-    // Check if challenge has expired (still allow declining expired challenges)
-    // This is optional - you might want to allow declining expired challenges
-    // if (challenge.expires_at && new Date(challenge.expires_at) < new Date()) {
-    //   return NextResponse.json(
-    //     { error: 'This challenge has expired' },
-    //     { status: 400 }
-    //   )
-    // }
-    
     // Update challenge status
-    db.prepare(`
-      UPDATE challenges SET status = 'declined' WHERE id = ?
-    `).run(sanitizedChallengeId)
+    await db.challenge.update({
+      where: { id: sanitizedChallengeId },
+      data: { status: 'declined' }
+    })
     
     return NextResponse.json({ 
       success: true,

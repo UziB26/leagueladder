@@ -1,7 +1,8 @@
 import { NextResponse, NextRequest } from "next/server"
 import { apiHandlers } from "@/lib/api-helpers"
 import { db } from "@/lib/db"
-import crypto from "crypto"
+
+export const runtime = 'nodejs' // Required for Prisma on Vercel
 
 export const POST = apiHandlers.admin(async (
   request: NextRequest & { session?: any; validatedData?: any },
@@ -24,21 +25,21 @@ export const POST = apiHandlers.admin(async (
       )
     }
 
-    // Update admin status
-    db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(is_admin ? 1 : 0, userId)
+    // Update admin status using Prisma
+    await db.user.update({
+      where: { id: userId },
+      data: { isAdmin: is_admin }
+    })
 
     // Log admin action
-    const actionId = crypto.randomUUID()
-    db.prepare(`
-      INSERT INTO admin_actions (id, user_id, action, target_id, details, created_at)
-      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(
-      actionId,
-      user.id,
-      is_admin ? 'grant_admin' : 'revoke_admin',
-      userId,
-      JSON.stringify({ is_admin })
-    )
+    await db.adminAction.create({
+      data: {
+        userId: user.id,
+        action: is_admin ? 'grant_admin' : 'revoke_admin',
+        targetId: userId,
+        details: JSON.stringify({ is_admin })
+      }
+    })
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

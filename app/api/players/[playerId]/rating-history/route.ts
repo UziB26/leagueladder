@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+export const runtime = 'nodejs' // Required for Prisma on Vercel
+
 interface RatingHistoryEntry {
   id: string
   match_id: string
@@ -39,7 +41,10 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '50', 10)
 
     // Verify player exists
-    const player = db.prepare('SELECT * FROM players WHERE id = ?').get(playerId)
+    const player = await db.player.findUnique({
+      where: { id: playerId }
+    })
+    
     if (!player) {
       return NextResponse.json(
         { error: 'Player not found' },
@@ -47,67 +52,64 @@ export async function GET(
       )
     }
 
-    // Build query with optional league filter
-    let query = `
-      SELECT 
-        ru.id,
-        ru.match_id,
-        ru.league_id,
-        l.name as league_name,
-        ru.old_rating,
-        ru.new_rating,
-        ru.change,
-        ru.created_at,
-        m.player1_id,
-        m.player2_id,
-        m.player1_score,
-        m.player2_score,
-        m.played_at
-      FROM rating_updates ru
-      JOIN leagues l ON ru.league_id = l.id
-      JOIN matches m ON ru.match_id = m.id
-      WHERE ru.player_id = ?
-    `
-    
-    const queryParams: any[] = [playerId]
-    
-    if (leagueId) {
-      query += ' AND ru.league_id = ?'
-      queryParams.push(leagueId)
-    }
-    
-    query += ' ORDER BY ru.created_at DESC LIMIT ?'
-    queryParams.push(limit)
-
-    const history = db.prepare(query).all(...queryParams) as any[]
+    // Fetch rating updates with related data
+    const ratingUpdates = await db.ratingUpdate.findMany({
+      where: {
+        playerId,
+        ...(leagueId && { leagueId })
+      },
+      include: {
+        league: {
+          select: {
+            name: true
+          }
+        },
+        match: {
+          include: {
+            player1: {
+              select: {
+                id: true,
+                name: true
+              }
+            },
+            player2: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: limit
+    })
 
     // Enrich with opponent information
-    const enrichedHistory: RatingHistoryEntry[] = history.map((entry) => {
+    const enrichedHistory: RatingHistoryEntry[] = ratingUpdates.map((ru) => {
       // Determine opponent
-      const isPlayer1 = entry.player1_id === playerId
-      const opponentId = isPlayer1 ? entry.player2_id : entry.player1_id
-      
-      // Get opponent name
-      const opponent = db.prepare('SELECT name FROM players WHERE id = ?').get(opponentId) as any
-      const opponentName = opponent?.name || 'Unknown'
+      const isPlayer1 = ru.match.player1Id === playerId
+      const opponent = isPlayer1 ? ru.match.player2 : ru.match.player1
       
       // Format match score
-      const playerScore = isPlayer1 ? entry.player1_score : entry.player2_score
-      const opponentScore = isPlayer1 ? entry.player2_score : entry.player1_score
+      const playerScore = isPlayer1 ? ru.match.player1Score : ru.match.player2Score
+      const opponentScore = isPlayer1 ? ru.match.player2Score : ru.match.player1Score
       const matchScore = `${playerScore}-${opponentScore}`
       
       return {
-        id: entry.id,
-        match_id: entry.match_id,
-        league_id: entry.league_id,
-        league_name: entry.league_name,
-        old_rating: entry.old_rating,
-        new_rating: entry.new_rating,
-        change: entry.change,
-        created_at: entry.created_at,
-        opponent_name: opponentName,
+        id: ru.id,
+        match_id: ru.matchId,
+        league_id: ru.leagueId,
+        league_name: ru.league.name,
+        old_rating: ru.oldRating,
+        new_rating: ru.newRating,
+        change: ru.change,
+        created_at: ru.createdAt.toISOString(),
+        opponent_name: opponent.name,
         match_score: matchScore,
-        match_date: entry.played_at
+        match_date: ru.match.playedAt?.toISOString()
       }
     })
 

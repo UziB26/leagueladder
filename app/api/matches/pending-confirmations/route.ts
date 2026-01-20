@@ -2,15 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 
-interface User {
-  id: string
-  email: string
-}
-
-interface Player {
-  id: string
-  user_id: string
-}
+export const runtime = 'nodejs' // Required for Prisma on Vercel
 
 /**
  * GET /api/matches/pending-confirmations
@@ -27,7 +19,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+    const user = await db.user.findUnique({
+      where: { email: session.user.email }
+    })
     
     if (!user) {
       return NextResponse.json(
@@ -36,45 +30,75 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
+    const player = await db.player.findFirst({
+      where: { userId: user.id }
+    })
     
     if (!player) {
       return NextResponse.json({ matches: [] })
     }
 
     // Get matches pending confirmation where this player is the opponent (not the reporter)
-    // Only include matches where reported_by is set and is NOT the current player
-    const matches = db.prepare(`
-      SELECT 
-        m.id,
-        m.challenge_id,
-        m.player1_id,
-        m.player2_id,
-        m.league_id,
-        m.player1_score,
-        m.player2_score,
-        m.winner_id,
-        m.status,
-        m.reported_by,
-        m.played_at,
-        m.confirmed_at,
-        l.name as league_name,
-        p1.name as player1_name,
-        p2.name as player2_name,
-        reporter.name as reporter_name
-      FROM matches m
-      JOIN leagues l ON m.league_id = l.id
-      JOIN players p1 ON m.player1_id = p1.id
-      JOIN players p2 ON m.player2_id = p2.id
-      LEFT JOIN players reporter ON m.reported_by = reporter.id
-      WHERE m.status = 'pending_confirmation'
-        AND m.reported_by IS NOT NULL
-        AND m.reported_by != ?
-        AND (m.player1_id = ? OR m.player2_id = ?)
-      ORDER BY m.played_at DESC
-    `).all(player.id, player.id, player.id) as any[]
+    const matches = await db.match.findMany({
+      where: {
+        status: 'pending_confirmation',
+        reportedBy: {
+          not: null,
+          not: player.id
+        },
+        OR: [
+          { player1Id: player.id },
+          { player2Id: player.id }
+        ]
+      },
+      include: {
+        league: {
+          select: {
+            name: true
+          }
+        },
+        player1: {
+          select: {
+            name: true
+          }
+        },
+        player2: {
+          select: {
+            name: true
+          }
+        },
+        reporter: {
+          select: {
+            name: true
+          }
+        }
+      },
+      orderBy: {
+        playedAt: 'desc'
+      }
+    })
 
-    return NextResponse.json({ matches })
+    // Transform to match expected format
+    const formattedMatches = matches.map(m => ({
+      id: m.id,
+      challenge_id: m.challengeId,
+      player1_id: m.player1Id,
+      player2_id: m.player2Id,
+      league_id: m.leagueId,
+      player1_score: m.player1Score,
+      player2_score: m.player2Score,
+      winner_id: m.winnerId,
+      status: m.status,
+      reported_by: m.reportedBy,
+      played_at: m.playedAt.toISOString(),
+      confirmed_at: m.confirmedAt?.toISOString(),
+      league_name: m.league.name,
+      player1_name: m.player1.name,
+      player2_name: m.player2.name,
+      reporter_name: m.reporter?.name
+    }))
+
+    return NextResponse.json({ matches: formattedMatches })
   } catch (error: any) {
     console.error('Error fetching pending confirmations:', error)
     return NextResponse.json(

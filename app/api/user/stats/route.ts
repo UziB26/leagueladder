@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 
+export const runtime = 'nodejs' // Required for Prisma on Vercel
+
 export async function GET() {
   try {
     const session = await auth()
@@ -14,7 +16,10 @@ export async function GET() {
     }
 
     // Get user
-    const user = db.prepare('SELECT id FROM users WHERE email = ?').get(session.user.email) as { id: string } | undefined
+    const user = await db.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true }
+    })
     
     if (!user) {
       return NextResponse.json(
@@ -24,7 +29,10 @@ export async function GET() {
     }
 
     // Get player
-    const player = db.prepare('SELECT id FROM players WHERE user_id = ?').get(user.id) as { id: string } | undefined
+    const player = await db.player.findFirst({
+      where: { userId: user.id },
+      select: { id: true }
+    })
     
     if (!player) {
       return NextResponse.json({
@@ -39,72 +47,83 @@ export async function GET() {
       })
     }
 
-    // Count leagues joined
-    const leaguesJoined = db.prepare(`
-      SELECT COUNT(*) as count
-      FROM league_memberships
-      WHERE player_id = ? AND is_active = 1
-    `).get(player.id) as { count: number }
-
-    // Count challenges created
-    const challengesCreated = db.prepare(`
-      SELECT COUNT(*) as count
-      FROM challenges
-      WHERE challenger_id = ?
-    `).get(player.id) as { count: number }
-
-    // Count matches played
-    const matchesPlayed = db.prepare(`
-      SELECT COUNT(*) as count
-      FROM matches
-      WHERE (player1_id = ? OR player2_id = ?) AND status = 'completed'
-    `).get(player.id, player.id) as { count: number }
-
-    // Count matches won
-    const matchesWon = db.prepare(`
-      SELECT COUNT(*) as count
-      FROM matches
-      WHERE winner_id = ? AND status = 'completed'
-    `).get(player.id) as { count: number }
-
-    // Get current rank (best rank across all leagues)
-    const ratings = db.prepare(`
-      SELECT pr.rating, pr.league_id
-      FROM player_ratings pr
-      WHERE pr.player_id = ?
-      ORDER BY pr.rating DESC
-      LIMIT 1
-    `).get(player.id) as { rating: number; league_id: string } | undefined
+    // Count all stats in parallel
+    const [leaguesJoined, challengesCreated, matchesPlayed, matchesWon, bestRating] = await Promise.all([
+      // Count leagues joined
+      db.leagueMembership.count({
+        where: {
+          playerId: player.id,
+          isActive: true
+        }
+      }),
+      // Count challenges created
+      db.challenge.count({
+        where: {
+          challengerId: player.id
+        }
+      }),
+      // Count matches played
+      db.match.count({
+        where: {
+          OR: [
+            { player1Id: player.id },
+            { player2Id: player.id }
+          ],
+          status: 'completed'
+        }
+      }),
+      // Count matches won
+      db.match.count({
+        where: {
+          winnerId: player.id,
+          status: 'completed'
+        }
+      }),
+      // Get best rating across all leagues
+      db.playerRating.findFirst({
+        where: {
+          playerId: player.id
+        },
+        orderBy: {
+          rating: 'desc'
+        },
+        select: {
+          rating: true,
+          leagueId: true
+        }
+      })
+    ])
 
     let currentRank: number | null = null
     let totalPlayers = 0
 
-    if (ratings) {
+    if (bestRating) {
       // Count players with higher rating in the same league
-      const rankResult = db.prepare(`
-        SELECT COUNT(*) + 1 as rank
-        FROM player_ratings
-        WHERE league_id = ? AND rating > ?
-      `).get(ratings.league_id, ratings.rating) as { rank: number }
+      const playersWithHigherRating = await db.playerRating.count({
+        where: {
+          leagueId: bestRating.leagueId,
+          rating: {
+            gt: bestRating.rating
+          }
+        }
+      })
 
-      currentRank = rankResult.rank
+      currentRank = playersWithHigherRating + 1
 
       // Get total players in that league
-      const totalResult = db.prepare(`
-        SELECT COUNT(*) as count
-        FROM player_ratings
-        WHERE league_id = ?
-      `).get(ratings.league_id) as { count: number }
-
-      totalPlayers = totalResult.count
+      totalPlayers = await db.playerRating.count({
+        where: {
+          leagueId: bestRating.leagueId
+        }
+      })
     }
 
     return NextResponse.json({
       stats: {
-        leaguesJoined: leaguesJoined.count,
-        challengesCreated: challengesCreated.count,
-        matchesPlayed: matchesPlayed.count,
-        matchesWon: matchesWon.count,
+        leaguesJoined,
+        challengesCreated,
+        matchesPlayed,
+        matchesWon,
         currentRank,
         totalPlayers
       }

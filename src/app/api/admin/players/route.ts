@@ -2,30 +2,47 @@ import { NextResponse } from "next/server"
 import { apiHandlers } from "@/lib/api-helpers"
 import { db } from "@/lib/db"
 
+export const runtime = 'nodejs' // Required for Prisma on Vercel
+
 export const GET = apiHandlers.admin(async (request) => {
   try {
+    const players = await db.player.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            email: true,
+            isAdmin: true
+          }
+        },
+        memberships: {
+          where: { isActive: true },
+          select: { leagueId: true }
+        },
+        _count: {
+          select: {
+            matchesAsPlayer1: true,
+            matchesAsPlayer2: true
+          }
+        }
+      }
+    })
 
-    const players = db.prepare(`
-      SELECT 
-        p.id,
-        p.user_id,
-        p.name,
-        p.email,
-        p.avatar,
-        p.created_at,
-        u.email as user_email,
-        u.is_admin,
-        COUNT(DISTINCT lm.league_id) as league_count,
-        COUNT(DISTINCT m.id) as match_count
-      FROM players p
-      LEFT JOIN users u ON p.user_id = u.id
-      LEFT JOIN league_memberships lm ON p.id = lm.player_id AND lm.is_active = 1
-      LEFT JOIN matches m ON (m.player1_id = p.id OR m.player2_id = p.id)
-      GROUP BY p.id
-      ORDER BY p.created_at DESC
-    `).all()
+    // Transform to match expected format
+    const formattedPlayers = players.map(p => ({
+      id: p.id,
+      user_id: p.userId,
+      name: p.name,
+      email: p.email,
+      avatar: p.avatar,
+      created_at: p.createdAt.toISOString(),
+      user_email: p.user.email,
+      is_admin: p.user.isAdmin,
+      league_count: p.memberships.length,
+      match_count: p._count.matchesAsPlayer1 + p._count.matchesAsPlayer2
+    }))
 
-    return NextResponse.json({ players })
+    return NextResponse.json({ players: formattedPlayers })
   } catch (error: any) {
     console.error('Error fetching players:', error)
     return NextResponse.json(

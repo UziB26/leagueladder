@@ -1,9 +1,10 @@
 import { NextResponse, NextRequest } from "next/server"
 import { apiHandlers } from "@/lib/api-helpers"
-import { db, DatabaseTransaction, createBackup, restoreBackup } from "@/lib/db"
+import { db } from "@/lib/db"
 import { z } from "zod"
 import { sanitizeUUID, sanitizeString } from "@/lib/sanitize"
-import crypto from "crypto"
+
+export const runtime = 'nodejs' // Required for Prisma on Vercel
 
 const updateStatsSchema = z.object({
   wins: z.number().int().min(0).optional(),
@@ -50,131 +51,103 @@ export const PUT = apiHandlers.admin(
         return NextResponse.json({ error: "At least one stat must be provided" }, { status: 400 })
       }
 
-      // Verify player exists
-      const player = db.prepare('SELECT * FROM players WHERE id = ?').get(sanitizedPlayerId) as any
+      // Verify player and league exist
+      const [player, league, currentStats] = await Promise.all([
+        db.player.findUnique({ where: { id: sanitizedPlayerId } }),
+        db.league.findUnique({ where: { id: sanitizedLeagueId } }),
+        db.playerRating.findUnique({
+          where: {
+            playerId_leagueId: {
+              playerId: sanitizedPlayerId,
+              leagueId: sanitizedLeagueId
+            }
+          }
+        })
+      ])
+
       if (!player) {
         return NextResponse.json({ error: "Player not found" }, { status: 404 })
       }
 
-      // Verify league exists
-      const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(sanitizedLeagueId) as any
       if (!league) {
         return NextResponse.json({ error: "League not found" }, { status: 404 })
       }
-
-      // Get current stats
-      const currentStats = db.prepare(`
-        SELECT * FROM player_ratings 
-        WHERE player_id = ? AND league_id = ?
-      `).get(sanitizedPlayerId, sanitizedLeagueId) as any
 
       if (!currentStats) {
         return NextResponse.json({ error: "Player stats not found for this league" }, { status: 404 })
       }
 
-      // Create backup
-      const backup = createBackup({
-        playerIds: [sanitizedPlayerId],
+      // Build update data
+      const updateData: {
+        wins?: number
+        losses?: number
+        draws?: number
+        gamesPlayed?: number
+        updatedAt?: Date
+      } = {
+        updatedAt: new Date()
+      }
+
+      if (wins !== undefined) updateData.wins = wins
+      if (losses !== undefined) updateData.losses = losses
+      if (draws !== undefined) updateData.draws = draws
+      if (games_played !== undefined) updateData.gamesPlayed = games_played
+
+      // Update stats using Prisma
+      await db.playerRating.update({
+        where: {
+          playerId_leagueId: {
+            playerId: sanitizedPlayerId,
+            leagueId: sanitizedLeagueId
+          }
+        },
+        data: updateData
       })
 
-      // Update stats using transaction
-      try {
-        DatabaseTransaction.execute((tx) => {
-          const updates: string[] = []
-          const values: any[] = []
-
-          if (wins !== undefined) {
-            updates.push('wins = ?')
-            values.push(wins)
-          }
-
-          if (losses !== undefined) {
-            updates.push('losses = ?')
-            values.push(losses)
-          }
-
-          if (draws !== undefined) {
-            updates.push('draws = ?')
-            values.push(draws)
-          }
-
-          if (games_played !== undefined) {
-            updates.push('games_played = ?')
-            values.push(games_played)
-          }
-
-          // Always update updated_at
-          updates.push('updated_at = CURRENT_TIMESTAMP')
-
-          values.push(sanitizedPlayerId, sanitizedLeagueId)
-
-          tx.run(
-            db.prepare(`
-              UPDATE player_ratings
-              SET ${updates.join(', ')}
-              WHERE player_id = ? AND league_id = ?
-            `),
-            ...values
-          )
-        })
-
-        // Log admin action
-        const actionId = crypto.randomUUID()
-        db.prepare(`
-          INSERT INTO admin_actions (id, user_id, action, target_id, details, created_at)
-          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `).run(
-          actionId,
-          user.id,
-          'adjust_stats',
-          sanitizedPlayerId,
-          JSON.stringify({ 
+      // Log admin action
+      await db.adminAction.create({
+        data: {
+          userId: user.id,
+          action: 'adjust_stats',
+          targetId: sanitizedPlayerId,
+          details: JSON.stringify({ 
             player_id: sanitizedPlayerId,
             league_id: sanitizedLeagueId,
             old_stats: {
               wins: currentStats.wins,
               losses: currentStats.losses,
               draws: currentStats.draws,
-              games_played: currentStats.games_played
+              games_played: currentStats.gamesPlayed
             },
             new_stats: {
               wins: wins !== undefined ? wins : currentStats.wins,
               losses: losses !== undefined ? losses : currentStats.losses,
               draws: draws !== undefined ? draws : currentStats.draws,
-              games_played: games_played !== undefined ? games_played : currentStats.games_played
+              games_played: games_played !== undefined ? games_played : currentStats.gamesPlayed
             },
             reason: reason || 'Manual admin adjustment'
           })
-        )
+        }
+      })
 
-        const changes: string[] = []
-        if (wins !== undefined && wins !== currentStats.wins) {
-          changes.push(`wins: ${currentStats.wins} → ${wins}`)
-        }
-        if (losses !== undefined && losses !== currentStats.losses) {
-          changes.push(`losses: ${currentStats.losses} → ${losses}`)
-        }
-        if (draws !== undefined && draws !== currentStats.draws) {
-          changes.push(`draws: ${currentStats.draws} → ${draws}`)
-        }
-        if (games_played !== undefined && games_played !== currentStats.games_played) {
-          changes.push(`games_played: ${currentStats.games_played} → ${games_played}`)
-        }
-
-        return NextResponse.json({ 
-          success: true,
-          message: `Stats updated: ${changes.join(', ')}`
-        })
-      } catch (error: any) {
-        // Rollback using backup if transaction fails
-        console.error('Error adjusting stats:', error)
-        try {
-          restoreBackup(backup)
-        } catch (restoreError) {
-          console.error('Error restoring backup:', restoreError)
-        }
-        throw error
+      const changes: string[] = []
+      if (wins !== undefined && wins !== currentStats.wins) {
+        changes.push(`wins: ${currentStats.wins} → ${wins}`)
       }
+      if (losses !== undefined && losses !== currentStats.losses) {
+        changes.push(`losses: ${currentStats.losses} → ${losses}`)
+      }
+      if (draws !== undefined && draws !== currentStats.draws) {
+        changes.push(`draws: ${currentStats.draws} → ${draws}`)
+      }
+      if (games_played !== undefined && games_played !== currentStats.gamesPlayed) {
+        changes.push(`games_played: ${currentStats.gamesPlayed} → ${games_played}`)
+      }
+
+      return NextResponse.json({ 
+        success: true,
+        message: `Stats updated: ${changes.join(', ')}`
+      })
     } catch (error: any) {
       console.error('Error adjusting stats:', error)
       return NextResponse.json(

@@ -1,19 +1,8 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { Challenge } from '@/types/database'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
-
-interface User {
-  id: string;
-  email: string;
-}
-
-interface Player {
-  id: string;
-  user_id: string;
-}
 
 export async function GET() {
   try {
@@ -26,34 +15,58 @@ export async function GET() {
       )
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(session.user.email) as User | undefined
+    const user = await db.user.findUnique({
+      where: { email: session.user.email }
+    })
     
     if (!user) {
       return NextResponse.json({ challenges: [] })
     }
 
-    const player = db.prepare('SELECT * FROM players WHERE user_id = ?').get(user.id) as Player | undefined
+    const player = await db.player.findFirst({
+      where: { userId: user.id }
+    })
     
     if (!player) {
       return NextResponse.json({ challenges: [] })
     }
 
-    const challenges = db.prepare(`
-      SELECT 
-        c.*,
-        p1.name as challenger_name,
-        p2.name as challengee_name,
-        l.name as league_name
-      FROM challenges c
-      JOIN players p1 ON c.challenger_id = p1.id
-      JOIN players p2 ON c.challengee_id = p2.id
-      JOIN leagues l ON c.league_id = l.id
-      WHERE c.challengee_id = ?
-      ORDER BY c.created_at DESC
-      LIMIT 50
-    `).all(player.id) as Challenge[]
+    const challenges = await db.challenge.findMany({
+      where: {
+        challengeeId: player.id
+      },
+      include: {
+        challenger: {
+          select: {
+            name: true
+          }
+        },
+        challengee: {
+          select: {
+            name: true
+          }
+        },
+        league: {
+          select: {
+            name: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: 50
+    })
+
+    // Transform to match expected format
+    const formattedChallenges = challenges.map(c => ({
+      ...c,
+      challenger_name: c.challenger.name,
+      challengee_name: c.challengee.name,
+      league_name: c.league.name
+    }))
     
-    return NextResponse.json({ challenges })
+    return NextResponse.json({ challenges: formattedChallenges })
     
   } catch (error) {
     console.error('Error fetching incoming challenges:', error)
