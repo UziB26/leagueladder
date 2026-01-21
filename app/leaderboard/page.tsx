@@ -33,7 +33,20 @@ export default async function LeaderboardPage() {
       },
       orderBy: { rating: 'desc' },
       take: 50
-    })
+    }) as Array<{
+      id: string
+      rating: number
+      gamesPlayed: number
+      wins: number
+      losses: number
+      draws: number
+      player: {
+        id: string
+        name: string
+        email: string | null
+        avatar: string | null
+      }
+    }>
     
     // Transform to match expected format
     const players: LeaderboardEntry[] = playerRatingsRaw.map(pr => ({

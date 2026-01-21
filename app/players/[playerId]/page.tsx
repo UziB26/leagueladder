@@ -124,7 +124,22 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     },
     orderBy: { playedAt: 'desc' },
     take: 20
-  })
+  }) as Array<{
+    id: string
+    challengeId: string | null
+    player1Id: string
+    player2Id: string
+    leagueId: string
+    player1Score: number
+    player2Score: number
+    winnerId: string | null
+    status: string
+    playedAt: Date
+    confirmedAt: Date | null
+    league: { name: string }
+    player1: { name: string }
+    player2: { name: string }
+  }>
   
   // Transform to match expected format
   const matches: MatchWithDetails[] = matchRecordsRaw.map(m => ({
