@@ -22,16 +22,45 @@ const databaseUrl =
   process.env.POSTGRES_URL ||             // Alternative Postgres URL
   process.env.DATABASE_URL;               // Generic fallback
 
+// Warn if no database URL is configured
+if (!databaseUrl) {
+  console.error('')
+  console.error('⚠️  WARNING: Database URL not configured!')
+  console.error('⚠️  Please set one of these environment variables in .env.local:')
+  console.error('   - DATABASE_URL (recommended for local development)')
+  console.error('   - PRISMA_DATABASE_URL (for Vercel Postgres)')
+  console.error('   - POSTGRES_URL (alternative)')
+  console.error('')
+  console.error('   Example for local PostgreSQL:')
+  console.error('   DATABASE_URL="postgresql://user:password@localhost:5432/league_ladder"')
+  console.error('')
+}
+
 // Create Prisma Client with Accelerate extension
 function createPrismaClient() {
-  const client = new PrismaClient({
+  const clientOptions: {
+    log: ('query' | 'error' | 'warn')[]
+    datasourceUrl?: string
+  } = {
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-    // Prisma 7: Pass connection URL directly (URL removed from schema.prisma)
-    datasourceUrl: databaseUrl || undefined,
-  })
+  }
   
-  // Always extend with Accelerate for improved performance
-  return client.$extends(withAccelerate())
+  // Prisma 7: Pass connection URL directly (URL removed from schema.prisma)
+  if (databaseUrl) {
+    clientOptions.datasourceUrl = databaseUrl
+  }
+  
+  const client = new PrismaClient(clientOptions)
+  
+  // Only extend with Accelerate if database URL is available
+  // Accelerate requires a valid connection URL
+  if (databaseUrl) {
+    return client.$extends(withAccelerate())
+  }
+  
+  // Return client without Accelerate if no URL is configured
+  // This allows the app to start even without a database (for static pages)
+  return client
 }
 
 // Create singleton instance (reused in development, new in production)

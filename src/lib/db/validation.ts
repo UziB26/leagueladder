@@ -189,30 +189,40 @@ export function validateChallengeData(
 /**
  * Validate that players exist and are in the league
  */
-export function validatePlayerLeagueMembership(
+export async function validatePlayerLeagueMembership(
   playerId: string,
   leagueId: string,
   db: any
-): { valid: boolean; error?: string } {
+): Promise<{ valid: boolean; error?: string }> {
   // Check player exists
-  const player = db.prepare('SELECT id FROM players WHERE id = ?').get(playerId)
+  const player = await db.player.findUnique({
+    where: { id: playerId },
+    select: { id: true },
+  })
   if (!player) {
     return { valid: false, error: 'Player not found' }
   }
 
   // Check league exists
-  const league = db.prepare('SELECT id FROM leagues WHERE id = ?').get(leagueId)
+  const league = await db.league.findUnique({
+    where: { id: leagueId },
+    select: { id: true },
+  })
   if (!league) {
     return { valid: false, error: 'League not found' }
   }
 
   // Check player is in league
-  const membership = db
-    .prepare(
-      'SELECT id FROM league_memberships WHERE player_id = ? AND league_id = ? AND is_active = 1'
-    )
-    .get(playerId, leagueId)
-  if (!membership) {
+  const membership = await db.leagueMembership.findUnique({
+    where: {
+      playerId_leagueId: {
+        playerId,
+        leagueId,
+      },
+    },
+    select: { id: true, isActive: true },
+  })
+  if (!membership || !membership.isActive) {
     return {
       valid: false,
       error: 'Player is not a member of this league',

@@ -86,8 +86,11 @@ export function createProtectedHandler(
           // This is a safety check in case session hasn't refreshed yet
           if (user.email) {
             try {
-              const dbUser = db.prepare('SELECT is_admin FROM users WHERE email = ?').get(user.email) as { is_admin?: boolean } | undefined
-              if (!dbUser?.is_admin) {
+              const dbUser = await db.user.findUnique({
+                where: { email: user.email },
+                select: { isAdmin: true }
+              })
+              if (!dbUser?.isAdmin) {
                 return NextResponse.json(
                   { error: "Forbidden - Admin access required" },
                   { status: 403 }

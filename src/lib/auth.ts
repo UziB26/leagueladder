@@ -14,6 +14,7 @@ type DBUser = {
 }
 
 export const authOptions = {
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -52,6 +53,12 @@ export const authOptions = {
         // Additional password validation
         if (sanitizedPassword.length > 128) {
           return null // Prevent extremely long passwords
+        }
+
+        // Check if database is available
+        if (!db) {
+          console.error('Database not available for authentication')
+          return null
         }
 
         // Check if user exists using Prisma
@@ -116,17 +123,19 @@ export const authOptions = {
       } else if (token.email) {
         // Refresh admin status from database on each request
         // This ensures admin status changes are reflected immediately
-        try {
-          const dbUser = await db.user.findUnique({
-            where: { email: token.email as string },
-            select: { isAdmin: true }
-          })
-          if (dbUser) {
-            token.is_admin = dbUser.isAdmin || false
+        if (db) {
+          try {
+            const dbUser = await db.user.findUnique({
+              where: { email: token.email as string },
+              select: { isAdmin: true }
+            })
+            if (dbUser) {
+              token.is_admin = dbUser.isAdmin || false
+            }
+          } catch (error) {
+            // If database query fails, keep existing token value
+            console.error('Error refreshing admin status:', error)
           }
-        } catch (error) {
-          // If database query fails, keep existing token value
-          console.error('Error refreshing admin status:', error)
         }
       }
       return token
@@ -138,17 +147,19 @@ export const authOptions = {
         ;(session.user as typeof session.user & { id?: string; email?: string; is_admin?: boolean }).is_admin = token.is_admin as boolean
         
         // Refresh name from database to ensure it's up to date
-        try {
-          const dbUser = await db.user.findUnique({
-            where: { email: token.email as string },
-            select: { name: true }
-          })
-          if (dbUser?.name) {
-            session.user.name = dbUser.name
+        if (db) {
+          try {
+            const dbUser = await db.user.findUnique({
+              where: { email: token.email as string },
+              select: { name: true }
+            })
+            if (dbUser?.name) {
+              session.user.name = dbUser.name
+            }
+          } catch (error) {
+            // If database query fails, keep existing session name
+            console.error('Error refreshing user name:', error)
           }
-        } catch (error) {
-          // If database query fails, keep existing session name
-          console.error('Error refreshing user name:', error)
         }
       }
       return session

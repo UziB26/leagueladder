@@ -97,7 +97,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   }))
   
   // Fetch recent matches using Prisma
-  const matchRecordsRaw = await db.match.findMany({
+  const matchRecordsRaw = (await db.match.findMany({
     where: {
       OR: [
         { player1Id: playerId },
@@ -124,7 +124,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     },
     orderBy: { playedAt: 'desc' },
     take: 20
-  }) as Array<{
+  })) as unknown as Array<{
     id: string
     challengeId: string | null
     player1Id: string

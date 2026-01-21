@@ -1,120 +1,32 @@
 import { db } from './index'
-import { v4 as uuidv4 } from 'uuid'
 
 /**
- * Transaction wrapper for database operations
+ * Transaction wrapper for database operations using Prisma
  * Ensures all operations succeed or all are rolled back
+ * 
+ * Note: Prisma transactions use $transaction() which automatically
+ * handles commit/rollback. This class provides a compatible interface.
  */
 export class DatabaseTransaction {
-  private savepointId: string
-  private committed: boolean = false
-  private rolledBack: boolean = false
-
-  constructor() {
-    this.savepointId = `sp_${uuidv4().replace(/-/g, '_')}`
-    // Create savepoint
-    db.exec(`SAVEPOINT ${this.savepointId}`)
-  }
-
-  /**
-   * Execute a prepared statement within the transaction
-   */
-  run(statement: any, ...params: any[]): any {
-    if (this.committed || this.rolledBack) {
-      throw new Error('Transaction already committed or rolled back')
-    }
-    return statement.run(...params)
-  }
-
-  /**
-   * Get a single row within the transaction
-   */
-  get(statement: any, ...params: any[]): any {
-    if (this.committed || this.rolledBack) {
-      throw new Error('Transaction already committed or rolled back')
-    }
-    return statement.get(...params)
-  }
-
-  /**
-   * Get multiple rows within the transaction
-   */
-  all(statement: any, ...params: any[]): any[] {
-    if (this.committed || this.rolledBack) {
-      throw new Error('Transaction already committed or rolled back')
-    }
-    return statement.all(...params)
-  }
-
-  /**
-   * Execute raw SQL within the transaction
-   */
-  exec(sql: string): void {
-    if (this.committed || this.rolledBack) {
-      throw new Error('Transaction already committed or rolled back')
-    }
-    db.exec(sql)
-  }
-
-  /**
-   * Commit the transaction
-   */
-  commit(): void {
-    if (this.committed) {
-      throw new Error('Transaction already committed')
-    }
-    if (this.rolledBack) {
-      throw new Error('Transaction already rolled back')
-    }
-    db.exec(`RELEASE SAVEPOINT ${this.savepointId}`)
-    this.committed = true
-  }
-
-  /**
-   * Rollback the transaction
-   */
-  rollback(): void {
-    if (this.committed) {
-      throw new Error('Transaction already committed')
-    }
-    if (this.rolledBack) {
-      return // Already rolled back
-    }
-    db.exec(`ROLLBACK TO SAVEPOINT ${this.savepointId}`)
-    db.exec(`RELEASE SAVEPOINT ${this.savepointId}`)
-    this.rolledBack = true
-  }
-
   /**
    * Execute a function within a transaction with automatic rollback on error
-   * Supports both synchronous and asynchronous callbacks
+   * The callback receives a transaction client that behaves like the main db client
+   * 
+   * @param callback - Function to execute within transaction
+   * @returns Result of callback function (always a Promise for Prisma)
    */
   static execute<T>(
-    callback: (tx: DatabaseTransaction) => T
-  ): T {
-    const tx = new DatabaseTransaction()
-    try {
+    callback: (tx: Parameters<Parameters<typeof db.$transaction>[0]>[0]) => T | Promise<T>
+  ): Promise<T> {
+    // Prisma $transaction automatically handles commit/rollback
+    return db.$transaction(async (tx) => {
       const result = callback(tx)
-      // If result is a Promise, handle it asynchronously
+      // If callback returns a Promise, await it
       if (result instanceof Promise) {
-        return result.then(
-          (res) => {
-            tx.commit()
-            return res
-          },
-          (error) => {
-            tx.rollback()
-            throw error
-          }
-        ) as T
+        return await result
       }
-      // Synchronous result
-      tx.commit()
       return result
-    } catch (error) {
-      tx.rollback()
-      throw error
-    }
+    })
   }
 }
 
@@ -128,36 +40,33 @@ export interface BackupData {
   challenges?: any[]
 }
 
-export function createBackup(ids: {
+export async function createBackup(ids: {
   matchIds?: string[]
   playerIds?: string[]
   challengeIds?: string[]
-}): BackupData {
+}): Promise<BackupData> {
   const backup: BackupData = {}
 
   if (ids.matchIds && ids.matchIds.length > 0) {
-    const placeholders = ids.matchIds.map(() => '?').join(',')
-    backup.matches = db
-      .prepare(`SELECT * FROM matches WHERE id IN (${placeholders})`)
-      .all(...ids.matchIds) as any[]
+    backup.matches = await db.match.findMany({
+      where: { id: { in: ids.matchIds } },
+    }) as any[]
 
-    backup.ratingUpdates = db
-      .prepare(`SELECT * FROM rating_updates WHERE match_id IN (${placeholders})`)
-      .all(...ids.matchIds) as any[]
+    backup.ratingUpdates = await db.ratingUpdate.findMany({
+      where: { matchId: { in: ids.matchIds } },
+    }) as any[]
   }
 
   if (ids.playerIds && ids.playerIds.length > 0) {
-    const placeholders = ids.playerIds.map(() => '?').join(',')
-    backup.playerRatings = db
-      .prepare(`SELECT * FROM player_ratings WHERE player_id IN (${placeholders})`)
-      .all(...ids.playerIds) as any[]
+    backup.playerRatings = await db.playerRating.findMany({
+      where: { playerId: { in: ids.playerIds } },
+    }) as any[]
   }
 
   if (ids.challengeIds && ids.challengeIds.length > 0) {
-    const placeholders = ids.challengeIds.map(() => '?').join(',')
-    backup.challenges = db
-      .prepare(`SELECT * FROM challenges WHERE id IN (${placeholders})`)
-      .all(...ids.challengeIds) as any[]
+    backup.challenges = await db.challenge.findMany({
+      where: { id: { in: ids.challengeIds } },
+    }) as any[]
   }
 
   return backup
@@ -167,93 +76,103 @@ export function createBackup(ids: {
  * Restore data from backup
  * Uses transaction to ensure atomic restore
  */
-export function restoreBackup(backup: BackupData): void {
-  return DatabaseTransaction.execute((tx) => {
+export async function restoreBackup(backup: BackupData): Promise<void> {
+  await db.$transaction(async (tx) => {
     // Restore matches
     if (backup.matches) {
-      backup.matches.forEach((match) => {
+      for (const match of backup.matches) {
         // Delete existing match if it exists
-        tx.run(db.prepare('DELETE FROM matches WHERE id = ?'), match.id)
+        await tx.match.deleteMany({ where: { id: match.id } })
         // Restore match
-        tx.run(
-          db.prepare(`
-            INSERT INTO matches (
-              id, challenge_id, player1_id, player2_id, league_id,
-              player1_score, player2_score, status, winner_id, 
-              played_at, confirmed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `),
-          match.id,
-          match.challenge_id,
-          match.player1_id,
-          match.player2_id,
-          match.league_id,
-          match.player1_score,
-          match.player2_score,
-          match.status,
-          match.winner_id,
-          match.played_at,
-          match.confirmed_at
-        )
-      })
+        await tx.match.create({
+          data: {
+            id: match.id,
+            challengeId: match.challenge_id || null,
+            player1Id: match.player1_id,
+            player2Id: match.player2_id,
+            leagueId: match.league_id,
+            player1Score: match.player1_score,
+            player2Score: match.player2_score,
+            status: match.status,
+            winnerId: match.winner_id || null,
+            reportedBy: match.reported_by || null,
+            playedAt: match.played_at ? new Date(match.played_at) : new Date(),
+            confirmedAt: match.confirmed_at ? new Date(match.confirmed_at) : null,
+          },
+        })
+      }
     }
 
     // Restore player ratings
     if (backup.playerRatings) {
-      backup.playerRatings.forEach((rating) => {
-        tx.run(
-          db.prepare(`
-            UPDATE player_ratings
-            SET rating = ?, games_played = ?, wins = ?, losses = ?, draws = ?, updated_at = ?
-            WHERE player_id = ? AND league_id = ?
-          `),
-          rating.rating,
-          rating.games_played,
-          rating.wins,
-          rating.losses,
-          rating.draws,
-          rating.updated_at,
-          rating.player_id,
-          rating.league_id
-        )
-      })
+      for (const rating of backup.playerRatings) {
+        await tx.playerRating.upsert({
+          where: {
+            playerId_leagueId: {
+              playerId: rating.player_id,
+              leagueId: rating.league_id,
+            },
+          },
+          update: {
+            rating: rating.rating,
+            gamesPlayed: rating.games_played,
+            wins: rating.wins,
+            losses: rating.losses,
+            draws: rating.draws,
+          },
+          create: {
+            id: rating.id,
+            playerId: rating.player_id,
+            leagueId: rating.league_id,
+            rating: rating.rating,
+            gamesPlayed: rating.games_played,
+            wins: rating.wins,
+            losses: rating.losses,
+            draws: rating.draws,
+          },
+        })
+      }
     }
 
     // Restore rating updates
     if (backup.ratingUpdates) {
-      backup.ratingUpdates.forEach((update) => {
-        tx.run(
-          db.prepare(`
-            INSERT OR REPLACE INTO rating_updates (
-              id, match_id, player_id, league_id, old_rating, new_rating, change, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `),
-          update.id,
-          update.match_id,
-          update.player_id,
-          update.league_id,
-          update.old_rating,
-          update.new_rating,
-          update.change,
-          update.created_at
-        )
-      })
+      for (const update of backup.ratingUpdates) {
+        await tx.ratingUpdate.upsert({
+          where: { id: update.id },
+          update: {
+            matchId: update.match_id,
+            playerId: update.player_id,
+            leagueId: update.league_id,
+            oldRating: update.old_rating,
+            newRating: update.new_rating,
+            change: update.change,
+            createdAt: update.created_at ? new Date(update.created_at) : new Date(),
+          },
+          create: {
+            id: update.id,
+            matchId: update.match_id,
+            playerId: update.player_id,
+            leagueId: update.league_id,
+            oldRating: update.old_rating,
+            newRating: update.new_rating,
+            change: update.change,
+            createdAt: update.created_at ? new Date(update.created_at) : new Date(),
+          },
+        })
+      }
     }
 
     // Restore challenges
     if (backup.challenges) {
-      backup.challenges.forEach((challenge) => {
-        tx.run(
-          db.prepare(`
-            UPDATE challenges
-            SET status = ?, expires_at = ?
-            WHERE id = ?
-          `),
-          challenge.status,
-          challenge.expires_at,
-          challenge.id
-        )
-      })
+      for (const challenge of backup.challenges) {
+        await tx.challenge.update({
+          where: { id: challenge.id },
+          data: {
+            status: challenge.status,
+            expiresAt: challenge.expires_at ? new Date(challenge.expires_at) : null,
+          },
+        })
+      }
     }
   })
 }

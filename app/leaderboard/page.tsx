@@ -19,7 +19,7 @@ export default async function LeaderboardPage() {
   
   // Fetch leaderboard data for each league using Prisma
   const leagueData = await Promise.all(leagues.map(async (league) => {
-    const playerRatingsRaw = await db.playerRating.findMany({
+    const playerRatingsRaw = (await db.playerRating.findMany({
       where: { leagueId: league.id },
       include: {
         player: {
@@ -33,7 +33,7 @@ export default async function LeaderboardPage() {
       },
       orderBy: { rating: 'desc' },
       take: 50
-    }) as Array<{
+    })) as unknown as Array<{
       id: string
       rating: number
       gamesPlayed: number

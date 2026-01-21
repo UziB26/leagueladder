@@ -7,30 +7,35 @@ import crypto from 'crypto'
  * @param leagueId - The league ID
  * @param result - 'win', 'loss', or 'draw'
  */
-export function updatePlayerStats(
+export async function updatePlayerStats(
   playerId: string,
   leagueId: string,
   result: 'win' | 'loss' | 'draw'
 ) {
   // Get current rating record
-  const rating = db.prepare(`
-    SELECT * FROM player_ratings 
-    WHERE player_id = ? AND league_id = ?
-  `).get(playerId, leagueId) as {
-    id: string
-    games_played: number
-    wins: number
-    losses: number
-    draws: number
-  } | undefined
+  const rating = await db.playerRating.findUnique({
+    where: {
+      playerId_leagueId: {
+        playerId,
+        leagueId,
+      },
+    },
+    select: {
+      id: true,
+      gamesPlayed: true,
+      wins: true,
+      losses: true,
+      draws: true,
+    },
+  })
 
   if (!rating) {
     throw new Error(`Player rating not found for player ${playerId} in league ${leagueId}`)
   }
 
   // Update stats based on result
-  const updates: { [key: string]: number } = {
-    games_played: rating.games_played + 1,
+  const updates: { gamesPlayed: number; wins: number; losses: number; draws: number } = {
+    gamesPlayed: rating.gamesPlayed + 1,
     wins: rating.wins,
     losses: rating.losses,
     draws: rating.draws,
@@ -45,25 +50,27 @@ export function updatePlayerStats(
   }
 
   // Update the rating record
-  db.prepare(`
-    UPDATE player_ratings 
-    SET 
-      games_played = ?,
-      wins = ?,
-      losses = ?,
-      draws = ?,
-      updated_at = CURRENT_TIMESTAMP
-    WHERE player_id = ? AND league_id = ?
-  `).run(
-    updates.games_played,
-    updates.wins,
-    updates.losses,
-    updates.draws,
-    playerId,
-    leagueId
-  )
+  await db.playerRating.update({
+    where: {
+      playerId_leagueId: {
+        playerId,
+        leagueId,
+      },
+    },
+    data: {
+      gamesPlayed: updates.gamesPlayed,
+      wins: updates.wins,
+      losses: updates.losses,
+      draws: updates.draws,
+    },
+  })
 
-  return updates
+  return {
+    games_played: updates.gamesPlayed,
+    wins: updates.wins,
+    losses: updates.losses,
+    draws: updates.draws,
+  }
 }
 
 /**
@@ -76,7 +83,7 @@ export function updatePlayerStats(
  * @param newPlayer1Rating - New rating for player 1 (after Elo calculation)
  * @param newPlayer2Rating - New rating for player 2 (after Elo calculation)
  */
-export function recordMatchResult(
+export async function recordMatchResult(
   player1Id: string,
   player2Id: string,
   leagueId: string,
@@ -101,21 +108,33 @@ export function recordMatchResult(
   }
 
   // Update stats for both players
-  const player1Stats = updatePlayerStats(player1Id, leagueId, player1Result)
-  const player2Stats = updatePlayerStats(player2Id, leagueId, player2Result)
+  const player1Stats = await updatePlayerStats(player1Id, leagueId, player1Result)
+  const player2Stats = await updatePlayerStats(player2Id, leagueId, player2Result)
 
   // Update ratings
-  db.prepare(`
-    UPDATE player_ratings 
-    SET rating = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE player_id = ? AND league_id = ?
-  `).run(newPlayer1Rating, player1Id, leagueId)
+  await db.playerRating.update({
+    where: {
+      playerId_leagueId: {
+        playerId: player1Id,
+        leagueId,
+      },
+    },
+    data: {
+      rating: newPlayer1Rating,
+    },
+  })
 
-  db.prepare(`
-    UPDATE player_ratings 
-    SET rating = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE player_id = ? AND league_id = ?
-  `).run(newPlayer2Rating, player2Id, leagueId)
+  await db.playerRating.update({
+    where: {
+      playerId_leagueId: {
+        playerId: player2Id,
+        leagueId,
+      },
+    },
+    data: {
+      rating: newPlayer2Rating,
+    },
+  })
 
   return {
     player1: {

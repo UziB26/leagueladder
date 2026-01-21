@@ -34,7 +34,7 @@ export default async function LeagueLeaderboardPage({ params }: LeaguePageProps)
   }
   
   // Fetch leaderboard using Prisma
-  const playerRatingsRaw = await db.playerRating.findMany({
+  const playerRatingsRaw = (await db.playerRating.findMany({
     where: { leagueId },
     include: {
       player: {
@@ -48,7 +48,7 @@ export default async function LeagueLeaderboardPage({ params }: LeaguePageProps)
     },
     orderBy: { rating: 'desc' },
     take: 100
-  }) as Array<{
+  })) as unknown as Array<{
     id: string
     rating: number
     gamesPlayed: number
