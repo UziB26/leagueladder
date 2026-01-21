@@ -73,7 +73,13 @@ export async function GET() {
 
     // Transform to match expected format
     const formattedChallenges = challenges.map(c => ({
-      ...c,
+      id: c.id,
+      challenger_id: c.challengerId,
+      challengee_id: c.challengeeId,
+      league_id: c.leagueId,
+      status: c.status,
+      created_at: c.createdAt.toISOString(),
+      expires_at: c.expiresAt ? c.expiresAt.toISOString() : null,
       challenger_name: c.challenger.name,
       challengee_name: c.challengee.name,
       league_name: c.league.name

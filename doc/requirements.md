@@ -125,9 +125,9 @@ The League Ladder MVP is a **competitive ranking system** that enables players t
 ### 🔄 Deferred Decisions
 
 #### Database
-- **Current**: SQLite (file-based, ephemeral on Vercel)
-- **Future**: Migration to PostgreSQL for production persistence
-- **Decision**: SQLite sufficient for MVP, PostgreSQL for production scale
+- **Current**: PostgreSQL with Prisma ORM (production-ready, persistent)
+- **Previous**: SQLite (file-based, ephemeral on Vercel) - ✅ Migrated
+- **Decision**: PostgreSQL provides persistent storage and better scalability for production
 
 #### Hosting
 - **Current**: Vercel (serverless)
@@ -751,7 +751,8 @@ The League Ladder MVP is a **competitive ranking system** that enables players t
 
 ### Scalability
 - Serverless architecture (Vercel)
-- Database ready for migration to PostgreSQL
+- PostgreSQL database (production-ready, persistent storage)
+- Prisma ORM for efficient database queries
 - Stateless API design
 
 ---
@@ -759,9 +760,10 @@ The League Ladder MVP is a **competitive ranking system** that enables players t
 ## Constraints
 
 ### Technical Constraints
-- SQLite database (file-based, ephemeral on Vercel)
+- PostgreSQL database (via Vercel Postgres or external provider)
 - Serverless functions (30s timeout on Vercel)
-- No persistent storage on Vercel (ephemeral /tmp/)
+- Prisma ORM for database access
+- Database migrations required for schema changes
 
 ### Business Constraints
 - MVP must be deployable quickly
@@ -790,7 +792,8 @@ The League Ladder MVP is a **competitive ranking system** that enables players t
 ### External Dependencies
 - Next.js 14 (App Router)
 - NextAuth.js (Authentication)
-- better-sqlite3 (Database)
+- Prisma (Database ORM)
+- PostgreSQL (Database)
 - Zod (Validation)
 - Tailwind CSS (Styling)
 
@@ -819,6 +822,6 @@ The League Ladder MVP is a **competitive ranking system** that enables players t
 
 ---
 
-**Document Version**: 2.0  
+
 **Last Updated**: January 2026  
 **Status**: MVP Complete ✅

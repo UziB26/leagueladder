@@ -56,15 +56,52 @@ export async function GET() {
         ]
       },
       include: {
-        challenger: true,
-        challengee: true,
-        league: true
+        challenger: {
+          select: {
+            name: true
+          }
+        },
+        challengee: {
+          select: {
+            name: true
+          }
+        },
+        league: {
+          select: {
+            name: true
+          }
+        }
       },
       orderBy: { createdAt: 'desc' },
       take: 50
-    })
+    }) as Array<{
+      id: string
+      createdAt: Date
+      expiresAt: Date | null
+      status: string
+      challengeeId: string
+      challengerId: string
+      leagueId: string
+      challenger: { name: string }
+      challengee: { name: string }
+      league: { name: string }
+    }>
     
-    return NextResponse.json({ challenges })
+    // Transform to match expected format
+    const formattedChallenges = challenges.map(c => ({
+      id: c.id,
+      challenger_id: c.challengerId,
+      challengee_id: c.challengeeId,
+      league_id: c.leagueId,
+      status: c.status,
+      created_at: c.createdAt.toISOString(),
+      expires_at: c.expiresAt ? c.expiresAt.toISOString() : null,
+      challenger_name: c.challenger.name,
+      challengee_name: c.challengee.name,
+      league_name: c.league.name
+    }))
+    
+    return NextResponse.json({ challenges: formattedChallenges })
     
   } catch (error) {
     console.error('Error fetching challenges:', error)

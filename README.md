@@ -4,7 +4,7 @@
 A modern web application for managing competitive leagues with Elo-based rankings. Players can join leagues, challenge opponents, record match results, and climb leaderboards in real-time.
 
 ## 🚀 Live Demo
-**URL:** [Coming Soon]
+**URL:** https://leagueladderapp.vercel.app/
 
 ---
 
@@ -46,7 +46,7 @@ League Ladder is a competitive ranking system that allows players to:
 ### Tech Stack
 - **Frontend**: Next.js 14 (App Router) + TypeScript + Tailwind CSS
 - **Backend**: Next.js API Routes
-- **Database**: SQLite with better-sqlite3 (file-based, auto-initialized)
+- **Database**: PostgreSQL with Prisma ORM
 - **Authentication**: NextAuth.js (Credentials Provider)
 - **Validation**: Zod schemas for request validation
 - **Testing**: Jest + React Testing Library
@@ -79,7 +79,10 @@ leagueladder/
 ├── doc/                  # Documentation
 │   ├── Elo_Calculator.md # Elo system documentation
 │   └── postmortem.md     # Project postmortem
-└── league-ladder.db      # SQLite database (auto-created)
+├── prisma/               # Prisma schema and migrations
+│   ├── schema.prisma     # Database schema
+│   └── migrations/       # Database migrations
+└── prisma.config.ts      # Prisma 7 configuration
 ```
 
 ---
@@ -135,7 +138,7 @@ This will install all required dependencies including:
 - Next.js and React
 - TypeScript
 - Tailwind CSS
-- better-sqlite3
+- Prisma and Prisma Client
 - NextAuth.js
 - Testing libraries (Jest, React Testing Library)
 
@@ -155,8 +158,14 @@ Or create `.env.local` manually with:
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your-secret-key-here-generate-with-openssl-rand-base64-32
 
-# Database (optional - defaults to ./league-ladder.db)
-DATABASE_PATH=./league-ladder.db
+# Database Connection (PostgreSQL)
+# For local development, use a local PostgreSQL instance or a service like Supabase
+DATABASE_URL=postgresql://user:password@localhost:5432/league_ladder
+
+# Alternative database URL variables (for Vercel Postgres)
+# POSTGRES_URL=postgresql://...
+# POSTGRES_PRISMA_URL=postgresql://...
+# PRISMA_DATABASE_URL=postgresql://... (for Prisma Accelerate)
 
 # App URL (optional)
 NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -171,28 +180,53 @@ openssl rand -base64 32
 [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Minimum 0 -Maximum 256 }))
 ```
 
-#### 4. Initialize Database
+#### 4. Set Up PostgreSQL Database
 
-The database is **automatically initialized** on first access. No manual setup required!
+You need a PostgreSQL database to run the application. You have several options:
 
-The SQLite database (`league-ladder.db`) will be created automatically when you:
-- Start the development server
-- Access any API route that uses the database
-- Run tests
+**Option A: Local PostgreSQL**
+1. Install PostgreSQL on your machine
+2. Create a database:
+   ```bash
+   createdb league_ladder
+   ```
+3. Update `DATABASE_URL` in `.env.local`:
+   ```env
+   DATABASE_URL=postgresql://username:password@localhost:5432/league_ladder
+   ```
 
-**Manual Database Reset** (if needed):
+**Option B: Supabase (Free PostgreSQL)**
+1. Sign up at [supabase.com](https://supabase.com)
+2. Create a new project
+3. Copy the connection string from Project Settings → Database
+4. Add to `.env.local` as `DATABASE_URL`
+
+**Option C: Other Cloud Providers**
+- **Neon**: [neon.tech](https://neon.tech) - Serverless PostgreSQL
+- **Railway**: [railway.app](https://railway.app) - PostgreSQL addon
+- **Render**: [render.com](https://render.com) - PostgreSQL service
+
+#### 5. Run Database Migrations
+
+After setting up your database, run Prisma migrations to create the schema:
+
 ```bash
-# Remove existing database
-npm run db:reset
+# Generate Prisma Client
+npm run prisma:generate
 
-# View database (requires sqlite3 CLI)
-npm run db:view
+# Push schema to database (creates tables)
+npm run prisma:push
 
-# Backup database
-npm run db:backup
+# Or use migrations (recommended for production)
+npm run prisma:migrate
 ```
 
-#### 5. Start Development Server
+**Optional: Seed the database** (if you have seed data):
+```bash
+npm run prisma:seed
+```
+
+#### 6. Start Development Server
 
 ```bash
 npm run dev
@@ -200,7 +234,7 @@ npm run dev
 
 The application will be available at **http://localhost:3000**
 
-#### 6. Build for Production
+#### 7. Build for Production
 
 ```bash
 # Build the application
@@ -227,10 +261,11 @@ npm test             # Run all tests
 npm run test:watch   # Run tests in watch mode
 npm run test:coverage # Run tests with coverage report
 
-# Database
-npm run db:reset     # Remove database and rebuild
-npm run db:view      # Open database in sqlite3 CLI
-npm run db:backup    # Create timestamped backup
+# Database (Prisma)
+npm run prisma:generate  # Generate Prisma Client
+npm run prisma:migrate   # Run database migrations
+npm run prisma:push      # Push schema changes to database
+npm run prisma:studio    # Open Prisma Studio (database GUI)
 ```
 
 ---
@@ -267,45 +302,94 @@ League Ladder is optimized for Vercel deployment with serverless functions.
    - **Install Command**: `npm install` (default)
    - **Output Directory**: `.next` (default)
 
-4. **Set Environment Variables**
+4. **Set Up Vercel Postgres Database**
+   - In Vercel Dashboard → Your Project → Storage
+   - Click "Create Database" → Select "Postgres"
+   - Choose a plan (Hobby plan is free)
+   - Wait for the database to be created
+   - Vercel will automatically add these environment variables:
+     - `POSTGRES_URL`
+     - `POSTGRES_PRISMA_URL`
+     - `POSTGRES_URL_NON_POOLING`
+     - `PRISMA_DATABASE_URL` (if using Prisma Accelerate)
+
+5. **Set Additional Environment Variables**
    In Vercel project settings → Environment Variables, add:
    ```
    NEXTAUTH_URL=https://your-app.vercel.app
    NEXTAUTH_SECRET=your-secret-key-here
-   DATABASE_PATH=/tmp/league-ladder.db
    NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
    ```
 
    **Important Notes:**
    - Use your actual Vercel deployment URL for `NEXTAUTH_URL`
    - Generate a secure `NEXTAUTH_SECRET` (see Local Development section)
-   - For SQLite on Vercel, use `/tmp/` directory (ephemeral storage)
-   - **Note**: SQLite on Vercel is ephemeral - data resets on each deployment. For production, consider migrating to PostgreSQL or another persistent database.
+   - The PostgreSQL connection strings are automatically set by Vercel when you create the database
+   - For Prisma migrations, use `POSTGRES_URL` or `POSTGRES_PRISMA_URL`
 
-5. **Deploy**
-   - Click "Deploy"
+6. **Run Database Migrations**
+   After the first deployment, you need to run Prisma migrations to create the database schema:
+   
+   **Option A: Using Vercel CLI (Recommended)**
+   ```bash
+   # Install Vercel CLI if not already installed
+   npm install -g vercel
+   
+   # Link to your project
+   vercel link
+   
+   # Pull environment variables
+   vercel env pull .env.local
+   
+   # Run migrations
+   npx prisma migrate deploy
+   ```
+   
+   **Option B: Using Vercel Dashboard**
+   - Go to your project → Settings → Environment Variables
+   - Copy the `POSTGRES_URL` value
+   - Locally, set it in `.env.local` and run:
+     ```bash
+     npx prisma migrate deploy
+     ```
+   
+   **Option C: Using Prisma Studio (Alternative)**
+   - Connect to your Vercel Postgres database
+   - Run the SQL schema manually from `prisma/migrations/`
+
+7. **Deploy**
+   - Click "Deploy" (or push a new commit to trigger auto-deployment)
    - Vercel will automatically build and deploy your application
    - Your app will be live at `https://your-app.vercel.app`
 
 #### Post-Deployment
 
-- **Database Initialization**: The database will be created automatically on first API request
-- **First Admin User**: Create an admin user through the registration flow, then manually update the database:
+- **Database Schema**: Ensure migrations have been run (see step 6 above)
+- **First Admin User**: Create an admin user through the registration flow, then update via Prisma Studio or SQL:
   ```sql
-  UPDATE users SET is_admin = 1 WHERE email = 'admin@example.com';
+  UPDATE users SET is_admin = true WHERE email = 'admin@example.com';
   ```
 
 ### Alternative: Deploying to Other Platforms
 
-#### AWS (EC2, ECS, or Lambda)
-- Use PostgreSQL or RDS instead of SQLite
-- Update database connection in `src/lib/db/index.ts`
-- Configure environment variables in your hosting platform
+#### Railway
+1. Connect your GitHub repository
+2. Add PostgreSQL service
+3. Set environment variables:
+   - `DATABASE_URL` (from Railway PostgreSQL service)
+   - `NEXTAUTH_URL` and `NEXTAUTH_SECRET`
+4. Run migrations: `npx prisma migrate deploy`
 
-#### Railway / Render
-- Similar to Vercel setup
-- Use PostgreSQL addon for persistent storage
-- Update database connection accordingly
+#### Render
+1. Create a new Web Service from GitHub
+2. Add PostgreSQL database
+3. Set environment variables
+4. Run migrations in the build command or separately
+
+#### AWS (EC2, ECS, or Lambda)
+- Use RDS PostgreSQL
+- Set `DATABASE_URL` environment variable
+- Run Prisma migrations before deployment
 
 #### Docker Deployment
 ```dockerfile
@@ -375,19 +459,27 @@ Test files are located in:
 
 ### Database Issues
 
-**Problem**: Database not initializing
-- **Solution**: Ensure write permissions in the project directory
-- **Solution**: Check `DATABASE_PATH` environment variable
+**Problem**: "Database connection failed" or "Can't reach database server"
+- **Solution**: Verify `DATABASE_URL` is set correctly in `.env.local`
+- **Solution**: Check PostgreSQL server is running (if using local database)
+- **Solution**: Verify database credentials are correct
+- **Solution**: For cloud databases, check firewall/network settings
 
-**Problem**: "Database is locked" errors
-- **Solution**: Close any other processes accessing the database
-- **Solution**: Restart the development server
+**Problem**: "Prisma schema validation error"
+- **Solution**: Run `npx prisma validate` to check schema
+- **Solution**: Ensure `prisma.config.ts` exists and is configured correctly
+- **Solution**: Check that database URL is set in environment variables
+
+**Problem**: "Table does not exist" errors
+- **Solution**: Run database migrations: `npm run prisma:migrate` or `npm run prisma:push`
+- **Solution**: Verify migrations have been applied to your database
 
 ### Build Issues
 
-**Problem**: Vercel build fails with SQLite errors
-- **Solution**: The app uses lazy database initialization - this is expected during build
-- **Solution**: Ensure `.npmrc` contains `legacy-peer-deps=true`
+**Problem**: Vercel build fails with Prisma errors
+- **Solution**: Ensure `PRISMA_DATABASE_URL` or `POSTGRES_URL` is set in Vercel environment variables
+- **Solution**: The build process uses a dummy connection string - this is expected
+- **Solution**: Verify Prisma Client is generated: `npm run prisma:generate`
 
 **Problem**: TypeScript errors during build
 - **Solution**: Run `npm run build` locally to identify issues
@@ -431,7 +523,7 @@ MIT Licence
 - Built with [Next.js](https://nextjs.org/)
 - Styled with [Tailwind CSS](https://tailwindcss.com/)
 - Authentication by [NextAuth.js](https://next-auth.js.org/)
-- Database powered by [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)
+- Database powered by [Prisma](https://www.prisma.io/) and PostgreSQL
 
 ---
 
