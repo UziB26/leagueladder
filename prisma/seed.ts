@@ -12,10 +12,25 @@ import { resolve } from 'path'
 dotenv.config({ path: resolve(process.cwd(), '.env') })
 dotenv.config({ path: resolve(process.cwd(), '.env.local') })
 
+// Force Prisma to use the binary/query-engine locally (avoid accelerate/dataproxy expectations)
+if (!process.env.PRISMA_CLIENT_ENGINE_TYPE) {
+  process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+}
+// Allow self-signed certs during local builds (Prisma fetch)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+
 import { PrismaClient } from '../app/generated-prisma-client'
 
 // Get database URL from environment
-const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL
+const databaseUrl = 
+  process.env.PRISMA_DATABASE_URL ||      // Vercel Postgres variable
+  process.env.POSTGRES_PRISMA_URL ||      // Standard Vercel Postgres variable
+  process.env.POSTGRES_URL ||             // Alternative Postgres URL
+  process.env.DATABASE_URL;               // Generic fallback
+
+const accelerateUrl = process.env.PRISMA_DATABASE_URL?.startsWith('prisma+')
+  ? process.env.PRISMA_DATABASE_URL
+  : undefined
 
 if (!databaseUrl) {
   console.error('❌ Error: DATABASE_URL not found in environment variables')
@@ -23,8 +38,11 @@ if (!databaseUrl) {
   process.exit(1)
 }
 
-// PrismaClient will use DATABASE_URL from environment automatically
-const prisma = new PrismaClient()
+// Create PrismaClient with same pattern as main db file
+const prisma = new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+  ...(accelerateUrl ? { accelerateUrl } : {}),
+})
 
 async function main() {
   console.log('🌱 Starting database seed...')
