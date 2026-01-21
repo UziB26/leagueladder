@@ -35,6 +35,7 @@ export function ChallengeCard({
   const [player1Score, setPlayer1Score] = useState("")
   const [player2Score, setPlayer2Score] = useState("")
   const [reportError, setReportError] = useState("")
+  const [matchReported, setMatchReported] = useState(false)
   const router = useRouter()
   const confirmationDialog = useConfirmationDialog()
   
@@ -125,6 +126,9 @@ export function ChallengeCard({
         throw new Error(data.error || 'Failed to report match')
       }
 
+      // Mark match as reported to hide the button immediately
+      setMatchReported(true)
+      
       // Reset form
       setPlayer1Score("")
       setPlayer2Score("")
@@ -355,7 +359,7 @@ export function ChallengeCard({
         </div>
       )}
       
-      {challenge.status === 'accepted' && (
+      {challenge.status === 'accepted' && !matchReported && (
         <div className="mt-4">
           {!showReportForm ? (
             <>
