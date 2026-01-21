@@ -1,4 +1,11 @@
 import { defineConfig } from "prisma/config";
+import { config } from "dotenv";
+import { resolve } from "path";
+
+// Load .env.local first (Prisma CLI doesn't load it automatically)
+// Then load .env as fallback
+config({ path: resolve(process.cwd(), ".env.local") });
+config({ path: resolve(process.cwd(), ".env") });
 
 // Check for Prisma database URL variables in order of preference
 // IMPORTANT: For migrations, use direct database URL (not Accelerate)
