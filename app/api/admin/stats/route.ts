@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       }),
       db.match.count({
         where: {
-          createdAt: {
+          playedAt: {
             gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
           }
         }

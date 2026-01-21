@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
           select: { name: true }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { playedAt: 'desc' }
     })
 
     // Format matches
@@ -63,7 +63,6 @@ export async function GET(request: NextRequest) {
       winner_id: m.winnerId,
       challenge_id: m.challengeId,
       played_at: m.playedAt.toISOString(),
-      created_at: m.createdAt.toISOString(),
       player1_name: m.player1.name,
       player2_name: m.player2.name,
       league_name: m.league.name

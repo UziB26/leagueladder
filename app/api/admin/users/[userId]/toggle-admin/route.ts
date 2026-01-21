@@ -39,7 +39,7 @@ export async function POST(
     // Verify admin status
     const adminUser = await db.user.findUnique({
       where: { email: session.user.email },
-      select: { isAdmin: true }
+      select: { id: true, isAdmin: true }
     })
     
     if (!adminUser || !adminUser.isAdmin) {
