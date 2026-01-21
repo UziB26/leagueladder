@@ -132,7 +132,7 @@ export default function LeaguesPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-blue-600">Available Leagues</h1>
+        <h1 className="text-3xl font-bold text-white">Available Leagues</h1>
         <p className="text-white mt-2">Join a league to start competing and climb the leaderboard</p>
       </div>
 
@@ -156,7 +156,7 @@ export default function LeaguesPage() {
                     league.game_type === 'fifa' ? 'bg-blue-100' : 'bg-green-100'
                   }`}>
                     <span className="text-2xl">
-                      {league.game_type === 'fifa' ? '🎮' : '🏓'}
+                      {league.game_type === 'fifa' ? '⚽' : '🏓'}
                     </span>
                   </div>
                   <div>

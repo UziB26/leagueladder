@@ -55,6 +55,17 @@ export default function Home() {
           <p className="text-gray-300 mt-2">Table Tennis & FIFA leagues with Elo rankings</p>
         </header>
         
+        <div className="mb-12">
+          <h3 className="text-xl font-semibold mb-4 text-white">How it works</h3>
+          <ol className="list-decimal pl-5 space-y-2 text-gray-300">
+            <li>Register and create your player profile</li>
+            <li>Join either FIFA or Table Tennis league (or both!)</li>
+            <li>Challenge other players to matches</li>
+            <li>Record match results to update Elo ratings</li>
+            <li>Climb the leaderboard and become #1</li>
+          </ol>
+        </div>
+        
         <div className="grid md:grid-cols-2 gap-8 mb-12">
           <div className="bg-gray-900 p-6 rounded-lg shadow border border-gray-700">
             <h2 className="text-2xl font-semibold mb-4 text-white">🎮 FIFA League</h2>
@@ -105,17 +116,6 @@ export default function Home() {
               </div>
             </Link>
           </div>
-        </div>
-        
-        <div className="mt-12">
-          <h3 className="text-xl font-semibold mb-4 text-white">How it works</h3>
-          <ol className="list-decimal pl-5 space-y-2 text-gray-300">
-            <li>Register and create your player profile</li>
-            <li>Join either FIFA or Table Tennis league (or both!)</li>
-            <li>Challenge other players to matches</li>
-            <li>Record match results to update Elo ratings</li>
-            <li>Climb the leaderboard and become #1</li>
-          </ol>
         </div>
       </div>
     </main>

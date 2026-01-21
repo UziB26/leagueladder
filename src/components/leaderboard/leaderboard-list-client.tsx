@@ -131,7 +131,7 @@ export function LeaderboardListClient({ initialLeagueData }: LeaderboardListClie
     <div>
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-blue-600">Leaderboards</h1>
+          <h1 className="text-3xl font-bold text-white">Leaderboards</h1>
           <p className="text-white mt-2">See who's on top in each league</p>
         </div>
         <button
