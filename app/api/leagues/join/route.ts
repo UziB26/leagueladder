@@ -83,12 +83,17 @@ export async function POST(request: NextRequest) {
       where: { userId: user.id }
     })
     
+    const playerDisplayName =
+      user.name ||
+      session.user.name ||
+      (user.email ? user.email.split('@')[0] : 'Player')
+
     if (!player) {
       try {
         player = await db.player.create({
           data: {
             userId: user.id,
-            name: user.name || session.user.name || 'Player',
+            name: playerDisplayName,
             email: user.email
           }
         })
@@ -106,6 +111,13 @@ export async function POST(request: NextRequest) {
           )
         }
       }
+    } else if (player.name?.includes('@') && user.name) {
+      // If existing player name is an email and we now have a display name, update it
+      await db.player.update({
+        where: { id: player.id },
+        data: { name: playerDisplayName }
+      })
+      player.name = playerDisplayName
     }
 
     // Check if already joined using Prisma

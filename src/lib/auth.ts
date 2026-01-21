@@ -97,10 +97,24 @@ export const authOptions = {
         }
         
         // In real app, verify password here
+        // If user exists but provided a new display name, update it
+        const providedName = typeof name === "string" && name.trim() ? sanitizeString(name.trim()) : null
+        if (providedName && providedName !== user.name) {
+          try {
+            await db.user.update({
+              where: { id: user.id },
+              data: { name: providedName }
+            })
+            user.name = providedName
+          } catch (error) {
+            console.error('Error updating user display name:', error)
+          }
+        }
+
         return {
           id: user.id,
           email: user.email,
-          name: user.name || undefined,
+          name: user.name || providedName || undefined,
           is_admin: user.isAdmin || false
         }
       }

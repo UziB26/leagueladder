@@ -75,7 +75,7 @@ export function LeaderboardListClient({ initialLeagueData }: LeaderboardListClie
     fetchMatchesCount()
   }, [leagueData])
 
-  // Listen for custom event to refresh all leaderboards
+  // Auto-refresh all leaderboards periodically and on events
   useEffect(() => {
     const refreshMatchesCount = async () => {
       try {
@@ -121,9 +121,18 @@ export function LeaderboardListClient({ initialLeagueData }: LeaderboardListClie
     
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
+    // Auto-refresh every 5 seconds when page is visible
+    const intervalId = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        refreshAll()
+        refreshMatchesCount()
+      }
+    }, 5000) // Refresh every 5 seconds
+
     return () => {
       window.removeEventListener('leaderboard:refresh', handleRefresh)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      clearInterval(intervalId)
     }
   }, [refreshAll, leagueData])
 

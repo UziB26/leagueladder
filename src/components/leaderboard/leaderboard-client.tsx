@@ -31,7 +31,7 @@ export function LeaderboardClient({ leagueId, leagueName, initialPlayers }: Lead
     }
   }, [leagueId])
 
-  // Listen for custom event to refresh leaderboard
+  // Auto-refresh leaderboard periodically and on events
   useEffect(() => {
     const handleRefresh = () => {
       refreshLeaderboard()
@@ -48,9 +48,17 @@ export function LeaderboardClient({ leagueId, leagueName, initialPlayers }: Lead
     
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
+    // Auto-refresh every 5 seconds when page is visible
+    const intervalId = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        refreshLeaderboard()
+      }
+    }, 5000) // Refresh every 5 seconds
+
     return () => {
       window.removeEventListener('leaderboard:refresh', handleRefresh)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      clearInterval(intervalId)
     }
   }, [refreshLeaderboard])
 

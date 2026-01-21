@@ -107,6 +107,8 @@ export default function LeaguesPage() {
         setTimeout(() => {
           fetchLeagues()
         }, 500)
+        // Trigger leaderboard refresh so new player appears immediately
+        window.dispatchEvent(new CustomEvent('leaderboard:refresh', { detail: { immediate: true } }))
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to join league' })
       }
