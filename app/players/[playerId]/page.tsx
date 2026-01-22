@@ -4,6 +4,9 @@ import { notFound } from "next/navigation"
 import { Player } from "@/types/database"
 import { PlayerRating } from "@/types/database"
 
+// Force dynamic rendering to prevent build-time database access
+export const dynamic = 'force-dynamic'
+
 interface RatingWithLeague extends PlayerRating {
   league_name: string
   game_type: string

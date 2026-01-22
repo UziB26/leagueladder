@@ -3,6 +3,9 @@ import { redirect } from "next/navigation"
 import { AdminPanel } from "@/components/admin/admin-panel"
 import { db } from "@/lib/db"
 
+// Force dynamic rendering to prevent build-time database access
+export const dynamic = 'force-dynamic'
+
 export default async function AdminPage() {
   const session = await auth()
 

@@ -7,6 +7,9 @@ import { League } from "@/types/database"
 import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+// Force dynamic rendering to prevent build-time database access
+export const dynamic = 'force-dynamic'
+
 interface LeaguePageProps {
   params: Promise<{
     leagueId: string

@@ -3,6 +3,9 @@ import { LeaderboardListClient } from "@/components/leaderboard/leaderboard-list
 import { LeaderboardEntry } from "@/types/database"
 import { League } from "@/types/database"
 
+// Force dynamic rendering to prevent build-time database access
+export const dynamic = 'force-dynamic'
+
 export default async function LeaderboardPage() {
   // Fetch leagues using Prisma
   const leaguesData = await db.league.findMany({
