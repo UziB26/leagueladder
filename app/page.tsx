@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useState, useEffect } from "react"
+import { Gamepad2 } from "lucide-react"
 
 export default function Home() {
   const { data: session, status } = useSession()
@@ -68,7 +69,9 @@ export default function Home() {
         
         <div className="grid md:grid-cols-2 gap-8 mb-12">
           <div className="bg-gray-900 p-6 rounded-lg shadow border border-gray-700">
-            <h2 className="text-2xl font-semibold mb-4 text-white">🎮 FIFA League</h2>
+            <h2 className="text-2xl font-semibold mb-4 text-white flex items-center gap-2">
+              <Gamepad2 className="h-6 w-6 text-white" strokeWidth={2} /> FIFA League
+            </h2>
             <p className="text-gray-300 mb-4">Challenge players, record matches, climb the FIFA rankings</p>
             <div className="flex gap-3">
               <Button onClick={() => handleJoinLeague('fifa')}>

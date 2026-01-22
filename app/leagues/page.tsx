@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Gamepad2 } from "lucide-react"
 
 interface League {
   id: string
@@ -156,9 +157,11 @@ export default function LeaguesPage() {
                   <div className={`h-12 w-12 rounded-lg flex items-center justify-center ${
                     league.game_type === 'fifa' ? 'bg-blue-100' : 'bg-green-100'
                   }`}>
-                    <span className="text-2xl">
-                      {league.game_type === 'fifa' ? '🎮' : '🏓'}
-                    </span>
+                    {league.game_type === 'fifa' ? (
+                      <Gamepad2 className="h-6 w-6 text-blue-700" strokeWidth={2} />
+                    ) : (
+                      <span className="text-2xl">🏓</span>
+                    )}
                   </div>
                   <div>
                     <CardTitle className="text-2xl">{league.name}</CardTitle>

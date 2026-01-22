@@ -91,10 +91,10 @@ export function PlayerMatchHistory({ playerId, limit = 50 }: PlayerMatchHistoryP
     return (
       <div className="bg-black shadow rounded-lg p-6">
         <h2 className="text-2xl font-bold text-white mb-4">Match History</h2>
-        <div className="text-center py-12 text-gray-400">
-          <p>No matches played yet.</p>
-          <p className="text-sm mt-2">Start challenging players to see your match history here!</p>
-        </div>
+      <div className="text-center py-12 text-gray-400">
+        <p>No matches played yet.</p>
+        <p className="text-sm mt-2">This player hasn't played any matches yet.</p>
+      </div>
       </div>
     )
   }
@@ -170,7 +170,7 @@ export function PlayerMatchHistory({ playerId, limit = 50 }: PlayerMatchHistoryP
 
                   <div className="flex items-center gap-2 mb-2">
                     <span className={`font-semibold ${isPlayer1 ? 'text-blue-400' : 'text-gray-300'}`}>
-                      {isPlayer1 ? 'You' : match.player1_name}
+                      {match.player1_name}
                     </span>
                     <span className="text-lg font-bold text-white">
                       {match.player1_score}
@@ -180,7 +180,7 @@ export function PlayerMatchHistory({ playerId, limit = 50 }: PlayerMatchHistoryP
                       {match.player2_score}
                     </span>
                     <span className={`font-semibold ${!isPlayer1 ? 'text-blue-400' : 'text-gray-300'}`}>
-                      {!isPlayer1 ? 'You' : match.player2_name}
+                      {match.player2_name}
                     </span>
                   </div>
 

@@ -10,6 +10,7 @@ import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { Gamepad2 } from "lucide-react"
 
 interface League {
   id: string
@@ -210,8 +211,8 @@ export default function DashboardPage() {
             return (
               <div key={league.id} className="bg-gray-900 p-6 rounded-lg shadow border border-gray-700">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-semibold text-white">
-                    {league.game_type === 'fifa' ? '🎮' : '🏓'} {league.name}
+                  <h2 className="text-2xl font-semibold text-white flex items-center gap-2">
+                    {league.game_type === 'fifa' ? <Gamepad2 className="h-6 w-6 text-white" strokeWidth={2} /> : '🏓'} {league.name}
                   </h2>
                   {league.isMember && (
                     <span className="px-3 py-1 bg-green-900 text-green-100 text-sm font-medium rounded-full border border-green-700">

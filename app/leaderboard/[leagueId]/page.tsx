@@ -6,6 +6,7 @@ import { LeaderboardEntry } from "@/types/database"
 import { League } from "@/types/database"
 import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { GameTypeIcon } from "@/components/ui/game-type-icon"
 
 // Force dynamic rendering to prevent build-time database access
 export const dynamic = 'force-dynamic'
@@ -86,9 +87,11 @@ export default async function LeagueLeaderboardPage({ params }: LeaguePageProps)
           <div className={`h-12 w-12 rounded-lg flex items-center justify-center ${
             league.game_type === 'fifa' ? 'bg-blue-100' : 'bg-green-100'
           }`}>
-            <span className="text-2xl">
-              {league.game_type === 'fifa' ? '🎮' : '🏓'}
-            </span>
+            <GameTypeIcon 
+              gameType={league.game_type} 
+              iconClassName={league.game_type === 'fifa' ? 'h-6 w-6 text-blue-600' : undefined}
+              className={league.game_type === 'table-tennis' ? 'text-2xl' : undefined}
+            />
           </div>
           <div>
             <h1 className="text-3xl font-bold text-blue-500">{league.name} Leaderboard</h1>
