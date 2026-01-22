@@ -156,7 +156,7 @@ export default function LeaguesPage() {
                     league.game_type === 'fifa' ? 'bg-blue-100' : 'bg-green-100'
                   }`}>
                     <span className="text-2xl">
-                      {league.game_type === 'fifa' ? '⚽' : '🏓'}
+                      {league.game_type === 'fifa' ? '🎮' : '🏓'}
                     </span>
                   </div>
                   <div>
