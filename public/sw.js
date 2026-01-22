@@ -1,6 +1,6 @@
 // Service Worker for League Ladder PWA
-const CACHE_NAME = 'league-ladder-v2'
-const RUNTIME_CACHE = 'league-ladder-runtime-v2'
+const CACHE_NAME = 'league-ladder-v3'
+const RUNTIME_CACHE = 'league-ladder-runtime-v3'
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
@@ -76,11 +76,25 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Don't cache HTML/document pages - always fetch fresh to get latest UI
+  // Also skip caching for any page routes (no file extension)
   if (event.request.destination === 'document' || 
-      event.request.url.endsWith('.html') ||
-      event.request.url.endsWith('/') ||
-      !event.request.url.includes('.')) {
-    event.respondWith(fetch(event.request))
+      event.request.url.endsWith('.html') || 
+      event.request.url.endsWith('/') || 
+      !event.request.url.includes('.') ||
+      event.request.url.includes('/dashboard') ||
+      event.request.url.includes('/leaderboard') ||
+      event.request.url.includes('/challenges') ||
+      event.request.url.includes('/matches') ||
+      event.request.url.includes('/leagues') ||
+      event.request.url.includes('/players') ||
+      event.request.url.includes('/auth')) {
+    // Always fetch from network for pages, never use cache
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        // Only fallback to cache if network completely fails
+        return caches.match(event.request)
+      })
+    )
     return
   }
 
