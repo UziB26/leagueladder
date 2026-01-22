@@ -26,10 +26,6 @@ export default function LeaguesPage() {
   const [joining, setJoining] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
-  useEffect(() => {
-    fetchLeagues()
-  }, [session])
-
   const fetchLeagues = async () => {
     try {
       const response = await fetch('/api/leagues')
@@ -80,6 +76,11 @@ export default function LeaguesPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchLeagues()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session])
 
   const handleJoinLeague = async (leagueId: string) => {
     if (!session) {

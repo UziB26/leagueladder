@@ -77,7 +77,7 @@ export function OnboardingWrapper() {
       return
     }
     
-    if (status === 'loading' || checkingStatus || isNewUser === null) {
+    if (status === 'loading' || checkingStatus) {
       return
     }
 
@@ -91,7 +91,8 @@ export function OnboardingWrapper() {
     const userId = (session.user as any)?.id || session.user.email
     const storageKey = getStorageKey(userId)
     
-    // Check if tour was already completed for this user
+    // PRIORITY 1: Check if tour was already completed in localStorage
+    // If completed, never show it again (this is the most important check)
     const hasCompleted = localStorage.getItem(storageKey) === 'true'
     
     if (hasCompleted) {
@@ -100,7 +101,13 @@ export function OnboardingWrapper() {
       return
     }
 
-    // Show tour if user is new AND hasn't completed it
+    // PRIORITY 2: If not completed in localStorage, check API to see if user is new
+    // Only show tour if user is new AND hasn't completed it
+    if (isNewUser === null) {
+      // Still waiting for API response
+      return
+    }
+
     if (isNewUser) {
       setShouldShow(true)
       
@@ -113,6 +120,7 @@ export function OnboardingWrapper() {
         clearTimeout(timer)
       }
     } else {
+      // User is not new, don't show tour
       setShouldShow(false)
       setIsReady(false)
     }
