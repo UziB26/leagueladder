@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 
+// CRITICAL: Force Node.js runtime to prevent edge runtime from triggering client engine type
+export const runtime = 'nodejs'
+
 /**
  * GET /api/user/onboarding-status
  * Checks if the current user is new (hasn't completed onboarding)
