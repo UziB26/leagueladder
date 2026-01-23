@@ -23,8 +23,12 @@ const nextConfig: NextConfig = {
     position: 'bottom-right',
   },
   // Fix TLS certificate issue
+  // CRITICAL: Disable Turbopack on AWS Amplify (causes Prisma build issues)
+  // Keep Turbopack enabled for Vercel and local development
   experimental: {
-    turbopackUseSystemTlsCerts: true,
+    ...(process.env.AWS_AMPLIFY !== 'true' && process.env.AWS_EXECUTION_ENV === undefined
+      ? { turbopackUseSystemTlsCerts: true }
+      : {}),
     serverActions: {
       allowedOrigins: ['localhost:3000'],
     },
