@@ -14,10 +14,9 @@ const globalForPrisma = globalThis as unknown as {
   prisma: ReturnType<typeof createPrismaClient> | undefined
 }
 
-// Force Prisma to use the binary/query-engine locally (avoid accelerate/dataproxy expectations)
-if (!process.env.PRISMA_CLIENT_ENGINE_TYPE) {
-  process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
-}
+// Force Prisma to use the binary/query-engine (avoid accelerate/dataproxy expectations)
+// This MUST be set before importing PrismaClient
+process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
 // Allow self-signed certs during local builds (Prisma fetch)
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
@@ -57,12 +56,17 @@ function createPrismaClient() {
     process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
   }
   
+  // Ensure we're using binary engine (not client/accelerate)
+  // This prevents the "requires adapter or accelerateUrl" error
+  process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+  
   const clientConfig: any = {
     log: logLevels,
   }
   
-  // If we have an accelerate URL, use it
-  if (accelerateUrl) {
+  // Only use accelerateUrl if explicitly provided (and it's a real Accelerate URL)
+  // For AWS RDS, we use direct connection, not Accelerate
+  if (accelerateUrl && accelerateUrl.startsWith('prisma+')) {
     clientConfig.accelerateUrl = accelerateUrl
   }
   

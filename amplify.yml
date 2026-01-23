@@ -3,6 +3,7 @@ frontend:
   phases:
     preBuild:
       commands:
+        - export PRISMA_CLIENT_ENGINE_TYPE=binary
         - npm ci
         - npx prisma generate
     build:
