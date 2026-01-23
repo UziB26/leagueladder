@@ -3,8 +3,12 @@ frontend:
   phases:
     preBuild:
       commands:
+        # Set Prisma engine type to binary BEFORE generating client
+        # This ensures the generated client uses binary engine, not client engine
         - export PRISMA_CLIENT_ENGINE_TYPE=binary
+        - export DATABASE_URL=${DATABASE_URL:-postgresql://dummy:dummy@localhost:5432/dummy?schema=public}
         - npm ci
+        # Generate Prisma Client with binary engine type
         - npx prisma generate
     build:
       commands:

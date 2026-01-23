@@ -10,7 +10,21 @@
  */
 // Force Prisma to use the binary/query-engine (avoid accelerate/dataproxy expectations)
 // This MUST be set before importing PrismaClient
+// Set it multiple times to ensure it's set before any module evaluation
+if (!process.env.PRISMA_CLIENT_ENGINE_TYPE) {
+  process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+}
 process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+
+// During build time (Amplify/Vercel), ensure DATABASE_URL is set even if dummy
+// This prevents Prisma from detecting "client" engine type
+if ((process.env.VERCEL === '1' || process.env.AWS_AMPLIFY === 'true' || process.env.CI === 'true') && !process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = process.env.DATABASE_URL || 
+    process.env.PRISMA_DATABASE_URL || 
+    process.env.POSTGRES_PRISMA_URL || 
+    process.env.POSTGRES_URL ||
+    'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
+}
 
 import { PrismaClient, Prisma } from '@prisma/client'
 
@@ -50,16 +64,22 @@ function createPrismaClient() {
   const logLevels: Prisma.LogLevel[] =
     process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
 
-  // During build time, if no database URL is available, set a dummy URL in environment
-  // Prisma Client reads from environment variables (DATABASE_URL), not constructor
-  if (!databaseUrl && (process.env.VERCEL === '1' || process.env.AWS_AMPLIFY === 'true' || process.env.CI === 'true')) {
-    // Build time: set dummy URL in environment for Prisma Client
-    process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
-  }
-  
   // Ensure we're using binary engine (not client/accelerate)
   // This prevents the "requires adapter or accelerateUrl" error
+  // Set it again here to be absolutely sure
   process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+  
+  // During build time, if no database URL is available, set a dummy URL in environment
+  // Prisma Client reads from environment variables (DATABASE_URL), not constructor
+  // This is critical to prevent Prisma from detecting "client" engine type
+  const finalDatabaseUrl = databaseUrl || 
+    process.env.DATABASE_URL || 
+    'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
+  
+  if (!process.env.DATABASE_URL && (process.env.VERCEL === '1' || process.env.AWS_AMPLIFY === 'true' || process.env.CI === 'true')) {
+    // Build time: set dummy URL in environment for Prisma Client
+    process.env.DATABASE_URL = finalDatabaseUrl
+  }
   
   const clientConfig: any = {
     log: logLevels,
@@ -67,12 +87,15 @@ function createPrismaClient() {
   
   // Only use accelerateUrl if explicitly provided (and it's a real Accelerate URL)
   // For AWS RDS, we use direct connection, not Accelerate
+  // IMPORTANT: Do NOT set accelerateUrl unless it's a real Prisma Accelerate URL
+  // Setting it incorrectly will cause the "requires adapter or accelerateUrl" error
   if (accelerateUrl && accelerateUrl.startsWith('prisma+')) {
     clientConfig.accelerateUrl = accelerateUrl
   }
   
   // Prisma Client reads DATABASE_URL from environment automatically
   // We don't need to pass it via constructor
+  // The engine type is determined by PRISMA_CLIENT_ENGINE_TYPE env var and schema.prisma generator config
   return new PrismaClient(clientConfig)
 }
 
