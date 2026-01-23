@@ -1,11 +1,18 @@
 import { defineConfig } from "prisma/config";
-import { config } from "dotenv";
 import { resolve } from "path";
 
-// Load .env.local first (Prisma CLI doesn't load it automatically)
-// Then load .env as fallback
-config({ path: resolve(process.cwd(), ".env.local") });
-config({ path: resolve(process.cwd(), ".env") });
+// Load .env files if dotenv is available (optional for build environments)
+// In Amplify/Vercel, environment variables are already set, so dotenv isn't needed
+try {
+  const { config } = require("dotenv");
+  // Load .env.local first (Prisma CLI doesn't load it automatically)
+  // Then load .env as fallback
+  config({ path: resolve(process.cwd(), ".env.local") });
+  config({ path: resolve(process.cwd(), ".env") });
+} catch (error) {
+  // dotenv not available - this is fine in build environments where env vars are already set
+  // Environment variables should be set in Amplify Console
+}
 
 // Check for Prisma database URL variables in order of preference
 // IMPORTANT: For migrations, use direct database URL (not Accelerate)
@@ -24,7 +31,9 @@ const databaseUrl =
 // Support both Vercel and AWS Amplify build environments
 const isBuildTime = process.env.VERCEL === '1' || 
                     process.env.AWS_AMPLIFY === 'true' ||
-                    process.env.NEXT_PHASE === 'phase-production-build';
+                    process.env.AWS_EXECUTION_ENV !== undefined || // AWS Amplify/Lambda
+                    process.env.NEXT_PHASE === 'phase-production-build' ||
+                    process.env.CI === 'true'; // Generic CI detection
 
 // Use a dummy connection string ONLY during build/generate (not for migrations or push)
 // This allows prisma generate to work without a real database connection

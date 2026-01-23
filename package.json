@@ -16,7 +16,11 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
-    "db:cleanup": "ts-node --project tsconfig.scripts.json scripts/cleanup-database.ts"
+    "db:cleanup": "ts-node --project tsconfig.scripts.json scripts/cleanup-database.ts",
+    "migrate:aws": "ts-node --project tsconfig.scripts.json scripts/migrate-aws-rds.ts",
+    "migrate:data": "ts-node --project tsconfig.scripts.json scripts/migrate-data-sql.ts",
+    "export:vercel": "ts-node --project tsconfig.scripts.json scripts/export-vercel-data.ts",
+    "import:aws": "ts-node --project tsconfig.scripts.json scripts/import-aws-rds.ts"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"commonjs\"} prisma/seed.ts"
@@ -27,6 +31,7 @@
     "@prisma/client": "^7.2.0",
     "@prisma/extension-accelerate": "^3.0.1",
     "@radix-ui/react-slot": "^1.2.4",
+    "@types/pg": "^8.16.0",
     "@vercel/postgres": "^0.10.0",
     "autoprefixer": "^10.4.23",
     "axios": "^1.13.2",
@@ -37,6 +42,7 @@
     "lucide-react": "^0.562.0",
     "next": "^16.1.1",
     "next-auth": "^5.0.0-beta.30",
+    "pg": "^8.17.2",
     "postcss": "^8.5.6",
     "prisma": "^7.2.0",
     "react": "^19.2.3",
