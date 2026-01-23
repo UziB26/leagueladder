@@ -76,9 +76,7 @@ if (!finalDatabaseUrl) {
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
-  datasource: {
-    url: finalDatabaseUrl,
-  },
+  datasourceUrl: finalDatabaseUrl,
   // Note: Generator configuration (including engineType) is in schema.prisma
   // The generator there is set to engineType = "binary" which is what we want
   migrations: {
