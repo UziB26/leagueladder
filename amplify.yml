@@ -3,16 +3,20 @@ frontend:
   phases:
     preBuild:
       commands:
-        # Set Prisma engine type to binary BEFORE generating client
+        # CRITICAL: Set Prisma engine type to binary BEFORE generating client
         # This ensures the generated client uses binary engine, not client engine
+        # Must be set as environment variable, not just export (for npm scripts)
+        - PRISMA_CLIENT_ENGINE_TYPE=binary npm ci
+        # Ensure it's set in the shell environment too
         - export PRISMA_CLIENT_ENGINE_TYPE=binary
         - export DATABASE_URL=${DATABASE_URL:-postgresql://dummy:dummy@localhost:5432/dummy?schema=public}
-        - npm ci
-        # Generate Prisma Client with binary engine type
-        - npx prisma generate
+        # Generate Prisma Client with binary engine type explicitly set
+        - PRISMA_CLIENT_ENGINE_TYPE=binary npx prisma generate
     build:
       commands:
-        - npm run build
+        # Ensure engine type is set during build phase too
+        - export PRISMA_CLIENT_ENGINE_TYPE=binary
+        - PRISMA_CLIENT_ENGINE_TYPE=binary npm run build
   artifacts:
     baseDirectory: .next
     files:

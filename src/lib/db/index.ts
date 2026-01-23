@@ -93,9 +93,15 @@ function createPrismaClient() {
     clientConfig.accelerateUrl = accelerateUrl
   }
   
+  // CRITICAL: NEVER set engineType in the constructor
+  // The engine type is determined by:
+  // 1. PRISMA_CLIENT_ENGINE_TYPE environment variable (set to 'binary' above)
+  // 2. schema.prisma generator config (engineType = "binary")
+  // Setting engineType: 'client' here would require adapter/accelerateUrl and cause errors
+  // Do NOT add: engineType: 'client' or engineType: 'binary' here
+  
   // Prisma Client reads DATABASE_URL from environment automatically
   // We don't need to pass it via constructor
-  // The engine type is determined by PRISMA_CLIENT_ENGINE_TYPE env var and schema.prisma generator config
   return new PrismaClient(clientConfig)
 }
 

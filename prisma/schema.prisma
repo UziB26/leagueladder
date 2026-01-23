@@ -10,6 +10,8 @@ datasource db {
 generator client {
   provider = "prisma-client-js"
   engineType = "binary"
+  // Explicitly disable edge runtime to prevent "client" engine type detection
+  // This ensures we always use binary engine, not client engine (which requires adapter)
 }
 
 // NextAuth.js tables
