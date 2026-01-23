@@ -41,42 +41,14 @@ const globalForPrisma = globalThis as unknown as {
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
 // Get database URL from environment variables (Prisma 7 requirement)
-// CRITICAL: For AWS Amplify, ONLY use DATABASE_URL (AWS RDS)
-// For Vercel, we can use Vercel-specific variables
-// This prevents confusion between Vercel Postgres and AWS RDS
-const isAwsAmplify = process.env.AWS_AMPLIFY === 'true' || process.env.AWS_EXECUTION_ENV !== undefined
-const isVercel = process.env.VERCEL === '1'
-
-let databaseUrl: string | undefined
-let accelerateUrl: string | undefined
-
-if (isAwsAmplify) {
-  // AWS Amplify: ONLY use DATABASE_URL (AWS RDS connection)
-  // Ignore all Vercel-specific variables to prevent conflicts
-  databaseUrl = process.env.DATABASE_URL
-  accelerateUrl = undefined // AWS RDS doesn't use Accelerate
-} else if (isVercel) {
-  // Vercel: Use Vercel Postgres variables (can include Accelerate)
-  databaseUrl = 
-    process.env.PRISMA_DATABASE_URL ||      // Vercel Postgres variable
-    process.env.POSTGRES_PRISMA_URL ||      // Standard Vercel Postgres variable
-    process.env.POSTGRES_URL ||             // Alternative Postgres URL
-    process.env.DATABASE_URL;               // Generic fallback
-  // Only set accelerateUrl if it's a real Accelerate URL (starts with prisma+)
-  accelerateUrl = process.env.PRISMA_DATABASE_URL?.startsWith('prisma+')
-    ? process.env.PRISMA_DATABASE_URL
-    : undefined
-} else {
-  // Local development: Use any available variable
-  databaseUrl = 
-    process.env.DATABASE_URL ||              // Generic (preferred for local)
-    process.env.PRISMA_DATABASE_URL ||      // Vercel Postgres variable
-    process.env.POSTGRES_PRISMA_URL ||      // Standard Vercel Postgres variable
-    process.env.POSTGRES_URL;               // Alternative Postgres URL
-  accelerateUrl = process.env.PRISMA_DATABASE_URL?.startsWith('prisma+')
-    ? process.env.PRISMA_DATABASE_URL
-    : undefined
-}
+const databaseUrl = 
+  process.env.PRISMA_DATABASE_URL ||      // Vercel Postgres variable
+  process.env.POSTGRES_PRISMA_URL ||      // Standard Vercel Postgres variable
+  process.env.POSTGRES_URL ||             // Alternative Postgres URL
+  process.env.DATABASE_URL;               // Generic fallback
+const accelerateUrl = process.env.PRISMA_DATABASE_URL?.startsWith('prisma+')
+  ? process.env.PRISMA_DATABASE_URL
+  : undefined
 
 // Warn if no database URL is configured
 if (!databaseUrl) {
@@ -118,14 +90,13 @@ function createPrismaClient() {
     log: logLevels,
   }
   
-  // CRITICAL: Only use accelerateUrl on Vercel with real Accelerate URLs
-  // AWS RDS NEVER uses Accelerate - it's a direct PostgreSQL connection
-  // Setting accelerateUrl on AWS will cause Prisma to detect "client" engine type
-  if (!isAwsAmplify && accelerateUrl && accelerateUrl.startsWith('prisma+')) {
-    // Only set accelerateUrl for Vercel with real Accelerate URLs
+  // Only use accelerateUrl if explicitly provided (and it's a real Accelerate URL)
+  // For AWS RDS, we use direct connection, not Accelerate
+  // IMPORTANT: Do NOT set accelerateUrl unless it's a real Prisma Accelerate URL
+  // Setting it incorrectly will cause the "requires adapter or accelerateUrl" error
+  if (accelerateUrl && accelerateUrl.startsWith('prisma+')) {
     clientConfig.accelerateUrl = accelerateUrl
   }
-  // For AWS Amplify: NEVER set accelerateUrl, always use direct connection
   
   // CRITICAL: NEVER set engineType in the constructor
   // The engine type is determined by:

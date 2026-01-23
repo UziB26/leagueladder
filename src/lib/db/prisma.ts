@@ -33,18 +33,9 @@ const globalForPrisma = globalThis as unknown as {
 // Allow self-signed certs during local builds (Prisma fetch)
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
-// CRITICAL: For AWS Amplify, NEVER use Accelerate URLs (they require "client" engine type)
-// Only check for Accelerate URLs on Vercel
-const isAwsAmplify = process.env.AWS_AMPLIFY === 'true' || process.env.AWS_EXECUTION_ENV !== undefined
-const isVercel = process.env.VERCEL === '1'
-
-let accelerateUrl: string | undefined
-if (!isAwsAmplify && isVercel) {
-  // Only check for Accelerate URLs on Vercel, not AWS
-  accelerateUrl = process.env.PRISMA_DATABASE_URL?.startsWith('prisma+')
-    ? process.env.PRISMA_DATABASE_URL
-    : undefined
-}
+const accelerateUrl = process.env.PRISMA_DATABASE_URL?.startsWith('prisma+')
+  ? process.env.PRISMA_DATABASE_URL
+  : undefined
 
 // Create Prisma Client without Accelerate to avoid build-time type issues
 function createPrismaClient() {
@@ -58,14 +49,11 @@ function createPrismaClient() {
     log: logLevels,
   }
   
-  // CRITICAL: Only use accelerateUrl on Vercel with real Accelerate URLs
-  // AWS RDS NEVER uses Accelerate - it's a direct PostgreSQL connection
-  // Setting accelerateUrl on AWS will cause Prisma to detect "client" engine type
-  if (!isAwsAmplify && accelerateUrl && accelerateUrl.startsWith('prisma+')) {
-    // Only set accelerateUrl for Vercel with real Accelerate URLs
+  // Only use accelerateUrl if explicitly provided (and it's a real Accelerate URL)
+  // For AWS RDS, we use direct connection, not Accelerate
+  if (accelerateUrl && accelerateUrl.startsWith('prisma+')) {
     clientConfig.accelerateUrl = accelerateUrl
   }
-  // For AWS Amplify: NEVER set accelerateUrl, always use direct connection
 
   // CRITICAL: NEVER set engineType in the constructor
   // The engine type is determined by:
