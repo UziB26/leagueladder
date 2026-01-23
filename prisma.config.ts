@@ -1,6 +1,14 @@
 import { defineConfig } from "prisma/config";
 import { resolve } from "path";
 
+// CRITICAL: Force binary engine type BEFORE any Prisma operations
+// This must be set before Prisma CLI reads the config
+// Setting it here ensures it's available during prisma generate
+if (!process.env.PRISMA_CLIENT_ENGINE_TYPE) {
+  process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+}
+process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+
 // Load .env files if dotenv is available (optional for build environments)
 // In Amplify/Vercel, environment variables are already set, so dotenv isn't needed
 try {
@@ -13,6 +21,9 @@ try {
   // dotenv not available - this is fine in build environments where env vars are already set
   // Environment variables should be set in Amplify Console
 }
+
+// Ensure engine type is still set after dotenv loads (in case it was overridden)
+process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
 
 // Check for Prisma database URL variables in order of preference
 // IMPORTANT: For migrations, use direct database URL (not Accelerate)
@@ -39,9 +50,16 @@ const isBuildTime = process.env.VERCEL === '1' ||
 // This allows prisma generate to work without a real database connection
 // The dummy URL is only used for schema parsing, not actual connection
 // For migrations and db push, we MUST have a real database URL
+// IMPORTANT: Never use Accelerate URLs (prisma+postgres://) here - they cause engine type detection issues
 const finalDatabaseUrl = databaseUrl || (isBuildTime 
   ? "postgresql://dummy:dummy@localhost:5432/dummy?schema=public"
   : null);
+
+// Ensure DATABASE_URL is set in environment for Prisma Client generation
+// This prevents Prisma from detecting "client" engine type during generate
+if (isBuildTime && !process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = finalDatabaseUrl || "postgresql://dummy:dummy@localhost:5432/dummy?schema=public"
+}
 
 if (!finalDatabaseUrl) {
   throw new Error(
@@ -62,6 +80,8 @@ export default defineConfig({
   datasource: {
     url: finalDatabaseUrl,
   },
+  // Note: Generator configuration (including engineType) is in schema.prisma
+  // The generator there is set to engineType = "binary" which is what we want
   migrations: {
     seed: "ts-node --project tsconfig.prisma.json -r dotenv/config prisma/seed.ts"
   },
