@@ -28,6 +28,8 @@ const nextConfig: NextConfig = {
     serverActions: {
       allowedOrigins: ['localhost:3000'],
     },
+    // Enable instrumentation hook to set environment variables before any code runs
+    instrumentationHook: true,
   },
   // CRITICAL: Expose environment variables to Next.js build process
   // This ensures PRISMA_CLIENT_ENGINE_TYPE is available during module evaluation
