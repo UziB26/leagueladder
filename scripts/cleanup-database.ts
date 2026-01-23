@@ -19,7 +19,7 @@ import { resolve } from 'path'
 dotenv.config({ path: resolve(process.cwd(), '.env') })
 dotenv.config({ path: resolve(process.cwd(), '.env.local') })
 
-import { PrismaClient } from '../app/generated-prisma-client'
+import { PrismaClient } from '@prisma/client'
 
 // Force Prisma to use the binary/query-engine locally (avoid accelerate/dataproxy expectations)
 if (!process.env.PRISMA_CLIENT_ENGINE_TYPE) {

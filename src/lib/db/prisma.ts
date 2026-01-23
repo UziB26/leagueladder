@@ -3,7 +3,7 @@
  * Provides type-safe database access
  */
 
-import { PrismaClient, Prisma } from 'app/generated-prisma-client'
+import { PrismaClient, Prisma } from '@prisma/client'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: ReturnType<typeof createPrismaClient> | undefined

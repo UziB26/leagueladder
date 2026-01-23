@@ -9,7 +9,7 @@ import { prisma } from '@/lib/db/prisma'
 import { apiRateLimit } from '@/lib/rate-limit'
 import { validateRequest, requestSchemas } from '@/lib/validation'
 import { sanitizeString } from '@/lib/sanitize'
-import type { Prisma } from 'app/generated-prisma-client'
+import type { Prisma } from '@prisma/client'
 
 export async function POST(request: NextRequest) {
   try {

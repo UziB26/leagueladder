@@ -25,7 +25,7 @@ if (!process.env.PRISMA_CLIENT_ENGINE_TYPE) {
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
 // Import PrismaClient AFTER setting engine type
-import { PrismaClient } from '../app/generated-prisma-client'
+import { PrismaClient } from '@prisma/client'
 
 async function migrateData() {
   console.log('🔄 Starting data migration from Vercel Postgres to AWS RDS...\n')

@@ -19,7 +19,7 @@ if (!process.env.PRISMA_CLIENT_ENGINE_TYPE) {
 // Allow self-signed certs during local builds (Prisma fetch)
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
-import { PrismaClient } from '../app/generated-prisma-client'
+import { PrismaClient } from '@prisma/client'
 
 // Get database URL from environment
 const databaseUrl = 
