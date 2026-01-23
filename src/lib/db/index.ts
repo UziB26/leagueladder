@@ -5,8 +5,12 @@
  * Prisma 7: Connection URL must be passed to PrismaClient constructor
  * instead of being in schema.prisma
  * 
- * Includes Prisma Accelerate for improved performance and query caching
+ * IMPORTANT: Force binary engine type BEFORE importing PrismaClient
+ * This prevents Accelerate detection which requires accelerateUrl
  */
+// Force Prisma to use the binary/query-engine (avoid accelerate/dataproxy expectations)
+// This MUST be set before importing PrismaClient
+process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
 
 import { PrismaClient, Prisma } from '@prisma/client'
 
@@ -14,9 +18,6 @@ const globalForPrisma = globalThis as unknown as {
   prisma: ReturnType<typeof createPrismaClient> | undefined
 }
 
-// Force Prisma to use the binary/query-engine (avoid accelerate/dataproxy expectations)
-// This MUST be set before importing PrismaClient
-process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
 // Allow self-signed certs during local builds (Prisma fetch)
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
