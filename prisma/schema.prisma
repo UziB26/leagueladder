@@ -1,9 +1,9 @@
 // Prisma Schema for League Ladder
 // PostgreSQL database for production and development
-
-// Note: Connection URL is configured in prisma.config.ts (Prisma 7 requirement)
+// Connection URL is configured via DATABASE_URL environment variable
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // Define custom output path for generated Prisma Client

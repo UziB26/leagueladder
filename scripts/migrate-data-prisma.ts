@@ -62,8 +62,7 @@ async function migrateData() {
 
   // Create Prisma clients for both databases
   // We need to use $connect() with custom connection strings
-  // Since Prisma Client reads from prisma.config.ts, we'll need to
-  // temporarily override the connection via environment variables
+  // Temporarily override the connection via environment variables
   
   const originalDatabaseUrl = process.env.DATABASE_URL
   const originalPostgresUrl = process.env.POSTGRES_URL
