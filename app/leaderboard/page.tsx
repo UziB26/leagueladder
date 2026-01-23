@@ -1,3 +1,4 @@
+import React from 'react'
 import { db } from "@/lib/db"
 import { LeaderboardListClient } from "@/components/leaderboard/leaderboard-list-client"
 import { LeaderboardEntry } from "@/types/database"

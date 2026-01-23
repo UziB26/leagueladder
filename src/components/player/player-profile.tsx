@@ -1,5 +1,6 @@
 "use client"
 
+import React from 'react'
 import { Player } from "@/types/database"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { PlayerMatchHistory } from "./player-match-history"
