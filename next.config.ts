@@ -35,10 +35,15 @@ const nextConfig: NextConfig = {
   },
   // CRITICAL: Expose environment variables to Next.js build process
   // This ensures PRISMA_CLIENT_ENGINE_TYPE is available during module evaluation
+  // This is especially important for AWS Amplify builds
   env: {
-    PRISMA_CLIENT_ENGINE_TYPE: process.env.PRISMA_CLIENT_ENGINE_TYPE || 'binary',
-    // Also ensure DATABASE_URL is available during build
-    ...(process.env.DATABASE_URL ? { DATABASE_URL: process.env.DATABASE_URL } : {}),
+    PRISMA_CLIENT_ENGINE_TYPE: 'binary', // Always set to binary, never allow override
+    // Set DATABASE_URL if not already set (for build time)
+    DATABASE_URL: process.env.DATABASE_URL || 
+      process.env.PRISMA_DATABASE_URL || 
+      process.env.POSTGRES_PRISMA_URL || 
+      process.env.POSTGRES_URL ||
+      'postgresql://dummy:dummy@localhost:5432/dummy?schema=public',
   },
   // Image configuration
   images: {
