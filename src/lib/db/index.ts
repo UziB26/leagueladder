@@ -9,9 +9,12 @@
  * This prevents Accelerate detection which requires accelerateUrl
  */
 
-// CRITICAL: Import setup FIRST to ensure environment variables are set
-// This must be the very first import
+// CRITICAL: Import environment setup FIRST - before ANY other imports
+// This must be the very first import to ensure env vars are set before Prisma reads them
 import './setup'
+// CRITICAL: Import Prisma-specific env setup before importing PrismaClient
+// Prisma reads environment variables at import time, not instantiation time
+import './prisma-env'
 
 // Force Prisma to use the binary/query-engine (avoid accelerate/dataproxy expectations)
 // This MUST be set before importing PrismaClient
@@ -23,13 +26,27 @@ process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
 
 // During build time (Amplify/Vercel), ensure DATABASE_URL is set even if dummy
 // This prevents Prisma from detecting "client" engine type
-if ((process.env.VERCEL === '1' || process.env.AWS_AMPLIFY === 'true' || process.env.CI === 'true') && !process.env.DATABASE_URL) {
+// CRITICAL: Detect AWS Amplify environment
+if (!process.env.AWS_AMPLIFY && (process.env.AWS_EXECUTION_ENV || process.env.AWS_REGION)) {
+  process.env.AWS_AMPLIFY = 'true'
+}
+
+const isBuildTime = process.env.VERCEL === '1' || 
+                    process.env.AWS_AMPLIFY === 'true' || 
+                    process.env.AWS_EXECUTION_ENV !== undefined ||
+                    process.env.CI === 'true'
+
+if (isBuildTime && !process.env.DATABASE_URL) {
   process.env.DATABASE_URL = process.env.DATABASE_URL || 
     process.env.PRISMA_DATABASE_URL || 
     process.env.POSTGRES_PRISMA_URL || 
     process.env.POSTGRES_URL ||
     'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
 }
+
+// CRITICAL: Re-assert binary engine type right before importing PrismaClient
+// This is the absolute last chance before Prisma reads the environment
+process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
 
 import { PrismaClient, Prisma } from '@prisma/client'
 
@@ -66,6 +83,22 @@ if (!databaseUrl) {
 
 // Create Prisma Client (without Accelerate to avoid type issues in build)
 function createPrismaClient() {
+  // CRITICAL: Set environment variables AGAIN right before PrismaClient instantiation
+  // This is the last chance to ensure they're set before Prisma reads them
+  if (!process.env.PRISMA_CLIENT_ENGINE_TYPE) {
+    process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+  }
+  process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+  
+  // Ensure DATABASE_URL is set (prevents client engine type detection)
+  if (!process.env.DATABASE_URL && (process.env.AWS_AMPLIFY === 'true' || process.env.AWS_EXECUTION_ENV || process.env.VERCEL === '1' || process.env.CI === 'true')) {
+    process.env.DATABASE_URL = process.env.DATABASE_URL || 
+      process.env.PRISMA_DATABASE_URL || 
+      process.env.POSTGRES_PRISMA_URL || 
+      process.env.POSTGRES_URL ||
+      'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
+  }
+  
   const logLevels: Prisma.LogLevel[] =
     process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
 
@@ -111,6 +144,22 @@ function createPrismaClient() {
 }
 
 // Create singleton instance (reused in development, new in production)
+// CRITICAL: Ensure environment variables are set one final time before instantiation
+// This is especially important for AWS Amplify builds during page data collection
+if (!process.env.PRISMA_CLIENT_ENGINE_TYPE) {
+  process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+}
+process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+
+// Ensure DATABASE_URL is set before PrismaClient instantiation
+if (!process.env.DATABASE_URL && (process.env.AWS_AMPLIFY === 'true' || process.env.AWS_EXECUTION_ENV || process.env.VERCEL === '1')) {
+  process.env.DATABASE_URL = process.env.DATABASE_URL || 
+    process.env.PRISMA_DATABASE_URL || 
+    process.env.POSTGRES_PRISMA_URL || 
+    process.env.POSTGRES_URL ||
+    'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
+}
+
 const prisma = globalForPrisma.prisma ?? createPrismaClient()
 
 if (process.env.NODE_ENV !== 'production') {
