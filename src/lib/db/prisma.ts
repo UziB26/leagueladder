@@ -3,6 +3,10 @@
  * Provides type-safe database access
  */
 
+// CRITICAL: Import setup FIRST to ensure environment variables are set
+// This must be the very first import
+import './setup'
+
 // Force Prisma to use the binary/query-engine (avoid accelerate/dataproxy expectations)
 // This MUST be set before importing PrismaClient
 if (!process.env.PRISMA_CLIENT_ENGINE_TYPE) {

@@ -8,6 +8,11 @@
  * IMPORTANT: Force binary engine type BEFORE importing PrismaClient
  * This prevents Accelerate detection which requires accelerateUrl
  */
+
+// CRITICAL: Import setup FIRST to ensure environment variables are set
+// This must be the very first import
+import './setup'
+
 // Force Prisma to use the binary/query-engine (avoid accelerate/dataproxy expectations)
 // This MUST be set before importing PrismaClient
 // Set it multiple times to ensure it's set before any module evaluation

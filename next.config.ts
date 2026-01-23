@@ -1,5 +1,22 @@
 import type { NextConfig } from "next";
 
+// CRITICAL: Set Prisma engine type BEFORE any module evaluation
+// This must be set at the very top level to ensure it's available during Next.js build
+if (!process.env.PRISMA_CLIENT_ENGINE_TYPE) {
+  process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+}
+process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+
+// Ensure DATABASE_URL is set during build time (even if dummy)
+// This prevents Prisma from detecting "client" engine type
+if ((process.env.VERCEL === '1' || process.env.AWS_AMPLIFY === 'true' || process.env.CI === 'true') && !process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = process.env.DATABASE_URL || 
+    process.env.PRISMA_DATABASE_URL || 
+    process.env.POSTGRES_PRISMA_URL || 
+    process.env.POSTGRES_URL ||
+    'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
+}
+
 const nextConfig: NextConfig = {
   // Disable Vercel features
   devIndicators: {
@@ -11,6 +28,13 @@ const nextConfig: NextConfig = {
     serverActions: {
       allowedOrigins: ['localhost:3000'],
     },
+  },
+  // CRITICAL: Expose environment variables to Next.js build process
+  // This ensures PRISMA_CLIENT_ENGINE_TYPE is available during module evaluation
+  env: {
+    PRISMA_CLIENT_ENGINE_TYPE: process.env.PRISMA_CLIENT_ENGINE_TYPE || 'binary',
+    // Also ensure DATABASE_URL is available during build
+    ...(process.env.DATABASE_URL ? { DATABASE_URL: process.env.DATABASE_URL } : {}),
   },
   // Image configuration
   images: {
