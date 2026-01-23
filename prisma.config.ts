@@ -21,7 +21,9 @@ const databaseUrl =
 // During build time (prisma generate), we don't need a real connection
 // Prisma generate only needs the schema, not a database connection
 // We provide a dummy URL if none is set to allow generation to proceed
+// Support both Vercel and AWS Amplify build environments
 const isBuildTime = process.env.VERCEL === '1' || 
+                    process.env.AWS_AMPLIFY === 'true' ||
                     process.env.NEXT_PHASE === 'phase-production-build';
 
 // Use a dummy connection string ONLY during build/generate (not for migrations or push)
