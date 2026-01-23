@@ -50,10 +50,27 @@ function createPrismaClient() {
   const logLevels: Prisma.LogLevel[] =
     process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
 
-  return new PrismaClient({
+  // During build time, if no database URL is available, use a dummy URL
+  // This allows Prisma Client to be instantiated for type checking
+  // Prisma Client with binary engine type needs a datasource URL
+  const buildTimeUrl = databaseUrl || 'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
+  
+  const clientConfig: any = {
     log: logLevels,
-    ...(accelerateUrl ? { accelerateUrl } : {}),
-  })
+  }
+  
+  // If we have an accelerate URL, use it
+  if (accelerateUrl) {
+    clientConfig.accelerateUrl = accelerateUrl
+  } else if (databaseUrl) {
+    // If we have a regular database URL, provide it via datasources
+    clientConfig.datasources = { db: { url: databaseUrl } }
+  } else {
+    // Build time: use dummy URL
+    clientConfig.datasources = { db: { url: buildTimeUrl } }
+  }
+  
+  return new PrismaClient(clientConfig)
 }
 
 // Create singleton instance (reused in development, new in production)
