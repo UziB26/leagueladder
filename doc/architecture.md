@@ -501,7 +501,7 @@ stateDiagram-v2
     [*] --> ChallengeAccepted: Challenge accepted
     
     ChallengeAccepted --> MatchReported: Player reports match
-    MatchReported --> PendingConfirmation: Match created (status: pending_confirmation)
+    MatchReported --> PendingConfirmation: Match created
     
     PendingConfirmation --> Confirmed: Opponent confirms
     PendingConfirmation --> Disputed: Opponent disputes
