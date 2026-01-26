@@ -14,6 +14,14 @@ export async function POST(request: NextRequest) {
     // Check email service configuration first
     const hasResendKey = !!process.env.RESEND_API_KEY
     const hasEmailFrom = !!process.env.EMAIL_FROM
+    const emailFrom = process.env.EMAIL_FROM
+    
+    console.log('[Send Verification] Environment check:', {
+      hasResendKey,
+      hasEmailFrom,
+      emailFrom,
+      resendKeyPrefix: process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.substring(0, 7) + '...' : 'missing'
+    })
     
     if (!hasResendKey || !hasEmailFrom) {
       console.error('[Send Verification] Email service not configured:', {
@@ -27,6 +35,11 @@ export async function POST(request: NextRequest) {
         },
         { status: 503 }
       )
+    }
+    
+    // Warn if not using onboarding@resend.dev
+    if (emailFrom && !emailFrom.includes('@resend.dev') && !emailFrom.includes('@')) {
+      console.warn('[Send Verification] EMAIL_FROM might be invalid:', emailFrom)
     }
 
     // Apply rate limiting
