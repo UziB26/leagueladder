@@ -1,5 +1,10 @@
 # League Ladder - System Architecture
 
+**Last Updated**: January 2026  
+**Version**: 1.0
+
+---
+
 ## High-Level Architecture
 
 ```mermaid
@@ -33,9 +38,9 @@ graph TB
     end
     
     subgraph "Data Layer"
-        Q[SQLite Database]
-        R[Database Helpers]
-        S[Database Triggers]
+        Q[PostgreSQL Database]
+        R[Prisma ORM]
+        S[Connection Pooling]
     end
     
     A --> C
@@ -57,7 +62,7 @@ graph TB
     N --> P
     O --> P
     P --> R
-    R --> Q
+    R --> S
     S --> Q
     
     style Q fill:#e1f5e1
@@ -66,7 +71,10 @@ graph TB
     style H fill:#fce4ec
     style I fill:#fce4ec
     style J fill:#fce4ec
+    style R fill:#e8f5e9
 ```
+
+---
 
 ## Architecture Layers
 
@@ -74,6 +82,7 @@ graph TB
 - **Web Browser**: Desktop users accessing via Chrome, Firefox, Safari, Edge
 - **Mobile Browser**: Mobile users on iOS Safari, Chrome Mobile, etc.
 - **Responsive Design**: Single codebase serves all device types
+- **PWA Support**: Progressive Web App capabilities for mobile installation
 
 ### 2. Presentation Layer
 - **Next.js 14 App Router**: Modern React framework with server-side rendering
@@ -81,28 +90,41 @@ graph TB
   - Authentication components (`src/components/auth/`)
   - Match components (`src/components/match/`)
   - League components (`src/components/league/`)
+  - Player components (`src/components/player/`)
+  - Admin components (`src/components/admin/`)
   - UI components (`src/components/ui/`)
 - **Tailwind CSS**: Utility-first CSS framework for styling
 - **NextAuth Session**: Client-side session management
+- **Server Components**: Next.js server components for data fetching
 
 ### 3. API Layer
 - **Next.js API Routes**: Serverless functions handling HTTP requests
-- **Rate Limiting**: Protects endpoints from abuse (multiple rate limiters)
+- **Rate Limiting**: Protects endpoints from abuse
+  - `apiRateLimit`: General API endpoints
+  - `strictRateLimit`: Admin and sensitive operations
 - **Input Sanitization**: Prevents injection attacks (SQL, XSS)
 - **Zod Validation**: Schema-based request validation
-- **Authentication Middleware**: `createProtectedHandler` for consistent auth checks
+- **Authentication Middleware**: Consistent auth checks via NextAuth
+- **Admin Authorization**: Database-verified admin status checks
 
 ### 4. Business Logic Layer
-- **Elo Calculator**: Rating calculation with margin of victory
+- **Elo Calculator**: Rating calculation with margin of victory (K-factor: 32)
 - **Match Confirmation Handler**: Two-player confirmation workflow
-- **Challenge Manager**: Challenge creation, acceptance, expiration
-- **Admin Controller**: Administrative operations (void matches, manage players)
-- **Transaction Manager**: Database transactions with backup/rollback
+- **Challenge Manager**: Challenge creation, acceptance, expiration (7 days)
+- **Admin Controller**: Administrative operations
+  - Void/un-void matches with rating reversion
+  - Adjust player ratings and stats
+  - Edit match scores with rating recalculation
+  - User and player management
+- **Transaction Manager**: Prisma transactions for data consistency
+- **Rating Reversion**: Automatic rating/stats rollback for voided matches
 
 ### 5. Data Layer
-- **SQLite Database**: File-based relational database (better-sqlite3)
-- **Database Helpers**: Abstraction layer for database operations
-- **Database Triggers**: Automatic rating updates, challenge status changes
+- **PostgreSQL Database**: Production-ready relational database
+- **Prisma ORM**: Type-safe database access with migrations
+- **Connection Pooling**: Managed by Prisma for optimal performance
+- **Database Migrations**: Version-controlled schema changes
+- **No Database Triggers**: All business logic in application layer
 
 ---
 
@@ -126,7 +148,7 @@ graph LR
 2. NextAuth validates and creates session
 3. Session stored in database (`sessions` table)
 4. Protected routes check session via middleware
-5. Admin routes require `is_admin = true` flag
+5. Admin routes verify `isAdmin` flag from database (not just session)
 
 ### Security Features
 
@@ -136,21 +158,23 @@ graph TB
     B -->|Allowed| C[Input Sanitizer]
     B -->|Blocked| D[429 Too Many Requests]
     C --> E[Zod Validator]
-    E -->|Valid| F[Business Logic]
+    E -->|Valid| F[Authentication Check]
     E -->|Invalid| G[400 Bad Request]
-    F --> H[Transaction Start]
-    H --> I[Database Operation]
-    I -->|Success| J[Commit Transaction]
-    I -->|Error| K[Rollback Transaction]
+    F -->|Authenticated| H[Authorization Check]
+    F -->|Not Authenticated| I[401 Unauthorized]
+    H -->|Authorized| J[Business Logic]
+    H -->|Not Authorized| K[403 Forbidden]
+    J --> L[Prisma Transaction]
+    L --> M[Database Operation]
+    M -->|Success| N[Commit Transaction]
+    M -->|Error| O[Rollback Transaction]
 ```
 
 **Security Layers:**
 1. **Rate Limiting**: Multiple limiters for different endpoints
-   - `authRateLimit`: Authentication endpoints
    - `apiRateLimit`: General API endpoints
-   - `strictRateLimit`: Sensitive operations
-   - `loginRateLimit`: Login attempts
-   - `registerRateLimit`: Registration attempts
+   - `strictRateLimit`: Admin and sensitive operations
+   - Prevents brute force and DoS attacks
 
 2. **Input Sanitization**: 
    - `sanitizeString()`: Removes dangerous characters
@@ -164,8 +188,8 @@ graph TB
    - Clear error messages for invalid input
 
 4. **Transactions**:
-   - `createBackup()`: Database backup before operations
-   - `restoreBackup()`: Rollback on errors
+   - Prisma `$transaction()` for atomic operations
+   - Automatic rollback on errors
    - Ensures data consistency
 
 ---
@@ -196,6 +220,7 @@ erDiagram
     leagues ||--o{ player_ratings : "hosts ratings"
     leagues ||--o{ challenges : "hosts"
     leagues ||--o{ matches : "hosts"
+    leagues ||--o{ rating_updates : "tracks"
     
     challenges ||--o| matches : "results in"
     
@@ -203,7 +228,7 @@ erDiagram
     matches ||--o{ rating_updates : "generates"
     
     users {
-        string id PK
+        uuid id PK
         string email UK
         string name
         boolean is_admin
@@ -212,8 +237,8 @@ erDiagram
     }
     
     players {
-        string id PK
-        string user_id FK
+        uuid id PK
+        uuid user_id FK
         string name
         string email
         string avatar
@@ -228,16 +253,16 @@ erDiagram
     }
     
     league_memberships {
-        string id PK
-        string player_id FK
+        uuid id PK
+        uuid player_id FK
         string league_id FK
         datetime joined_at
         boolean is_active
     }
     
     player_ratings {
-        string id PK
-        string player_id FK
+        uuid id PK
+        uuid player_id FK
         string league_id FK
         int rating
         int games_played
@@ -248,9 +273,9 @@ erDiagram
     }
     
     challenges {
-        string id PK
-        string challenger_id FK
-        string challengee_id FK
+        uuid id PK
+        uuid challenger_id FK
+        uuid challengee_id FK
         string league_id FK
         string status
         datetime created_at
@@ -258,24 +283,24 @@ erDiagram
     }
     
     matches {
-        string id PK
-        string challenge_id FK
-        string player1_id FK
-        string player2_id FK
-        string winner_id FK
-        string reported_by FK
+        uuid id PK
+        uuid challenge_id FK
+        uuid player1_id FK
+        uuid player2_id FK
+        uuid winner_id FK
+        uuid reported_by FK
         string league_id FK
         int player1_score
         int player2_score
         string status
-        datetime created_at
+        datetime played_at
         datetime confirmed_at
     }
     
     match_confirmations {
-        string id PK
-        string match_id FK
-        string player_id FK
+        uuid id PK
+        uuid match_id FK
+        uuid player_id FK
         string action
         int confirmed_score1
         int confirmed_score2
@@ -284,9 +309,9 @@ erDiagram
     }
     
     rating_updates {
-        string id PK
-        string match_id FK
-        string player_id FK
+        uuid id PK
+        uuid match_id FK
+        uuid player_id FK
         string league_id FK
         int old_rating
         int new_rating
@@ -295,10 +320,10 @@ erDiagram
     }
     
     admin_actions {
-        string id PK
-        string user_id FK
+        uuid id PK
+        uuid user_id FK
         string action
-        string target_id
+        uuid target_id
         string details
         datetime created_at
     }
@@ -306,12 +331,27 @@ erDiagram
 
 ### Key Relationships
 
-- **Users → Players**: One-to-one (each user has one player profile)
+- **Users → Players**: One-to-many (each user can have multiple player profiles, though typically one)
 - **Players → Leagues**: Many-to-many (via `league_memberships`)
 - **Players → Ratings**: One-to-many per league (via `player_ratings`)
 - **Challenges → Matches**: One-to-one (each challenge can result in one match)
 - **Matches → Confirmations**: One-to-many (one confirmation per participant)
 - **Matches → Rating Updates**: One-to-many (one update per player per match)
+- **Users → Admin Actions**: One-to-many (audit trail for admin operations)
+
+### Match Status Flow
+
+```mermaid
+stateDiagram-v2
+    [*] --> PendingConfirmation: Match reported
+    PendingConfirmation --> Completed: Opponent confirms
+    PendingConfirmation --> Disputed: Opponent disputes
+    Completed --> Voided: Admin voids match
+    Voided --> Completed: Admin un-voids match
+    Completed --> [*]: Process complete
+    Disputed --> [*]: Admin review
+    Voided --> [*]: Match hidden from history
+```
 
 ---
 
@@ -326,39 +366,70 @@ erDiagram
 │
 ├── /leagues                     # League operations
 │   ├── GET                      # List all leagues
-│   └── /[leagueId]/matches     # Get league matches
+│   ├── POST /join               # Join a league
+│   └── /[leagueId]
+│       ├── GET /membership      # Check membership
+│       ├── GET /stats           # League statistics
+│       ├── GET /matches         # League match history
+│       └── GET /matches/count   # Match count
 │
 ├── /challenges                  # Challenge management
-│   ├── GET                      # List challenges
+│   ├── GET                      # List all challenges
 │   ├── POST                     # Create challenge
-│   ├── /incoming                # Get incoming challenges
-│   └── /outgoing                # Get outgoing challenges
+│   ├── GET /incoming            # Get incoming challenges
+│   ├── GET /outgoing            # Get outgoing challenges
+│   └── /[challengeId]
+│       ├── POST /accept         # Accept challenge
+│       ├── POST /decline        # Decline challenge
+│       └── POST /cancel         # Cancel challenge
 │
 ├── /matches                     # Match operations
 │   ├── GET                      # List matches
 │   ├── POST                     # Report match
-│   ├── /pending-confirmations   # Get pending confirmations
-│   ├── /pending-count           # Get count of pending items
-│   ├── /from-challenge/[id]     # Report match from challenge
+│   ├── GET /history             # Match history with ratings
+│   ├── GET /pending-confirmations # Pending confirmations
+│   ├── GET /pending-count       # Count of pending items
+│   ├── GET /count               # Total match count
+│   ├── POST /from-challenge/[id] # Report from challenge
 │   └── /[matchId]
 │       ├── GET                  # Get match details
-│       └── /confirm             # Confirm/dispute match
+│       ├── PUT                  # Update match (admin)
+│       ├── DELETE               # Delete match (admin)
+│       └── POST /confirm        # Confirm/dispute match
 │
 ├── /leaderboard/[leagueId]      # Get league leaderboard
 │
 ├── /players                     # Player operations
-│   ├── /available               # Get available players
-│   ├── /me                      # Get current player
+│   ├── GET /available           # Get available players
+│   ├── GET /me                  # Get current player
 │   └── /[playerId]
-│       ├── /matches             # Get player matches
-│       └── /rating-history      # Get rating history
+│       ├── GET                  # Get player details
+│       ├── GET /matches         # Get player matches
+│       └── GET /rating-history  # Get rating history
+│
+├── /user                        # User operations
+│   ├── GET /stats               # User statistics
+│   └── GET /onboarding-status   # Check onboarding
 │
 └── /admin                       # Admin operations
-    ├── /stats                   # System statistics
-    ├── /users                   # User management
-    ├── /players                 # Player management
-    ├── /matches                 # Match management
-    └── /leagues                 # League management
+    ├── GET /stats               # System statistics
+    ├── GET /users               # List all users
+    ├── GET /users/[userId]      # Get user details
+    ├── POST /users/[userId]/toggle-admin # Toggle admin
+    ├── DELETE /users/[userId]   # Delete user
+    ├── GET /players             # List all players
+    ├── GET /players/[playerId]  # Get player details
+    ├── DELETE /players/[playerId] # Delete player
+    ├── PUT /players/[playerId]/ratings/[leagueId] # Adjust rating
+    ├── PUT /players/[playerId]/stats/[leagueId] # Adjust stats
+    ├── GET /matches             # List all matches
+    ├── PUT /matches/[matchId]   # Edit match scores
+    ├── POST /matches/[matchId]/void # Void match
+    ├── POST /matches/[matchId]/unvoid # Un-void match
+    ├── DELETE /matches/[matchId] # Delete match
+    ├── GET /leagues             # List all leagues
+    ├── GET /db/cleanup          # Preview cleanup
+    └── POST /db/cleanup         # Perform cleanup
 ```
 
 ### API Request Flow
@@ -372,8 +443,8 @@ sequenceDiagram
     participant Sanitize as Input Sanitizer
     participant Validate as Zod Validator
     participant Business as Business Logic
-    participant DB as Database
-    participant Transaction as Transaction Manager
+    participant Prisma as Prisma ORM
+    participant DB as PostgreSQL
 
     Client->>API: HTTP Request
     API->>RateLimit: Check rate limit
@@ -393,22 +464,25 @@ sequenceDiagram
             alt Invalid Schema
                 API-->>Client: 400 Bad Request
             else Valid Schema
-                API->>Transaction: Start transaction
-                Transaction->>DB: Create backup
-                DB-->>Transaction: Backup created
-                Transaction->>Business: Execute business logic
-                Business->>DB: Database operations
-                DB-->>Business: Results
-                Business-->>Transaction: Success/Error
+                API->>Prisma: Start transaction
+                Prisma->>DB: Begin transaction
+                API->>Business: Execute business logic
+                Business->>Prisma: Database operations
+                Prisma->>DB: Execute queries
+                DB-->>Prisma: Results
+                Prisma-->>Business: Results
+                Business-->>API: Success/Error
                 alt Success
-                    Transaction->>DB: Commit
-                    DB-->>Transaction: Committed
-                    Transaction-->>API: Success
+                    API->>Prisma: Commit transaction
+                    Prisma->>DB: Commit
+                    DB-->>Prisma: Committed
+                    Prisma-->>API: Success
                     API-->>Client: 200 OK + Data
                 else Error
-                    Transaction->>DB: Rollback
-                    DB-->>Transaction: Rolled back
-                    Transaction-->>API: Error
+                    API->>Prisma: Rollback transaction
+                    Prisma->>DB: Rollback
+                    DB-->>Prisma: Rolled back
+                    Prisma-->>API: Error
                     API-->>Client: 500 Internal Server Error
                 end
             end
@@ -435,10 +509,13 @@ stateDiagram-v2
     Confirmed --> Completed: Ratings updated
     Disputed --> AdminReview: Admin intervention required
     AdminReview --> Completed: Admin resolves
-    AdminReview --> Cancelled: Admin voids match
+    AdminReview --> Voided: Admin voids match
+    
+    Completed --> Voided: Admin voids match
+    Voided --> Completed: Admin un-voids match
     
     Completed --> [*]: Process complete
-    Cancelled --> [*]: Process complete
+    Voided --> [*]: Match hidden from history
 ```
 
 ### Match Confirmation Sequence
@@ -448,52 +525,64 @@ sequenceDiagram
     participant P1 as Player 1 (Reporter)
     participant UI as Match UI
     participant API as API Route
-    participant DB as Database
+    participant Prisma as Prisma ORM
+    participant DB as PostgreSQL
     participant P2 as Player 2 (Opponent)
     participant Elo as Elo Calculator
-    participant Trigger as DB Triggers
 
     P1->>UI: Report match (11-10)
     UI->>API: POST /api/matches
-    API->>DB: Create match (status: pending_confirmation)
-    DB->>Trigger: Match inserted
-    Trigger->>DB: Set winner_id
-    DB-->>API: Match created
+    API->>Prisma: Create match (status: pending_confirmation)
+    Prisma->>DB: INSERT match
+    DB-->>Prisma: Match created
+    Prisma-->>API: Match created
     API-->>UI: Success (awaiting confirmation)
     UI-->>P1: Match reported, waiting for confirmation
 
     Note over P2: Player 2 logs in
     P2->>UI: View pending confirmations
     UI->>API: GET /api/matches/pending-confirmations
-    API->>DB: Query pending matches
-    DB-->>API: Return match
+    API->>Prisma: Query pending matches
+    Prisma->>DB: SELECT matches
+    DB-->>Prisma: Return match
+    Prisma-->>API: Return match
     API-->>UI: Show match details
     UI-->>P2: Display match (11-10)
 
     alt Player 2 Confirms
         P2->>UI: Click "Confirm Match"
         UI->>API: POST /api/matches/[id]/confirm (action: confirmed)
-        API->>DB: Start transaction
-        DB->>DB: Create backup
-        API->>DB: Update match status to 'completed'
-        DB->>Trigger: Status changed to 'completed'
-        Trigger->>DB: Update player stats
+        API->>Prisma: Start transaction
+        Prisma->>DB: BEGIN TRANSACTION
+        API->>Prisma: Update match status to 'completed'
+        Prisma->>DB: UPDATE match
         API->>Elo: Calculate new ratings
         Elo-->>API: Rating changes
-        API->>DB: Update player_ratings
-        API->>DB: Insert rating_updates
-        API->>DB: Insert match_confirmation
-        API->>DB: Update challenge status
-        API->>DB: Commit transaction
-        DB-->>API: Success
+        API->>Prisma: Update player_ratings
+        Prisma->>DB: UPDATE player_ratings
+        API->>Prisma: Insert rating_updates
+        Prisma->>DB: INSERT rating_updates
+        API->>Prisma: Update player stats
+        Prisma->>DB: UPDATE player_ratings (wins/losses)
+        API->>Prisma: Insert match_confirmation
+        Prisma->>DB: INSERT match_confirmation
+        API->>Prisma: Update challenge status
+        Prisma->>DB: UPDATE challenge
+        API->>Prisma: Commit transaction
+        Prisma->>DB: COMMIT
+        DB-->>Prisma: Committed
+        Prisma-->>API: Success
         API-->>UI: Match confirmed, ratings updated
         UI-->>P2: Confirmation successful
     else Player 2 Disputes
         P2->>UI: Click "Dispute Match"
         UI->>API: POST /api/matches/[id]/confirm (action: disputed)
-        API->>DB: Update match status to 'disputed'
-        API->>DB: Insert match_confirmation (dispute reason)
-        DB-->>API: Dispute recorded
+        API->>Prisma: Update match status to 'disputed'
+        Prisma->>DB: UPDATE match
+        API->>Prisma: Insert match_confirmation (dispute reason)
+        Prisma->>DB: INSERT match_confirmation
+        DB-->>Prisma: Dispute recorded
+        Prisma-->>API: Dispute recorded
         API-->>UI: Match disputed
         UI-->>P2: Dispute submitted (admin review)
     end
@@ -556,19 +645,43 @@ flowchart TD
     G --> H[Calculate Rating Changes]
     H --> I[Update Player Ratings]
     I --> J[Record Rating Updates]
-    J --> K[Update Player Stats via Trigger]
+    J --> K[Update Player Stats]
     K --> L[Complete]
 ```
 
-### Database Triggers
+### Rating Reversion Flow (Void Match)
 
-The system uses SQLite triggers for automatic updates:
+```mermaid
+flowchart TD
+    A[Admin Voids Match] --> B[Get Match Rating Updates]
+    B --> C[Start Transaction]
+    C --> D[For Each Rating Update]
+    D --> E[Revert Rating to Old Value]
+    E --> F[Decrement Games Played]
+    F --> G[Decrement Win/Loss/Draw]
+    G --> H[Mark Match as Voided]
+    H --> I[Commit Transaction]
+    I --> J[Log Admin Action]
+    J --> K[Complete]
+```
 
-1. **`set_match_winner_on_insert`**: Sets `winner_id` when match is inserted
-2. **`set_match_winner`**: Sets `winner_id` when status changes to 'completed'
-3. **`update_challenge_on_match_creation`**: Updates challenge status to 'completed' when match is created
-4. **`update_player_stats_on_match_insert`**: Updates player stats when match is inserted with 'completed' status
-5. **`update_player_stats_on_match_update`**: Updates player stats when match status changes to 'completed'
+### Rating Recalculation Flow (Un-void Match)
+
+```mermaid
+flowchart TD
+    A[Admin Un-voids Match] --> B[Get Match Details]
+    B --> C[Get Current Player Ratings]
+    C --> D[Start Transaction]
+    D --> E[Calculate New Ratings]
+    E --> F[Update Player Ratings]
+    F --> G[Increment Games Played]
+    G --> H[Increment Win/Loss/Draw]
+    H --> I[Create Rating Updates]
+    I --> J[Mark Match as Completed]
+    J --> K[Commit Transaction]
+    K --> L[Log Admin Action]
+    L --> M[Complete]
+```
 
 ---
 
@@ -583,6 +696,7 @@ graph TB
     A --> D[Player Management]
     A --> E[Match Management]
     A --> F[League Management]
+    A --> G[Database Cleanup]
     
     B --> B1[View System Stats]
     B --> B2[View Activity Logs]
@@ -590,17 +704,25 @@ graph TB
     C --> C1[List All Users]
     C --> C2[Toggle Admin Status]
     C --> C3[View User Details]
+    C --> C4[Delete Users]
     
     D --> D1[List All Players]
     D --> D2[View Player Stats]
-    D --> D3[Edit Player Info]
+    D --> D3[Adjust Ratings]
+    D --> D4[Adjust Stats]
+    D --> D5[Delete Players]
     
     E --> E1[View All Matches]
     E --> E2[Void Matches]
-    E --> E3[Resolve Disputes]
+    E --> E3[Un-void Matches]
+    E --> E4[Edit Match Scores]
+    E --> E5[Delete Matches]
     
     F --> F1[View Leagues]
     F --> F2[View League Stats]
+    
+    G --> G1[Preview Cleanup]
+    G --> G2[Perform Cleanup]
 ```
 
 ### Admin Action Flow
@@ -611,25 +733,41 @@ sequenceDiagram
     participant UI as Admin UI
     participant API as Admin API
     participant Auth as Auth Check
-    participant DB as Database
-    participant Transaction as Transaction Manager
+    participant Prisma as Prisma ORM
+    participant DB as PostgreSQL
 
     Admin->>UI: Perform admin action
     UI->>API: POST /api/admin/...
-    API->>Auth: Check is_admin flag
+    API->>Auth: Check isAdmin flag from DB
     Auth-->>API: Admin verified
-    API->>Transaction: Start transaction
-    Transaction->>DB: Create backup
-    API->>DB: Execute admin action
-    DB-->>API: Action result
-    API->>DB: Log admin action
-    DB-->>API: Logged
-    API->>Transaction: Commit
-    Transaction->>DB: Commit
+    API->>Prisma: Start transaction
+    Prisma->>DB: BEGIN TRANSACTION
+    API->>Prisma: Execute admin action
+    Prisma->>DB: Execute queries
+    DB-->>Prisma: Action result
+    Prisma-->>API: Action result
+    API->>Prisma: Log admin action
+    Prisma->>DB: INSERT admin_action
+    DB-->>Prisma: Logged
+    Prisma-->>API: Logged
+    API->>Prisma: Commit
+    Prisma->>DB: COMMIT
     DB-->>API: Committed
     API-->>UI: Success
     UI-->>Admin: Action completed
 ```
+
+### Admin Action Types
+
+- `void_match`: Void a match and revert ratings
+- `unvoid_match`: Restore a voided match and recalculate ratings
+- `edit_match_score`: Edit match scores and recalculate ratings
+- `adjust_rating`: Manually adjust a player's rating
+- `adjust_stats`: Manually adjust a player's stats
+- `toggle_admin`: Grant or revoke admin status
+- `delete_user`: Delete a user account
+- `delete_player`: Delete a player profile
+- `delete_match`: Permanently delete a match
 
 ---
 
@@ -640,32 +778,46 @@ sequenceDiagram
 1. **Player A** reports match result (21-15) via UI
 2. **UI** sends `POST /api/matches` with scores
 3. **API Route** validates request (rate limit, auth, sanitize, validate)
-4. **Database** creates match record with `status: 'pending_confirmation'`
-5. **Trigger** sets `winner_id` automatically
-6. **API** returns success to UI
-7. **UI** shows "Match reported, awaiting opponent confirmation"
-8. **Player B** logs in and sees pending confirmation
-9. **Player B** confirms match
-10. **API** updates match status to `'completed'`
-11. **Trigger** updates player stats
-12. **Elo Calculator** calculates new ratings
-13. **Database** records rating updates
-14. **Leaderboard** updates automatically
+4. **Prisma** creates match record with `status: 'pending_confirmation'`
+5. **API** returns success to UI
+6. **UI** shows "Match reported, awaiting opponent confirmation"
+7. **Player B** logs in and sees pending confirmation
+8. **Player B** confirms match
+9. **API** updates match status to `'completed'`
+10. **Elo Calculator** calculates new ratings
+11. **Prisma** updates player ratings and stats
+12. **Prisma** records rating updates
+13. **Leaderboard** updates automatically
 
 ### Example 2: Challenge to Match Flow
 
 1. **Player A** creates challenge for **Player B** in Table Tennis league
-2. **Database** creates challenge record (`status: 'pending'`)
+2. **Prisma** creates challenge record (`status: 'pending'`)
 3. **Player B** accepts challenge
-4. **Database** updates challenge (`status: 'accepted'`)
+4. **Prisma** updates challenge (`status: 'accepted'`)
 5. **Players** play match
 6. **Player A** reports match (11-9)
-7. **Database** creates match linked to challenge (`status: 'pending_confirmation'`)
-8. **Trigger** updates challenge to `'completed'`
-9. **Player B** confirms match
-10. **Database** updates match to `'completed'`
-11. **Triggers** update player stats and ratings
+7. **Prisma** creates match linked to challenge (`status: 'pending_confirmation'`)
+8. **Player B** confirms match
+9. **Prisma** updates match to `'completed'`
+10. **Elo Calculator** calculates new ratings
+11. **Prisma** updates player stats and ratings
 12. **Leaderboard** reflects new rankings
+
+### Example 3: Admin Voiding a Match
+
+1. **Admin** views match in admin panel
+2. **Admin** clicks "Void Match"
+3. **API** receives `POST /api/admin/matches/[id]/void`
+4. **Prisma** starts transaction
+5. **Prisma** fetches match and rating updates
+6. **Prisma** reverts each player's rating to old value
+7. **Prisma** decrements games played, wins/losses/draws
+8. **Prisma** marks match as `'voided'`
+9. **Prisma** commits transaction
+10. **Prisma** logs admin action
+11. **Match** is now hidden from player match history
+12. **Ratings** are reverted to pre-match values
 
 ---
 
@@ -681,21 +833,23 @@ sequenceDiagram
 
 ### Backend
 - **Next.js API Routes**: Serverless functions
-- **better-sqlite3**: SQLite database driver
+- **Prisma ORM**: Type-safe database access
+- **PostgreSQL**: Production database
 - **Zod**: Request validation
 - **crypto**: Password hashing (via NextAuth)
 
 ### Database
-- **SQLite**: File-based relational database
-- **Triggers**: Automatic data consistency
+- **PostgreSQL**: Production-ready relational database
+- **Prisma Migrations**: Version-controlled schema changes
 - **Foreign Keys**: Referential integrity
-- **Transactions**: Atomic operations
+- **Transactions**: Atomic operations via Prisma
 
 ### Security
 - **Rate Limiting**: Multiple rate limiters
 - **Input Sanitization**: XSS and SQL injection prevention
 - **Zod Validation**: Schema-based validation
-- **Transaction Support**: Backup/rollback mechanism
+- **Transaction Support**: Atomic operations with rollback
+- **Admin Action Logging**: Audit trail for all admin operations
 
 ### Testing
 - **Jest**: Test runner
@@ -714,35 +868,45 @@ graph TB
     B --> C[Next.js Build]
     C --> D[Serverless Functions]
     D --> E[API Routes]
-    E --> F[SQLite Database]
-    F --> G[/tmp/ directory]
+    E --> F[Prisma Client]
+    F --> G[PostgreSQL Database]
+    G --> H[Vercel Postgres / External DB]
     
-    H[User Request] --> I[Vercel Edge Network]
-    I --> D
+    I[User Request] --> J[Vercel Edge Network]
+    J --> D
     
-    style F fill:#ffebee
-    style G fill:#ffebee
+    style G fill:#e1f5e1
+    style H fill:#e8f5e9
+    style F fill:#fff3e0
 ```
 
-**Note**: SQLite on Vercel uses ephemeral storage (`/tmp/`), so data resets on each deployment. For production, consider migrating to PostgreSQL or another persistent database.
+**Deployment Details:**
+- **Hosting**: Vercel (serverless deployment)
+- **Database**: PostgreSQL (Vercel Postgres or external provider)
+- **Build**: Next.js production build
+- **Runtime**: Node.js serverless functions
+- **Edge Network**: Global CDN for static assets
 
 ### Production Considerations
 
-1. **Database**: Migrate from SQLite to PostgreSQL for persistence
-2. **Caching**: Implement Redis for rate limiting and session storage
+1. **Database**: PostgreSQL for persistence and scalability
+2. **Connection Pooling**: Managed by Prisma for optimal performance
 3. **CDN**: Static assets served via Vercel Edge Network
-4. **Monitoring**: Add error tracking (Sentry) and analytics
+4. **Monitoring**: Error tracking and performance monitoring
 5. **Backup**: Automated database backups for production data
+6. **Environment Variables**: Secure configuration management
 
 ---
 
 ## Performance Optimizations
 
-1. **Lazy Database Initialization**: Database only initializes on first access
-2. **Database Triggers**: Automatic updates reduce application logic
-3. **Transaction Batching**: Multiple operations in single transaction
-4. **Rate Limiting**: Prevents abuse and ensures fair resource usage
-5. **Input Validation**: Early rejection of invalid requests
+1. **Prisma Connection Pooling**: Efficient database connection management
+2. **Transaction Batching**: Multiple operations in single transaction
+3. **Rate Limiting**: Prevents abuse and ensures fair resource usage
+4. **Input Validation**: Early rejection of invalid requests
+5. **Server Components**: Server-side rendering for better performance
+6. **Lazy Loading**: Components loaded on demand
+7. **Database Indexes**: Optimized queries via Prisma schema
 
 ---
 
@@ -758,7 +922,7 @@ graph TB
     D --> E[Authentication Check]
     E --> F[Authorization Check]
     F --> G[Business Logic]
-    G --> H[Transaction with Backup]
+    G --> H[Prisma Transaction]
     H --> I[Database Operation]
     I --> J[Commit/Rollback]
 ```
@@ -767,10 +931,48 @@ graph TB
 1. **Rate Limiting**: Prevents brute force and DoS
 2. **Input Sanitization**: Removes dangerous characters
 3. **Validation**: Ensures data format correctness
-4. **Authentication**: Verifies user identity
-5. **Authorization**: Checks user permissions
+4. **Authentication**: Verifies user identity via NextAuth
+5. **Authorization**: Checks user permissions (admin status from DB)
 6. **Transactions**: Ensures data consistency
-7. **Parameterized Queries**: Prevents SQL injection
+7. **Parameterized Queries**: Prisma prevents SQL injection
+8. **Admin Action Logging**: Audit trail for accountability
+
+---
+
+## Component Architecture
+
+### Component Organization
+
+```
+src/components/
+├── admin/              # Admin-specific components
+│   └── admin-panel.tsx
+├── auth/               # Authentication components
+│   ├── auth-button.tsx
+│   └── auth-provider.tsx
+├── challenge/          # Challenge components
+│   ├── challenge-card.tsx
+│   └── create-challenge-form.tsx
+├── league/             # League components
+│   └── league-match-history.tsx
+├── match/              # Match components
+│   ├── match-confirmation-card.tsx
+│   ├── match-history.tsx
+│   ├── match-report-form.tsx
+│   └── pending-confirmations.tsx
+├── player/             # Player components
+│   ├── player-match-history.tsx
+│   ├── player-profile.tsx
+│   └── rating-history.tsx
+├── ui/                 # Reusable UI components
+│   ├── button.tsx
+│   ├── card.tsx
+│   ├── form-modal.tsx
+│   ├── confirmation-dialog.tsx
+│   └── ...
+└── layout/             # Layout components
+    └── navigation.tsx
+```
 
 ---
 
@@ -780,9 +982,16 @@ The League Ladder architecture follows a **layered, security-first approach**:
 
 - ✅ **Separation of Concerns**: Clear boundaries between layers
 - ✅ **Security at Every Layer**: Multiple security checks
-- ✅ **Data Consistency**: Transactions and triggers ensure integrity
+- ✅ **Data Consistency**: Prisma transactions ensure integrity
 - ✅ **Scalable Design**: Serverless architecture ready for growth
-- ✅ **Type Safety**: TypeScript throughout the stack
+- ✅ **Type Safety**: TypeScript and Prisma throughout the stack
 - ✅ **Testability**: Clear interfaces for testing
+- ✅ **Admin Audit Trail**: All admin actions logged
+- ✅ **Production Ready**: PostgreSQL for persistence and scalability
 
 The system is designed to be **maintainable, secure, and scalable** while providing a smooth user experience for competitive league management.
+
+---
+
+**Last Updated**: January 2026  
+**Document Version**: 2.0

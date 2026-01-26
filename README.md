@@ -36,7 +36,7 @@ League Ladder is a competitive ranking system that allows players to:
 - ✅ **Loading & Error States**: Consistent UI states across all pages
 - ✅ **Data Validation**: Input sanitization and validation throughout
 - ✅ **Rate Limiting**: API protection against abuse
-- ✅ **Transaction Support**: Database transactions with backup/rollback
+- ✅ **Transaction Support**: Database transactions with rollback capability
 - ✅ **Comprehensive Testing**: Unit and integration tests for core functionality
 
 ---
@@ -55,34 +55,48 @@ League Ladder is a competitive ranking system that allows players to:
 ### Project Structure
 ```
 leagueladder/
-├── app/                    # Next.js App Router pages
-│   ├── (auth)/            # Authentication pages
-│   ├── dashboard/        # User dashboard
-│   ├── matches/          # Match management
-│   ├── leagues/          # League pages
-│   └── api/              # API routes
+├── app/                    # Next.js App Router pages and API routes
+│   ├── api/               # API routes (serverless functions)
+│   │   ├── admin/         # Admin API endpoints
+│   │   ├── auth/          # NextAuth endpoints
+│   │   ├── challenges/    # Challenge endpoints
+│   │   ├── leagues/       # League endpoints
+│   │   ├── matches/       # Match endpoints
+│   │   └── players/       # Player endpoints
+│   ├── admin/             # Admin dashboard page
+│   ├── auth/              # Authentication pages
+│   ├── dashboard/         # User dashboard
+│   ├── matches/           # Match management pages
+│   ├── leagues/           # League pages
+│   └── players/           # Player profile pages
 ├── src/
-│   ├── components/       # React components
-│   │   ├── auth/         # Authentication components
-│   │   ├── match/        # Match-related components
-│   │   ├── league/       # League components
-│   │   ├── layout/       # Layout components
-│   │   └── ui/           # Reusable UI components
-│   ├── lib/              # Utility libraries
-│   │   ├── db/           # Database initialization
-│   │   ├── elo.ts        # Elo rating calculator
-│   │   ├── auth.ts       # NextAuth configuration
-│   │   ├── validation.ts # Zod schemas
-│   │   ├── sanitize.ts   # Input sanitization
-│   │   └── rate-limit.ts # Rate limiting
-│   └── types/            # TypeScript type definitions
-├── doc/                  # Documentation
-│   ├── Elo_Calculator.md # Elo system documentation
-│   └── postmortem.md     # Project postmortem
-├── prisma/               # Prisma schema and migrations
-│   ├── schema.prisma     # Database schema
-│   └── migrations/       # Database migrations
-└── prisma.config.ts      # Prisma 7 configuration
+│   ├── components/        # React components
+│   │   ├── admin/         # Admin components
+│   │   ├── auth/          # Authentication components
+│   │   ├── challenge/     # Challenge components
+│   │   ├── league/        # League components
+│   │   ├── match/         # Match-related components
+│   │   ├── player/        # Player components
+│   │   ├── layout/        # Layout components
+│   │   └── ui/            # Reusable UI components
+│   ├── lib/               # Utility libraries
+│   │   ├── db/            # Database (Prisma) setup
+│   │   ├── elo.ts         # Elo rating calculator
+│   │   ├── auth.ts        # NextAuth configuration
+│   │   ├── validation.ts  # Zod schemas
+│   │   ├── sanitize.ts    # Input sanitization
+│   │   └── rate-limit.ts  # Rate limiting
+│   └── types/             # TypeScript type definitions
+├── doc/                   # Documentation
+│   ├── api.md             # API documentation
+│   ├── architecture.md    # System architecture
+│   ├── Elo_Calculator.md  # Elo system documentation
+│   ├── postmortem.md      # Project postmortem
+│   └── ADMIN_SETUP.md     # Admin setup guide
+├── prisma/                # Prisma schema and migrations
+│   ├── schema.prisma      # Database schema
+│   └── migrations/        # Database migrations
+└── prisma.config.ts       # Prisma 7 configuration
 ```
 
 ---
@@ -223,7 +237,7 @@ npm run prisma:migrate
 
 **Optional: Seed the database** (if you have seed data):
 ```bash
-npm run prisma:seed
+npx prisma db seed
 ```
 
 #### 6. Start Development Server
@@ -254,12 +268,11 @@ npm start            # Start production server
 
 # Code Quality
 npm run lint         # Run ESLint
-npm run format       # Format code with Prettier
 
 # Testing
 npm test             # Run all tests
-npm run test:watch   # Run tests in watch mode
-npm run test:coverage # Run tests with coverage report
+npm test -- --watch  # Run tests in watch mode
+npm test -- --coverage # Run tests with coverage report
 
 # Database (Prisma)
 npm run prisma:generate  # Generate Prisma Client
@@ -444,14 +457,17 @@ Test files are located in:
 - **Authentication**: Secure session management with NextAuth.js
 - **Data Validation**: Zod schemas validate all API requests
 - **SQL Injection Protection**: Parameterized queries throughout
-- **Transaction Support**: Database operations use transactions with rollback
+- **Transaction Support**: Database operations use Prisma transactions with automatic rollback on errors
 
 ---
 
 ## 📚 Documentation
 
+- **[API Documentation](doc/api.md)**: Complete API reference with all endpoints
+- **[Architecture Documentation](doc/architecture.md)**: System architecture and design
 - **[Elo Calculator Documentation](doc/Elo_Calculator.md)**: Complete guide to the Elo rating system
 - **[Postmortem](doc/postmortem.md)**: Project retrospective and lessons learned
+- **[Admin Setup Guide](doc/ADMIN_SETUP.md)**: Guide for setting up admin users
 
 ---
 
