@@ -78,7 +78,16 @@ export async function sendVerificationEmail(email: string, token: string): Promi
     if (error) {
       console.error('[Email Service] Resend API error:', JSON.stringify(error, null, 2))
       console.error('[Email Service] Error details:', error.message || 'Unknown error')
-      return { success: false, error: error.message || 'Failed to send email' }
+      
+      // Check for specific Resend errors
+      let errorMessage = error.message || 'Failed to send email'
+      
+      // If error mentions testing emails or domain verification
+      if (errorMessage.includes('testing emails') || errorMessage.includes('verify a domain')) {
+        errorMessage = 'Email service requires domain verification. Please verify your domain in Resend or use onboarding@resend.dev for testing.'
+      }
+      
+      return { success: false, error: errorMessage }
     }
 
     if (data) {

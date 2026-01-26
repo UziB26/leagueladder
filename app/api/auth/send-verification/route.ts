@@ -90,15 +90,21 @@ export async function POST(request: NextRequest) {
         hasEmailFrom,
         emailFrom: process.env.EMAIL_FROM
       })
+      // Check if error is about domain verification
+      const isDomainError = emailResult.error?.includes('testing emails') || 
+                           emailResult.error?.includes('verify a domain')
+      
       return NextResponse.json(
         { 
           error: 'Failed to send verification email',
           message: emailResult.error || 'Please try again later.',
+          requiresDomainVerification: isDomainError,
           details: {
             hasResendKey,
             hasEmailFrom,
-            emailFrom: process.env.EMAIL_FROM ? 'Set' : 'Not set',
-            resendKeyPrefix: process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.substring(0, 5) + '...' : 'Not set'
+            emailFrom: process.env.EMAIL_FROM || 'Not set',
+            resendKeyPrefix: process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.substring(0, 5) + '...' : 'Not set',
+            help: isDomainError ? 'Verify your domain at resend.com/domains or use onboarding@resend.dev for testing' : undefined
           }
         },
         { status: 500 }
