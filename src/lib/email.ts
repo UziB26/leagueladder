@@ -7,7 +7,14 @@
 import { Resend } from 'resend'
 
 // Initialize Resend client
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+let resend: Resend | null = null
+try {
+  if (process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY)
+  }
+} catch (error) {
+  console.error('[Email Service] Failed to initialize Resend client:', error)
+}
 
 /**
  * Send verification email to user

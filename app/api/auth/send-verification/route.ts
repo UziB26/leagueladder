@@ -78,21 +78,28 @@ export async function POST(request: NextRequest) {
     }
 
     // Send verification email
+    console.log('[Send Verification] Attempting to send email to:', userEmail)
     const emailResult = await sendVerificationEmail(userEmail, token)
+    console.log('[Send Verification] Email result:', emailResult)
+    
     if (!emailResult.success) {
       console.error('[Send Verification] Failed to send email:', {
         email: userEmail,
-        error: emailResult.error
+        error: emailResult.error,
+        hasResendKey,
+        hasEmailFrom,
+        emailFrom: process.env.EMAIL_FROM
       })
       return NextResponse.json(
         { 
           error: 'Failed to send verification email',
           message: emailResult.error || 'Please try again later.',
-          details: process.env.NODE_ENV === 'development' ? {
+          details: {
             hasResendKey,
             hasEmailFrom,
-            emailFrom: process.env.EMAIL_FROM
-          } : undefined
+            emailFrom: process.env.EMAIL_FROM ? 'Set' : 'Not set',
+            resendKeyPrefix: process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.substring(0, 5) + '...' : 'Not set'
+          }
         },
         { status: 500 }
       )

@@ -47,8 +47,12 @@ export default function VerifyEmailRequiredPage() {
         setTimeout(() => setSendStatus('idle'), 5000)
       } else {
         setSendStatus('error')
-        setMessage(data.error || 'Failed to send verification email. Please try again.')
-        setTimeout(() => setSendStatus('idle'), 5000)
+        // Show detailed error message if available
+        const errorMsg = data.message || data.error || 'Failed to send verification email. Please try again.'
+        const details = data.details ? ` (${JSON.stringify(data.details)})` : ''
+        setMessage(errorMsg + details)
+        console.error('[Verify Email Required] Error response:', data)
+        setTimeout(() => setSendStatus('idle'), 10000) // Show error longer
       }
     } catch (error) {
       console.error('Error sending verification email:', error)
