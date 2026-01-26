@@ -99,14 +99,16 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     game_type: pr.league.gameType
   }))
   
-  // Fetch recent matches using Prisma
+  // Fetch recent matches using Prisma (excluding voided)
   const matchRecordsRaw = (await db.match.findMany({
     where: {
       OR: [
         { player1Id: playerId },
         { player2Id: playerId }
       ],
-      status: 'completed'
+      status: {
+        not: 'voided'
+      }
     },
     include: {
       league: {
@@ -162,12 +164,77 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     player2_name: m.player2.name
   }))
 
+  // Fetch admin actions for this player
+  const adminActions = await db.adminAction.findMany({
+    where: {
+      OR: [
+        {
+          action: 'adjust_rating',
+          targetId: playerId
+        },
+        {
+          action: 'adjust_stats',
+          targetId: playerId
+        }
+      ]
+    },
+    include: {
+      user: {
+        select: {
+          name: true,
+          email: true
+        }
+      }
+    },
+    orderBy: {
+      createdAt: 'desc'
+    },
+    take: 10
+  })
+
+  // Transform admin actions to activity format
+  const adminActivities = adminActions.map(action => {
+    const details = action.details ? JSON.parse(action.details) : {}
+    let description = ''
+    
+    if (action.action === 'adjust_rating') {
+      description = `Rating adjusted: ${details.old_rating || 'N/A'} → ${details.new_rating || 'N/A'}`
+      if (details.league_id) {
+        const league = ratings.find(r => r.league_id === details.league_id)
+        if (league) {
+          description += ` (${league.league_name})`
+        }
+      }
+    } else if (action.action === 'adjust_stats') {
+      description = 'Stats adjusted by admin'
+      if (details.league_id) {
+        const league = ratings.find(r => r.league_id === details.league_id)
+        if (league) {
+          description += ` (${league.league_name})`
+        }
+      }
+    }
+    
+    if (details.reason) {
+      description += ` - ${details.reason}`
+    }
+
+    return {
+      id: action.id,
+      type: 'admin_action',
+      description,
+      created_at: action.createdAt.toISOString(),
+      admin_name: action.user?.name || action.user?.email || 'Admin'
+    }
+  })
+
   return (
     <div className="container mx-auto px-4 py-8">
       <PlayerProfile 
         player={player}
         ratings={ratings}
         matches={matches}
+        adminActivities={adminActivities}
       />
     </div>
   )

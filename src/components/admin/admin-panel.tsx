@@ -214,10 +214,10 @@ export function AdminPanel() {
 
   const voidMatch = async (matchId: string) => {
     voidMatchDialog.openDialog({
-      title: "Cancel Match",
-      message: "Are you sure you want to cancel this match? This will revert player ratings (if applicable) and permanently delete the match. This action cannot be undone.",
-      confirmText: "Cancel Match",
-      cancelText: "Keep Match",
+      title: "Void Match",
+      message: "Are you sure you want to void this match? This will revert player ratings to their previous values and mark the match as voided. This action can be undone by un-voiding the match.",
+      confirmText: "Void Match",
+      cancelText: "Cancel",
       variant: "destructive",
       onConfirm: async () => {
         try {
@@ -227,15 +227,15 @@ export function AdminPanel() {
 
           if (!response.ok) {
             const data = await response.json()
-            throw new Error(data.error || 'Failed to cancel match')
+            throw new Error(data.error || 'Failed to void match')
           }
 
           const data = await response.json()
-          setSuccess(data.message || 'Match cancelled successfully')
+          setSuccess(data.message || 'Match voided successfully')
           setTimeout(() => setSuccess(""), 3000)
           fetchData()
         } catch (err: any) {
-          setError(err.message || 'Failed to cancel match')
+          setError(err.message || 'Failed to void match')
           setTimeout(() => setError(""), 5000)
         }
       },
@@ -1104,16 +1104,6 @@ export function AdminPanel() {
                               className="text-xs bg-green-600 hover:bg-green-700 text-white border-green-600"
                             >
                               Un-void
-                            </Button>
-                          )}
-                          {match.status !== 'voided' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setEditMatchScoreModal({ open: true, match })}
-                              className="text-xs bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
-                            >
-                              Edit Score
                             </Button>
                           )}
                           <Button

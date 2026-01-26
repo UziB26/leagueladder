@@ -52,11 +52,16 @@ export async function GET(
       )
     }
 
-    // Fetch rating updates with related data
+    // Fetch rating updates with related data, excluding voided matches
     const ratingUpdates = await db.ratingUpdate.findMany({
       where: {
         playerId,
-        ...(leagueId && { leagueId })
+        ...(leagueId && { leagueId }),
+        match: {
+          status: {
+            not: 'voided'
+          }
+        }
       },
       include: {
         league: {

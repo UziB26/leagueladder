@@ -7,13 +7,22 @@ import { PlayerMatchHistory } from "./player-match-history"
 import { RatingHistory } from "./rating-history"
 import { parseDatabaseDate } from "@/lib/utils"
 
+interface AdminActivity {
+  id: string
+  type: 'admin_action'
+  description: string
+  created_at: string
+  admin_name: string
+}
+
 interface PlayerProfileProps {
   player: Player
   ratings: any[]
   matches: any[]
+  adminActivities?: AdminActivity[]
 }
 
-export function PlayerProfile({ player, ratings, matches }: PlayerProfileProps) {
+export function PlayerProfile({ player, ratings, matches, adminActivities = [] }: PlayerProfileProps) {
   const totalGames = ratings.reduce((sum, rating) => sum + rating.games_played, 0)
   const totalWins = ratings.reduce((sum, rating) => sum + rating.wins, 0)
   const totalLosses = ratings.reduce((sum, rating) => sum + rating.losses, 0)
@@ -122,37 +131,67 @@ export function PlayerProfile({ player, ratings, matches }: PlayerProfileProps) 
         <Card>
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest matches</CardDescription>
+            <CardDescription>Latest matches and admin changes</CardDescription>
           </CardHeader>
           <CardContent>
-            {matches.length > 0 ? (
+            {matches.length > 0 || adminActivities.length > 0 ? (
               <div className="space-y-3">
-                {matches.slice(0, 3).map((match) => (
-                  <div key={match.id} className="p-3 border border-gray-700 rounded-lg bg-gray-900">
-                    <div className="flex justify-between items-center">
-                      <div className="font-medium text-white">{match.league_name}</div>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        match.winner_id === player.id 
-                          ? 'bg-green-900 text-green-300' 
-                          : match.winner_id === null
-                          ? 'bg-gray-800 text-gray-300'
-                          : 'bg-red-900 text-red-300'
-                      }`}>
-                        {match.winner_id === player.id ? 'WIN' : match.winner_id === null ? 'DRAW' : 'LOSS'}
-                      </span>
-                    </div>
-                    <div className="text-sm text-gray-300 mt-1">
-                      {match.player1_name} {match.player1_score} - {match.player2_score} {match.player2_name}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      {parseDatabaseDate(match.played_at).toLocaleDateString()}
-                    </div>
-                  </div>
-                ))}
+                {/* Combine matches and admin activities, sort by date, take top 5 */}
+                {[
+                  ...matches.slice(0, 5).map(m => ({ ...m, type: 'match', sort_date: m.played_at })),
+                  ...adminActivities.slice(0, 5).map(a => ({ ...a, type: 'admin_action', sort_date: a.created_at }))
+                ]
+                  .sort((a, b) => new Date(b.sort_date).getTime() - new Date(a.sort_date).getTime())
+                  .slice(0, 5)
+                  .map((item) => {
+                    if (item.type === 'match') {
+                      const match = item as any
+                      return (
+                        <div key={match.id} className="p-3 border border-gray-700 rounded-lg bg-gray-900">
+                          <div className="flex justify-between items-center">
+                            <div className="font-medium text-white">{match.league_name}</div>
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              match.winner_id === player.id 
+                                ? 'bg-green-900 text-green-300' 
+                                : match.winner_id === null
+                                ? 'bg-gray-800 text-gray-300'
+                                : 'bg-red-900 text-red-300'
+                            }`}>
+                              {match.winner_id === player.id ? 'WIN' : match.winner_id === null ? 'DRAW' : 'LOSS'}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-300 mt-1">
+                            {match.player1_name} {match.player1_score} - {match.player2_score} {match.player2_name}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            {parseDatabaseDate(match.played_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                      )
+                    } else {
+                      const activity = item as AdminActivity
+                      return (
+                        <div key={activity.id} className="p-3 border border-yellow-700 rounded-lg bg-yellow-900/20">
+                          <div className="flex justify-between items-center">
+                            <div className="font-medium text-yellow-300">Admin Adjustment</div>
+                            <span className="px-2 py-1 text-xs rounded-full bg-yellow-900 text-yellow-300">
+                              ADMIN
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-300 mt-1">
+                            {activity.description}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            by {activity.admin_name} • {parseDatabaseDate(activity.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                      )
+                    }
+                  })}
               </div>
             ) : (
               <div className="text-center py-8 text-gray-400">
-                <p className="text-white">No matches played yet</p>
+                <p className="text-white">No recent activity</p>
               </div>
             )}
           </CardContent>

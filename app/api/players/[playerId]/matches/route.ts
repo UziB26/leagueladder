@@ -67,14 +67,16 @@ export async function GET(
       )
     }
 
-    // Fetch completed matches for this player
+    // Fetch completed matches for this player (excluding voided matches)
     const matches = await db.match.findMany({
       where: {
         OR: [
           { player1Id: playerId },
           { player2Id: playerId }
         ],
-        status: 'completed'
+        status: {
+          not: 'voided'
+        }
       },
       include: {
         league: {

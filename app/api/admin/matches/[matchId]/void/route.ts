@@ -62,70 +62,81 @@ export async function POST(
         throw new Error('Match not found')
       }
 
-      // Check if match is already deleted (shouldn't happen, but safety check)
-      // No need to check for voided status since we're deleting now
-
-      // When admin cancels a match, delete it instead of voiding
-      // First, revert any rating changes if the match was completed
-      if (match.status === 'completed') {
-        // Get rating updates for this match
-        const ratingUpdates = await tx.ratingUpdate.findMany({
-          where: { matchId: sanitizedMatchId }
-        })
-
-        // Revert ratings and stats for each player
-        for (const update of ratingUpdates) {
-          const rating = await tx.playerRating.findUnique({
-            where: {
-              playerId_leagueId: {
-                playerId: update.playerId,
-                leagueId: update.leagueId
-              }
-            }
-          })
-
-          if (!rating) continue
-
-          // Determine if this was a win, loss, or draw based on match result
-          const isPlayer1 = match.player1Id === update.playerId
-          const isPlayer2 = match.player2Id === update.playerId
-          const playerWon = (isPlayer1 && match.player1Score > match.player2Score) ||
-                            (isPlayer2 && match.player2Score > match.player1Score)
-          const playerLost = (isPlayer1 && match.player1Score < match.player2Score) ||
-                             (isPlayer2 && match.player2Score < match.player1Score)
-          const isDraw = match.player1Score === match.player2Score
-
-          // Revert rating and stats
-          await tx.playerRating.update({
-            where: { id: rating.id },
-            data: {
-              rating: update.oldRating,
-              gamesPlayed: { decrement: 1 },
-              wins: playerWon ? { decrement: 1 } : undefined,
-              losses: playerLost ? { decrement: 1 } : undefined,
-              draws: isDraw ? { decrement: 1 } : undefined
-            }
-          })
-        }
+      if (match.status === 'voided') {
+        throw new Error('Match is already voided')
       }
 
-      // Delete the match (cascades to rating updates, confirmations, etc.)
-      await tx.match.delete({
-        where: { id: sanitizedMatchId }
+      // Only void completed matches (or pending_confirmation that were completed)
+      if (match.status !== 'completed' && match.status !== 'pending_confirmation') {
+        throw new Error('Only completed matches can be voided')
+      }
+
+      // Get rating updates for this match
+      const ratingUpdates = await tx.ratingUpdate.findMany({
+        where: { matchId: sanitizedMatchId }
       })
 
-      return { message: 'Match cancelled and deleted successfully' }
+      if (ratingUpdates.length === 0) {
+        // No rating updates to revert, just mark as voided
+        await tx.match.update({
+          where: { id: sanitizedMatchId },
+          data: { status: 'voided' }
+        })
+        return { message: 'Match voided (no rating changes to revert)' }
+      }
+
+      // Revert ratings and stats for each player
+      for (const update of ratingUpdates) {
+        const rating = await tx.playerRating.findUnique({
+          where: {
+            playerId_leagueId: {
+              playerId: update.playerId,
+              leagueId: update.leagueId
+            }
+          }
+        })
+
+        if (!rating) continue
+
+        // Determine if this was a win, loss, or draw based on match result
+        const isPlayer1 = match.player1Id === update.playerId
+        const isPlayer2 = match.player2Id === update.playerId
+        const playerWon = (isPlayer1 && match.player1Score > match.player2Score) ||
+                          (isPlayer2 && match.player2Score > match.player1Score)
+        const playerLost = (isPlayer1 && match.player1Score < match.player2Score) ||
+                           (isPlayer2 && match.player2Score < match.player1Score)
+        const isDraw = match.player1Score === match.player2Score
+
+        // Revert rating and stats
+        await tx.playerRating.update({
+          where: { id: rating.id },
+          data: {
+            rating: update.oldRating,
+            gamesPlayed: { decrement: 1 },
+            wins: playerWon ? { decrement: 1 } : undefined,
+            losses: playerLost ? { decrement: 1 } : undefined,
+            draws: isDraw ? { decrement: 1 } : undefined
+          }
+        })
+      }
+
+      // Mark match as voided
+      await tx.match.update({
+        where: { id: sanitizedMatchId },
+        data: { status: 'voided' }
+      })
+
+      return { message: 'Match voided and ratings reverted successfully' }
     })
 
     // Log admin action
     await db.adminAction.create({
       data: {
         userId: adminUser.id,
-        action: 'cancel_match',
+        action: 'void_match',
         targetId: sanitizedMatchId,
         details: JSON.stringify({ 
-          match_id: sanitizedMatchId,
-          action: 'cancelled_and_deleted'
+          match_id: sanitizedMatchId
         })
       }
     })
@@ -136,9 +147,9 @@ export async function POST(
     })
     
   } catch (error: any) {
-    console.error('Error cancelling match:', error)
+    console.error('Error voiding match:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to cancel match' },
+      { error: error.message || 'Failed to void match' },
       { status: 500 }
     )
   }
