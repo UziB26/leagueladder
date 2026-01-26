@@ -27,6 +27,11 @@ interface MatchWithRatings {
       change: number
     }
   }
+  admin_adjustments?: {
+    rating_adjusted?: boolean
+    stats_adjusted?: boolean
+    match_score_edited?: boolean
+  }
 }
 
 /**
@@ -124,10 +129,64 @@ export async function GET(
       }>
     }>
 
-    // Transform matches with rating updates
+    // Get all admin actions for this player and their matches
+    const matchIds = matches.map(m => m.id)
+    const matchIdsSet = new Set(matchIds)
+    
+    // Fetch all relevant admin actions
+    const allAdminActions = await db.adminAction.findMany({
+      where: {
+        OR: [
+          // Rating adjustments for this player
+          {
+            action: 'adjust_rating',
+            targetId: playerId
+          },
+          // Stats adjustments for this player
+          {
+            action: 'adjust_stats',
+            targetId: playerId
+          },
+          // Match score edits (we'll filter by matchIds in memory)
+          {
+            action: 'edit_match_score'
+          }
+        ]
+      }
+    })
+    
+    // Filter match score edits to only those for this player's matches
+    const adminActions = allAdminActions.filter(action => {
+      if (action.action === 'edit_match_score') {
+        return action.targetId && matchIdsSet.has(action.targetId)
+      }
+      return true // adjust_rating and adjust_stats are already filtered by playerId
+    })
+
+    // Create maps for quick lookup
+    const ratingAdjustmentsByPlayer = new Map<string, boolean>()
+    const statsAdjustmentsByPlayer = new Map<string, boolean>()
+    const scoreEditsByMatch = new Map<string, boolean>()
+
+    adminActions.forEach(action => {
+      if (action.action === 'adjust_rating' && action.targetId === playerId) {
+        ratingAdjustmentsByPlayer.set(playerId, true)
+      } else if (action.action === 'adjust_stats' && action.targetId === playerId) {
+        statsAdjustmentsByPlayer.set(playerId, true)
+      } else if (action.action === 'edit_match_score' && action.targetId) {
+        scoreEditsByMatch.set(action.targetId, true)
+      }
+    })
+
+    // Transform matches with rating updates and admin adjustments
     const matchesWithRatings: MatchWithRatings[] = matches.map((match) => {
       const player1Update = match.ratingUpdates.find(ru => ru.playerId === match.player1Id)
       const player2Update = match.ratingUpdates.find(ru => ru.playerId === match.player2Id)
+
+      // Check if this player had rating/stats adjusted (for any league, not just this match's league)
+      const hasRatingAdjustment = ratingAdjustmentsByPlayer.has(playerId)
+      const hasStatsAdjustment = statsAdjustmentsByPlayer.has(playerId)
+      const hasScoreEdit = scoreEditsByMatch.has(match.id)
 
       return {
         id: match.id,
@@ -152,6 +211,11 @@ export async function GET(
             new_rating: player2Update.newRating,
             change: player2Update.change
           } : undefined
+        },
+        admin_adjustments: {
+          rating_adjusted: hasRatingAdjustment,
+          stats_adjusted: hasStatsAdjustment,
+          match_score_edited: hasScoreEdit
         }
       }
     })

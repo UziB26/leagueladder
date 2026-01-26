@@ -115,7 +115,7 @@ export function AdminPanel() {
   const unvoidMatchDialog = useConfirmationDialog()
   
   // Modal states for correction features
-  const [adjustRatingModal, setAdjustRatingModal] = useState<{ open: boolean; playerId?: string; leagueId?: string; currentRating?: number }>({ open: false })
+  const [adjustRatingModal, setAdjustRatingModal] = useState<{ open: boolean; playerId?: string; leagueId?: string; currentRating?: number; availableLeagues?: Array<{ league_id: string; league_name: string; rating: number }> }>({ open: false })
   const [editMatchScoreModal, setEditMatchScoreModal] = useState<{ open: boolean; match?: Match }>({ open: false })
   const [adjustStatsModal, setAdjustStatsModal] = useState<{ open: boolean; playerId?: string; leagueId?: string; stats?: PlayerRating }>({ open: false })
 
@@ -214,10 +214,10 @@ export function AdminPanel() {
 
   const voidMatch = async (matchId: string) => {
     voidMatchDialog.openDialog({
-      title: "Void Match",
-      message: "Are you sure you want to void this match? This will revert player ratings to their previous values and mark the match as voided. This action can be undone by un-voiding the match.",
-      confirmText: "Void Match",
-      cancelText: "Cancel",
+      title: "Cancel Match",
+      message: "Are you sure you want to cancel this match? This will revert player ratings (if applicable) and permanently delete the match. This action cannot be undone.",
+      confirmText: "Cancel Match",
+      cancelText: "Keep Match",
       variant: "destructive",
       onConfirm: async () => {
         try {
@@ -227,15 +227,15 @@ export function AdminPanel() {
 
           if (!response.ok) {
             const data = await response.json()
-            throw new Error(data.error || 'Failed to void match')
+            throw new Error(data.error || 'Failed to cancel match')
           }
 
           const data = await response.json()
-          setSuccess(data.message || 'Match voided successfully')
+          setSuccess(data.message || 'Match cancelled successfully')
           setTimeout(() => setSuccess(""), 3000)
           fetchData()
         } catch (err: any) {
-          setError(err.message || 'Failed to void match')
+          setError(err.message || 'Failed to cancel match')
           setTimeout(() => setError(""), 5000)
         }
       },
@@ -332,10 +332,11 @@ export function AdminPanel() {
 
   const handleAdjustRating = async (formData: any) => {
     try {
-      const { rating, reason } = formData
-      if (!adjustRatingModal.playerId || !adjustRatingModal.leagueId) return
+      const { rating, reason, league_id } = formData
+      const selectedLeagueId = league_id || adjustRatingModal.leagueId
+      if (!adjustRatingModal.playerId || !selectedLeagueId) return
 
-      const response = await fetch(`/api/admin/players/${adjustRatingModal.playerId}/ratings/${adjustRatingModal.leagueId}`, {
+      const response = await fetch(`/api/admin/players/${adjustRatingModal.playerId}/ratings/${selectedLeagueId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rating: parseInt(rating), reason })
@@ -420,15 +421,34 @@ export function AdminPanel() {
     }
   }
 
-  const openAdjustRatingModal = async (playerId: string, leagueId: string) => {
+  const openAdjustRatingModal = async (playerId: string, leagueId?: string) => {
     try {
       const response = await fetch(`/api/admin/players/${playerId}`)
       if (!response.ok) throw new Error('Failed to fetch player data')
       const data = await response.json()
-      const rating = data.ratings?.find((r: any) => r.league_id === leagueId)
-      if (rating) {
-        setAdjustRatingModal({ open: true, playerId, leagueId, currentRating: rating.rating })
+      const availableLeagues = data.ratings?.map((r: any) => ({
+        league_id: r.league_id,
+        league_name: r.league_name,
+        rating: r.rating
+      })) || []
+      
+      if (availableLeagues.length === 0) {
+        setError('Player has no league memberships')
+        setTimeout(() => setError(""), 5000)
+        return
       }
+
+      // If leagueId provided, use it; otherwise use first league
+      const selectedLeagueId = leagueId || availableLeagues[0].league_id
+      const selectedRating = availableLeagues.find((r: any) => r.league_id === selectedLeagueId) || availableLeagues[0]
+      
+      setAdjustRatingModal({ 
+        open: true, 
+        playerId, 
+        leagueId: selectedLeagueId, 
+        currentRating: selectedRating.rating,
+        availableLeagues
+      })
     } catch (err: any) {
       setError(err.message || 'Failed to load player data')
       setTimeout(() => setError(""), 5000)
@@ -511,6 +531,41 @@ export function AdminPanel() {
         title="Adjust Player Rating"
         submitText="Adjust Rating"
       >
+        {adjustRatingModal.availableLeagues && adjustRatingModal.availableLeagues.length > 1 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Select League
+            </label>
+            <select
+              name="league_id"
+              required
+              defaultValue={adjustRatingModal.leagueId}
+              onChange={(e) => {
+                const selectedLeague = adjustRatingModal.availableLeagues?.find(l => l.league_id === e.target.value)
+                if (selectedLeague) {
+                  setAdjustRatingModal({
+                    ...adjustRatingModal,
+                    leagueId: selectedLeague.league_id,
+                    currentRating: selectedLeague.rating
+                  })
+                }
+              }}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {adjustRatingModal.availableLeagues.map((league) => (
+                <option key={league.league_id} value={league.league_id}>
+                  {league.league_name} (Current: {league.rating})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {adjustRatingModal.availableLeagues && adjustRatingModal.availableLeagues.length === 1 && (
+          <div className="text-sm text-gray-400 mb-2">
+            League: {adjustRatingModal.availableLeagues[0].league_name}
+            <input type="hidden" name="league_id" value={adjustRatingModal.availableLeagues[0].league_id} />
+          </div>
+        )}
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
             Current Rating: {adjustRatingModal.currentRating || 'N/A'}
@@ -908,10 +963,10 @@ export function AdminPanel() {
                             onClick={() => {
                               // For now, use first league - in production, you'd want a dropdown
                               const firstLeague = leagues[0]?.id || 'tt_league'
-                              openAdjustRatingModal(player.id, firstLeague)
+                              openAdjustRatingModal(player.id)
                             }}
                             className="text-xs bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
-                            title="Adjust rating (uses first league)"
+                            title="Adjust rating (select league in modal)"
                           >
                             Adjust Rating
                           </Button>

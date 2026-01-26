@@ -28,6 +28,11 @@ interface MatchWithRatings {
       change: number
     }
   }
+  admin_adjustments?: {
+    rating_adjusted?: boolean
+    stats_adjusted?: boolean
+    match_score_edited?: boolean
+  }
 }
 
 interface PlayerMatchHistoryProps {
@@ -199,6 +204,27 @@ export function PlayerMatchHistory({ playerId, limit = 50 }: PlayerMatchHistoryP
                       }`}>
                         ({ratingUpdate.change >= 0 ? '+' : ''}{ratingUpdate.change})
                       </span>
+                    </div>
+                  )}
+                  
+                  {match.admin_adjustments && (
+                    <div className="flex items-center gap-2 text-xs mt-2">
+                      {(match.admin_adjustments.rating_adjusted || 
+                        match.admin_adjustments.stats_adjusted || 
+                        match.admin_adjustments.match_score_edited) && (
+                        <span className="px-2 py-1 bg-yellow-900/50 text-yellow-300 rounded border border-yellow-700/50 flex items-center gap-1">
+                          <span>⚙️</span>
+                          <span>
+                            {match.admin_adjustments.match_score_edited && 'Score edited'}
+                            {match.admin_adjustments.match_score_edited && 
+                             (match.admin_adjustments.rating_adjusted || match.admin_adjustments.stats_adjusted) && ', '}
+                            {match.admin_adjustments.rating_adjusted && 'Rating adjusted'}
+                            {match.admin_adjustments.rating_adjusted && match.admin_adjustments.stats_adjusted && ', '}
+                            {match.admin_adjustments.stats_adjusted && 'Stats adjusted'}
+                            {' by admin'}
+                          </span>
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
