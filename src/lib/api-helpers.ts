@@ -71,9 +71,9 @@ export function createProtectedHandler(
           )
         }
 
-
         // Check admin requirement
         if (requireAdmin) {
+          const user = session.user as { is_admin?: boolean; email?: string }
           // Verify admin status from database for extra security
           // This ensures admin status changes are immediately enforced
           if (!user.is_admin) {
