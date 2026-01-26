@@ -5,12 +5,15 @@ import crypto from "crypto"
 
 import { db } from "@/lib/db"
 import { sanitizeEmail, sanitizeString } from "@/lib/sanitize"
+import { createVerificationToken } from "@/lib/verification"
+import { sendVerificationEmail } from "@/lib/email"
 
 type DBUser = {
   id: string
   email: string
   name?: string
   is_admin?: boolean
+  email_verified?: boolean
 }
 
 export const authOptions = {
@@ -64,7 +67,7 @@ export const authOptions = {
         // Check if user exists using Prisma
         const user = await db.user.findUnique({
           where: { email: sanitizedEmail },
-          select: { id: true, email: true, name: true, isAdmin: true }
+          select: { id: true, email: true, name: true, isAdmin: true, emailVerified: true }
         })
         
         if (!user) {
@@ -78,6 +81,7 @@ export const authOptions = {
               email: sanitizedEmail,
               name: sanitizedName,
               isAdmin: false,
+              emailVerified: null, // Email not verified yet
               accounts: {
                 create: {
                   type: 'credentials',
@@ -88,11 +92,32 @@ export const authOptions = {
             }
           })
           
+          // Send verification email (non-blocking - don't fail registration if email fails)
+          try {
+            const token = await createVerificationToken(sanitizedEmail)
+            if (token) {
+              console.log('[Auth] Sending verification email to:', sanitizedEmail)
+              const emailResult = await sendVerificationEmail(sanitizedEmail, token)
+              if (emailResult.success) {
+                console.log('[Auth] Verification email sent successfully')
+              } else {
+                console.error('[Auth] Failed to send verification email:', emailResult.error)
+                // Don't fail registration, but log the error
+              }
+            } else {
+              console.error('[Auth] Failed to create verification token')
+            }
+          } catch (error) {
+            // Log error but don't fail registration
+            console.error('[Auth] Error sending verification email during registration:', error)
+          }
+          
           return {
             id: newUser.id,
             email: newUser.email,
             name: newUser.name || sanitizedName,
-            is_admin: false
+            is_admin: false,
+            email_verified: false
           }
         }
         
@@ -115,7 +140,8 @@ export const authOptions = {
           id: user.id,
           email: user.email,
           name: user.name || providedName || undefined,
-          is_admin: user.isAdmin || false
+          is_admin: user.isAdmin || false,
+          email_verified: !!user.emailVerified
         }
       }
     })
@@ -134,21 +160,23 @@ export const authOptions = {
         token.email = (user as DBUser).email
         token.name = (user as DBUser).name
         token.is_admin = (user as DBUser).is_admin || false
+        token.email_verified = (user as DBUser).email_verified || false
       } else if (token.email) {
-        // Refresh admin status from database on each request
-        // This ensures admin status changes are reflected immediately
+        // Refresh admin status and email verification from database on each request
+        // This ensures status changes are reflected immediately
         if (db) {
           try {
             const dbUser = await db.user.findUnique({
               where: { email: token.email as string },
-              select: { isAdmin: true }
+              select: { isAdmin: true, emailVerified: true }
             })
             if (dbUser) {
               token.is_admin = dbUser.isAdmin || false
+              token.email_verified = !!dbUser.emailVerified
             }
           } catch (error) {
             // If database query fails, keep existing token value
-            console.error('Error refreshing admin status:', error)
+            console.error('Error refreshing user status:', error)
           }
         }
       }
@@ -156,9 +184,11 @@ export const authOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
-        ;(session.user as typeof session.user & { id?: string; email?: string; is_admin?: boolean }).id = token.id as string
-        ;(session.user as typeof session.user & { id?: string; email?: string; is_admin?: boolean }).email = token.email as string
-        ;(session.user as typeof session.user & { id?: string; email?: string; is_admin?: boolean }).is_admin = token.is_admin as boolean
+        const user = session.user as typeof session.user & { id?: string; email?: string; is_admin?: boolean; email_verified?: boolean }
+        user.id = token.id as string
+        user.email = token.email as string
+        user.is_admin = token.is_admin as boolean
+        user.email_verified = token.email_verified as boolean
         
         // Refresh name from database to ensure it's up to date
         if (db) {

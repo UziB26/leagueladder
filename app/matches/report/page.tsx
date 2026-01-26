@@ -19,6 +19,14 @@ export default function ReportMatchPage() {
       router.push('/auth/login')
       return
     }
+
+    // Check if email is verified
+    const user = session.user as { email_verified?: boolean; email?: string } | undefined
+    if (user && !user.email_verified) {
+      router.push('/auth/verify-email-required')
+      return
+    }
+
     fetchCurrentPlayer()
   }, [session, router])
 

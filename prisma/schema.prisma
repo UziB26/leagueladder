@@ -62,6 +62,15 @@ model Session {
   @@map("sessions")
 }
 
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
 // Application tables
 model Player {
   id        String   @id @default(uuid())

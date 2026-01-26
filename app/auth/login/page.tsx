@@ -52,6 +52,7 @@ export default function LoginPage() {
       if (result?.error) {
         setError("Invalid email or password")
       } else {
+        // Check if email is verified - will redirect appropriately
         router.push("/dashboard")
         router.refresh()
       }

@@ -94,7 +94,9 @@ export default function RegisterPage() {
       if (result?.error) {
         setError("Registration failed")
       } else {
-        router.push("/dashboard")
+        // Registration successful - verification email will be sent automatically
+        // Redirect to verification required page
+        router.push("/auth/verify-email-required")
         router.refresh()
       }
     } catch (error) {

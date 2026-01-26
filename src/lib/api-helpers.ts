@@ -71,9 +71,37 @@ export function createProtectedHandler(
           )
         }
 
+        // Check email verification requirement (unless this is the send-verification or verify-email route)
+        const user = session.user as { email_verified?: boolean; email?: string; is_admin?: boolean }
+        const isVerificationRoute = request.nextUrl.pathname.includes('/auth/send-verification') || 
+                                    request.nextUrl.pathname.includes('/auth/verify-email')
+        
+        if (!isVerificationRoute && user.email) {
+          try {
+            const dbUser = await db.user.findUnique({
+              where: { email: user.email },
+              select: { emailVerified: true }
+            })
+            
+            // Require email verification for all authenticated routes (except verification routes)
+            if (!dbUser?.emailVerified) {
+              return NextResponse.json(
+                { 
+                  error: "Email verification required",
+                  requiresVerification: true,
+                  message: "Please verify your email address before using this feature."
+                },
+                { status: 403 }
+              )
+            }
+          } catch (error) {
+            // If database check fails, allow access (fallback - don't block users if DB is down)
+            console.error('Error checking email verification status:', error)
+          }
+        }
+
         // Check admin requirement
         if (requireAdmin) {
-          const user = session.user as { is_admin?: boolean; email?: string }
           // Verify admin status from database for extra security
           // This ensures admin status changes are immediately enforced
           if (!user.is_admin) {
