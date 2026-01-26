@@ -402,12 +402,6 @@ export async function GET(request: Request) {
     // Get matches using Prisma
     const matches = await db.match.findMany({
       where: whereClause,
-      where: {
-        OR: [
-          { player1Id: player.id },
-          { player2Id: player.id }
-        ]
-      },
       include: {
         league: {
           select: {
