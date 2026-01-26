@@ -1065,9 +1065,17 @@ export function AdminPanel() {
                               ? 'bg-green-900 text-green-300' 
                               : match.status === 'voided'
                               ? 'bg-red-900 text-red-300'
-                              : 'bg-yellow-900 text-yellow-300'
+                              : match.status === 'pending_confirmation'
+                              ? 'bg-yellow-900 text-yellow-300'
+                              : match.status === 'disputed'
+                              ? 'bg-orange-900 text-orange-300'
+                              : 'bg-gray-700 text-gray-300'
                           }`}>
-                            {match.status}
+                            {match.status === 'pending_confirmation' 
+                              ? 'PENDING' 
+                              : match.status === 'disputed'
+                              ? 'DISPUTED'
+                              : match.status.toUpperCase()}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">

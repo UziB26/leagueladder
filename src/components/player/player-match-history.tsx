@@ -120,22 +120,24 @@ export function PlayerMatchHistory({ playerId, limit = 50 }: PlayerMatchHistoryP
           const playerScore = isPlayer1 ? match.player1_score : match.player2_score
           const opponentScore = isPlayer1 ? match.player2_score : match.player1_score
           
-          // Determine winner - check winner_id first, then fallback to scores
+          // Only determine winner/draw if match is completed
           let isWinner = false
           let isDraw = false
           
-          if (match.winner_id === playerId) {
-            isWinner = true
-          } else if (match.winner_id === null || match.winner_id === undefined) {
-            // If winner_id is not set, determine from scores
-            if (playerScore === opponentScore) {
-              isDraw = true
+          if (match.status === 'completed') {
+            if (match.winner_id === playerId) {
+              isWinner = true
+            } else if (match.winner_id === null || match.winner_id === undefined) {
+              // If winner_id is not set, determine from scores
+              if (playerScore === opponentScore) {
+                isDraw = true
+              } else {
+                isWinner = playerScore > opponentScore
+              }
             } else {
-              isWinner = playerScore > opponentScore
+              // winner_id is set and it's not the current player, so it's a loss
+              isWinner = false
             }
-          } else {
-            // winner_id is set and it's not the current player, so it's a loss
-            isWinner = false
           }
           
           const ratingUpdate = isPlayer1 
@@ -146,7 +148,11 @@ export function PlayerMatchHistory({ playerId, limit = 50 }: PlayerMatchHistoryP
             <div
               key={match.id}
               className={`border rounded-lg p-4 transition-colors ${
-                isWinner 
+                match.status === 'pending_confirmation'
+                  ? 'bg-yellow-900/20 border-yellow-700'
+                  : match.status === 'disputed'
+                  ? 'bg-orange-900/20 border-orange-700'
+                  : isWinner 
                   ? 'bg-green-900/30 border-green-700' 
                   : isDraw
                   ? 'bg-gray-800 border-gray-700'
@@ -157,13 +163,21 @@ export function PlayerMatchHistory({ playerId, limit = 50 }: PlayerMatchHistoryP
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                      isWinner 
+                      match.status === 'pending_confirmation'
+                        ? 'bg-yellow-800 text-yellow-300'
+                        : match.status === 'disputed'
+                        ? 'bg-orange-800 text-orange-300'
+                        : isWinner 
                         ? 'bg-green-800 text-green-300' 
                         : isDraw
                         ? 'bg-gray-700 text-gray-300'
                         : 'bg-red-800 text-red-300'
                     }`}>
-                      {isWinner ? 'WIN' : isDraw ? 'DRAW' : 'LOSS'}
+                      {match.status === 'pending_confirmation' 
+                        ? 'PENDING' 
+                        : match.status === 'disputed'
+                        ? 'DISPUTED'
+                        : isWinner ? 'WIN' : isDraw ? 'DRAW' : 'LOSS'}
                     </span>
                     <span className="text-sm font-medium text-gray-300">
                       {match.league_name}

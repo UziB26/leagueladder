@@ -252,29 +252,45 @@ export async function POST(
           const player2Won = match.player2Score > match.player1Score
 
           // Update player 1 rating and stats
+          const player1UpdateData: any = {
+            rating: newRating1,
+            gamesPlayed: { increment: 1 },
+            updatedAt: new Date()
+          }
+          if (player1Won) {
+            player1UpdateData.wins = { increment: 1 }
+          }
+          if (player2Won) {
+            player1UpdateData.losses = { increment: 1 }
+          }
+          if (isDraw) {
+            player1UpdateData.draws = { increment: 1 }
+          }
+          
           await tx.playerRating.update({
             where: { id: rating1.id },
-            data: {
-              rating: newRating1,
-              gamesPlayed: { increment: 1 },
-              wins: player1Won ? { increment: 1 } : undefined,
-              losses: player2Won ? { increment: 1 } : undefined,
-              draws: isDraw ? { increment: 1 } : undefined,
-              updatedAt: new Date()
-            }
+            data: player1UpdateData
           })
 
           // Update player 2 rating and stats
+          const player2UpdateData: any = {
+            rating: newRating2,
+            gamesPlayed: { increment: 1 },
+            updatedAt: new Date()
+          }
+          if (player2Won) {
+            player2UpdateData.wins = { increment: 1 }
+          }
+          if (player1Won) {
+            player2UpdateData.losses = { increment: 1 }
+          }
+          if (isDraw) {
+            player2UpdateData.draws = { increment: 1 }
+          }
+          
           await tx.playerRating.update({
             where: { id: rating2.id },
-            data: {
-              rating: newRating2,
-              gamesPlayed: { increment: 1 },
-              wins: player2Won ? { increment: 1 } : undefined,
-              losses: player1Won ? { increment: 1 } : undefined,
-              draws: isDraw ? { increment: 1 } : undefined,
-              updatedAt: new Date()
-            }
+            data: player2UpdateData
           })
 
           // Record rating updates
@@ -373,7 +389,12 @@ export async function POST(
         })
       }
     } catch (error: any) {
+      console.error('=== MATCH CONFIRMATION ERROR ===')
       console.error('Error in match confirmation:', error)
+      console.error('Error message:', error.message)
+      console.error('Error stack:', error.stack)
+      console.error('Match ID:', sanitizedMatchId)
+      console.error('Player ID:', player?.id)
       return NextResponse.json(
         { 
           error: error.message || 'Failed to confirm match',

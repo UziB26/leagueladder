@@ -35,18 +35,45 @@ export function MatchReportForm({ currentPlayerId, onSuccess }: MatchReportFormP
     
     try {
       setLoading(true)
-      const response = await fetch('/api/challenges')
       
-      if (!response.ok) {
+      // Fetch both challenges and pending matches
+      const [challengesResponse, pendingMatchesResponse] = await Promise.all([
+        fetch('/api/challenges'),
+        fetch('/api/matches/pending-confirmations')
+      ])
+      
+      if (!challengesResponse.ok) {
         throw new Error('Failed to fetch challenges')
       }
       
-      const data = await response.json()
-      // Filter for accepted challenges where current player is involved
-      const accepted = (data.challenges || []).filter((c: Challenge) => 
-        c.status === 'accepted' && 
-        (c.challenger_id === currentPlayerId || c.challengee_id === currentPlayerId)
+      const challengesData = await challengesResponse.json()
+      const pendingData = pendingMatchesResponse.ok ? await pendingMatchesResponse.json() : { matches: [] }
+      
+      // Get challenge IDs that have pending matches where current player needs to confirm
+      // (matches where current player is NOT the reporter)
+      const pendingMatchChallengeIds = new Set(
+        (pendingData.matches || [])
+          .filter((m: any) => 
+            m.status === 'pending_confirmation' && 
+            m.reported_by !== currentPlayerId &&
+            m.challenge_id
+          )
+          .map((m: any) => m.challenge_id)
       )
+      
+      // Filter for accepted challenges where:
+      // 1. Current player is involved
+      // 2. Challenge doesn't have a pending match waiting for current player's confirmation
+      const accepted = (challengesData.challenges || []).filter((c: Challenge) => {
+        const isInvolved = c.status === 'accepted' && 
+          (c.challenger_id === currentPlayerId || c.challengee_id === currentPlayerId)
+        
+        // Don't show if there's a pending match for this challenge that needs current player's confirmation
+        const hasPendingMatch = pendingMatchChallengeIds.has(c.id)
+        
+        return isInvolved && !hasPendingMatch
+      })
+      
       setAcceptedChallenges(accepted)
     } catch (error: any) {
       console.error('Error fetching accepted challenges:', error)

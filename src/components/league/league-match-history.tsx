@@ -147,28 +147,34 @@ export function LeagueMatchHistory({ leagueId, leagueName, limit = 50 }: LeagueM
       <CardContent>
         <div className="space-y-4">
           {matches.map((match) => {
-            // Determine outcome - check winner_id first, then fallback to scores
+            // Only determine outcome if match is completed
             let isDraw = false
             let player1Won = false
             
-            if (match.winner_id === null || match.winner_id === undefined) {
-              // If winner_id is not set, determine from scores
-              if (match.player1_score === match.player2_score) {
-                isDraw = true
+            if (match.status === 'completed') {
+              if (match.winner_id === null || match.winner_id === undefined) {
+                // If winner_id is not set, determine from scores
+                if (match.player1_score === match.player2_score) {
+                  isDraw = true
+                } else {
+                  player1Won = match.player1_score > match.player2_score
+                }
               } else {
-                player1Won = match.player1_score > match.player2_score
+                // winner_id is set
+                player1Won = match.winner_id === match.player1_id
+                isDraw = false
               }
-            } else {
-              // winner_id is set
-              player1Won = match.winner_id === match.player1_id
-              isDraw = false
             }
             
             return (
               <div
                 key={match.id}
                 className={`border rounded-lg p-4 transition-colors ${
-                  isDraw
+                  match.status === 'pending_confirmation'
+                    ? 'bg-yellow-900/20 border-yellow-700'
+                    : match.status === 'disputed'
+                    ? 'bg-orange-900/20 border-orange-700'
+                    : isDraw
                     ? 'bg-gray-800 border-gray-700'
                     : player1Won
                     ? 'bg-green-900/30 border-green-700'
@@ -179,13 +185,21 @@ export function LeagueMatchHistory({ leagueId, leagueName, limit = 50 }: LeagueM
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                        isDraw
+                        match.status === 'pending_confirmation'
+                          ? 'bg-yellow-800 text-yellow-300'
+                          : match.status === 'disputed'
+                          ? 'bg-orange-800 text-orange-300'
+                          : isDraw
                           ? 'bg-gray-700 text-gray-300'
                           : player1Won
                           ? 'bg-green-800 text-green-300'
                           : 'bg-red-800 text-red-300'
                       }`}>
-                        {isDraw ? 'DRAW' : player1Won ? `${match.player1_name} WINS` : `${match.player2_name} WINS`}
+                        {match.status === 'pending_confirmation' 
+                          ? 'PENDING' 
+                          : match.status === 'disputed'
+                          ? 'DISPUTED'
+                          : isDraw ? 'DRAW' : player1Won ? `${match.player1_name} WINS` : `${match.player2_name} WINS`}
                       </span>
                       <span className="text-xs text-gray-400">
                         {formatDistanceToNow(parseDatabaseDate(match.played_at), { addSuffix: true })}
