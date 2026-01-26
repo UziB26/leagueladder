@@ -71,37 +71,6 @@ export function createProtectedHandler(
           )
         }
 
-        // Check email verification requirement (unless this is the send-verification or verify-email route, or admin route)
-        const user = session.user as { email_verified?: boolean; email?: string; is_admin?: boolean }
-        const isVerificationRoute = request.nextUrl.pathname.includes('/auth/send-verification') || 
-                                    request.nextUrl.pathname.includes('/auth/verify-email')
-        const isAdminRoute = request.nextUrl.pathname.includes('/api/admin')
-        
-        // Admins can bypass email verification (they need to manage the system)
-        // Regular users must verify their email
-        if (!isVerificationRoute && !isAdminRoute && user.email) {
-          try {
-            const dbUser = await db.user.findUnique({
-              where: { email: user.email },
-              select: { emailVerified: true }
-            })
-            
-            // Require email verification for all authenticated routes (except verification routes and admin routes)
-            if (!dbUser?.emailVerified) {
-              return NextResponse.json(
-                { 
-                  error: "Email verification required",
-                  requiresVerification: true,
-                  message: "Please verify your email address before using this feature."
-                },
-                { status: 403 }
-              )
-            }
-          } catch (error) {
-            // If database check fails, allow access (fallback - don't block users if DB is down)
-            console.error('Error checking email verification status:', error)
-          }
-        }
 
         // Check admin requirement
         if (requireAdmin) {

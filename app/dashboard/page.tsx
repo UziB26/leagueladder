@@ -6,7 +6,6 @@ import { ErrorState, ErrorMessage } from "@/components/ui/error-state"
 import { SuccessMessage } from "@/components/ui/success-state"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ProgressIndicators } from "@/components/dashboard/progress-indicators"
-import { EmailVerificationBanner } from "@/components/auth/email-verification-banner"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
@@ -38,13 +37,6 @@ export default function DashboardPage() {
       return
     }
 
-    // Check if email is verified
-    const user = session.user as { email_verified?: boolean; email?: string } | undefined
-    if (user && !user.email_verified) {
-      // Redirect to verification page if email not verified
-      router.push('/auth/verify-email-required')
-      return
-    }
 
     fetchLeagues()
   }, [session, router])
@@ -199,8 +191,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Email Verification Banner */}
-        <EmailVerificationBanner />
 
         {/* Progress Indicators */}
         <div className="mb-12">

@@ -79,14 +79,6 @@ export default function LeaguesPage() {
   }
 
   useEffect(() => {
-    // If user is logged in, check email verification
-    if (session) {
-      const user = session.user as { email_verified?: boolean; email?: string } | undefined
-      if (user && !user.email_verified) {
-        router.push('/auth/verify-email-required')
-        return
-      }
-    }
     fetchLeagues()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, router])
