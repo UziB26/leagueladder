@@ -18,6 +18,23 @@ import { apiHandlers } from '@/lib/api-helpers'
  */
 async function handler(request: NextRequest) {
   try {
+    // Check email service configuration first
+    const hasResendKey = !!process.env.RESEND_API_KEY
+    const hasEmailFrom = !!process.env.EMAIL_FROM
+    
+    if (!hasResendKey || !hasEmailFrom) {
+      return NextResponse.json({
+        success: false,
+        error: 'Email service not configured',
+        details: {
+          RESEND_API_KEY: hasResendKey ? 'Set' : 'Missing',
+          EMAIL_FROM: hasEmailFrom ? 'Set' : 'Missing',
+          message: 'Please set RESEND_API_KEY and EMAIL_FROM in Vercel environment variables'
+        },
+        timestamp: new Date().toISOString()
+      }, { status: 500 })
+    }
+
     // Get all users who haven't verified their email
     const unverifiedUsers = await db.user.findMany({
       where: {
@@ -84,6 +101,7 @@ async function handler(request: NextRequest) {
           console.log(`[Verification] Sent verification email to ${user.email}`)
           results.sent++
         } else {
+          console.error(`[Verification] Failed to send email to ${user.email}:`, emailResult.error)
           results.errors.push({
             email: user.email,
             error: emailResult.error || 'Failed to send email'
@@ -99,12 +117,17 @@ async function handler(request: NextRequest) {
     }
 
     return NextResponse.json({
-      success: true,
+      success: results.errors.length === 0 || results.sent > 0,
       message: `Verification emails sent to ${results.sent} users. ${results.skipped} skipped (already have valid tokens). ${results.errors.length} errors.`,
       total: unverifiedUsers.length,
       sent: results.sent,
       skipped: results.skipped,
       errors: results.errors,
+      config: {
+        hasResendKey: !!process.env.RESEND_API_KEY,
+        hasEmailFrom: !!process.env.EMAIL_FROM,
+        emailFrom: process.env.EMAIL_FROM || 'Not set'
+      },
       timestamp: new Date().toISOString()
     })
   } catch (error: any) {

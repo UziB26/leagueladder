@@ -11,6 +11,24 @@ import { apiRateLimit } from '@/lib/rate-limit'
  */
 export async function POST(request: NextRequest) {
   try {
+    // Check email service configuration first
+    const hasResendKey = !!process.env.RESEND_API_KEY
+    const hasEmailFrom = !!process.env.EMAIL_FROM
+    
+    if (!hasResendKey || !hasEmailFrom) {
+      console.error('[Send Verification] Email service not configured:', {
+        RESEND_API_KEY: hasResendKey ? 'Set' : 'Missing',
+        EMAIL_FROM: hasEmailFrom ? 'Set' : 'Missing'
+      })
+      return NextResponse.json(
+        { 
+          error: 'Email service not configured',
+          message: 'Please contact support. Email verification is currently unavailable.'
+        },
+        { status: 503 }
+      )
+    }
+
     // Apply rate limiting
     const rateLimitResponse = await apiRateLimit(request)
     if (rateLimitResponse) {
@@ -52,6 +70,7 @@ export async function POST(request: NextRequest) {
     // Create verification token
     const token = await createVerificationToken(userEmail)
     if (!token) {
+      console.error('[Send Verification] Failed to create token for:', userEmail)
       return NextResponse.json(
         { error: 'Failed to create verification token' },
         { status: 500 }
@@ -61,26 +80,36 @@ export async function POST(request: NextRequest) {
     // Send verification email
     const emailResult = await sendVerificationEmail(userEmail, token)
     if (!emailResult.success) {
-      // If email sending fails, still return success to user (don't expose email service errors)
-      // But log the error for debugging
-      console.error('Failed to send verification email:', emailResult.error)
+      console.error('[Send Verification] Failed to send email:', {
+        email: userEmail,
+        error: emailResult.error
+      })
       return NextResponse.json(
         { 
-          error: 'Failed to send verification email. Please try again later.',
-          details: process.env.NODE_ENV === 'development' ? emailResult.error : undefined
+          error: 'Failed to send verification email',
+          message: emailResult.error || 'Please try again later.',
+          details: process.env.NODE_ENV === 'development' ? {
+            hasResendKey,
+            hasEmailFrom,
+            emailFrom: process.env.EMAIL_FROM
+          } : undefined
         },
         { status: 500 }
       )
     }
 
+    console.log('[Send Verification] Email sent successfully to:', userEmail)
     return NextResponse.json({
       success: true,
       message: 'Verification email sent successfully'
     })
   } catch (error: any) {
-    console.error('Error in send-verification route:', error)
+    console.error('[Send Verification] Unexpected error:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        message: error.message || 'An unexpected error occurred'
+      },
       { status: 500 }
     )
   }
