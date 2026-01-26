@@ -221,7 +221,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
 
     return {
       id: action.id,
-      type: 'admin_action',
+      type: 'admin_action' as const,
       description,
       created_at: action.createdAt.toISOString(),
       admin_name: action.user?.name || action.user?.email || 'Admin'
