@@ -70,6 +70,12 @@ export async function GET() {
           select: {
             name: true
           }
+        },
+        match: {
+          select: {
+            id: true,
+            status: true
+          }
         }
       },
       orderBy: { createdAt: 'desc' },
@@ -85,21 +91,31 @@ export async function GET() {
       challenger: { name: string }
       challengee: { name: string }
       league: { name: string }
+      match: { id: string; status: string } | null
     }>
     
     // Transform to match expected format
-    const formattedChallenges = challenges.map(c => ({
-      id: c.id,
-      challenger_id: c.challengerId,
-      challengee_id: c.challengeeId,
-      league_id: c.leagueId,
-      status: c.status,
-      created_at: c.createdAt.toISOString(),
-      expires_at: c.expiresAt ? c.expiresAt.toISOString() : null,
-      challenger_name: c.challenger.name,
-      challengee_name: c.challengee.name,
-      league_name: c.league.name
-    }))
+    // If challenge has a match with pending_confirmation status, show as "pending"
+    const formattedChallenges = challenges.map(c => {
+      let displayStatus = c.status
+      // If there's a match waiting for confirmation, show challenge as "pending"
+      if (c.match && c.match.status === 'pending_confirmation') {
+        displayStatus = 'pending'
+      }
+      
+      return {
+        id: c.id,
+        challenger_id: c.challengerId,
+        challengee_id: c.challengeeId,
+        league_id: c.leagueId,
+        status: displayStatus,
+        created_at: c.createdAt.toISOString(),
+        expires_at: c.expiresAt ? c.expiresAt.toISOString() : null,
+        challenger_name: c.challenger.name,
+        challengee_name: c.challengee.name,
+        league_name: c.league.name
+      }
+    })
     
     return NextResponse.json({ challenges: formattedChallenges })
     

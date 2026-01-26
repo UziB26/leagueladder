@@ -165,18 +165,43 @@ export async function GET(
       return true // adjust_rating and adjust_stats are already filtered by playerId
     })
 
-    // Create maps for quick lookup
-    const ratingAdjustmentsByPlayer = new Map<string, boolean>()
-    const statsAdjustmentsByPlayer = new Map<string, boolean>()
+    // Create maps for quick lookup - only for actions that affect specific matches
     const scoreEditsByMatch = new Map<string, boolean>()
+    
+    // For rating/stats adjustments, we need to check if they happened AFTER this match was played
+    // and if they're for the same league as this match
+    const ratingAdjustmentsByMatch = new Map<string, boolean>()
+    const statsAdjustmentsByMatch = new Map<string, boolean>()
 
     adminActions.forEach(action => {
-      if (action.action === 'adjust_rating' && action.targetId === playerId) {
-        ratingAdjustmentsByPlayer.set(playerId, true)
-      } else if (action.action === 'adjust_stats' && action.targetId === playerId) {
-        statsAdjustmentsByPlayer.set(playerId, true)
-      } else if (action.action === 'edit_match_score' && action.targetId) {
+      if (action.action === 'edit_match_score' && action.targetId) {
         scoreEditsByMatch.set(action.targetId, true)
+      } else if (action.action === 'adjust_rating' && action.targetId === playerId) {
+        // Check if this adjustment is for a match's league and happened after the match
+        const details = action.details ? JSON.parse(action.details) : {}
+        const adjustmentLeagueId = details.league_id
+        const adjustmentTime = new Date(action.createdAt)
+        
+        matches.forEach(match => {
+          // Only mark if adjustment is for this match's league AND happened after match was played
+          // This means the admin adjustment affected this match's outcome
+          if (adjustmentLeagueId === match.leagueId && adjustmentTime > match.playedAt) {
+            ratingAdjustmentsByMatch.set(match.id, true)
+          }
+        })
+      } else if (action.action === 'adjust_stats' && action.targetId === playerId) {
+        // Check if this adjustment is for a match's league and happened after the match
+        const details = action.details ? JSON.parse(action.details) : {}
+        const adjustmentLeagueId = details.league_id
+        const adjustmentTime = new Date(action.createdAt)
+        
+        matches.forEach(match => {
+          // Only mark if adjustment is for this match's league AND happened after match was played
+          // This means the admin adjustment affected this match's outcome
+          if (adjustmentLeagueId === match.leagueId && adjustmentTime > match.playedAt) {
+            statsAdjustmentsByMatch.set(match.id, true)
+          }
+        })
       }
     })
 
@@ -185,9 +210,9 @@ export async function GET(
       const player1Update = match.ratingUpdates.find(ru => ru.playerId === match.player1Id)
       const player2Update = match.ratingUpdates.find(ru => ru.playerId === match.player2Id)
 
-      // Check if this player had rating/stats adjusted (for any league, not just this match's league)
-      const hasRatingAdjustment = ratingAdjustmentsByPlayer.has(playerId)
-      const hasStatsAdjustment = statsAdjustmentsByPlayer.has(playerId)
+      // Only show admin adjustments if they actually affected THIS specific match
+      const hasRatingAdjustment = ratingAdjustmentsByMatch.has(match.id)
+      const hasStatsAdjustment = statsAdjustmentsByMatch.has(match.id)
       const hasScoreEdit = scoreEditsByMatch.has(match.id)
 
       return {

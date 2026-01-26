@@ -194,17 +194,19 @@ export async function POST(
       player2: { name: string }
     }
 
-    // Mark challenge as completed when a match is created from it
-    // The challenge has served its purpose - it resulted in a match
-    await db.challenge.updateMany({
-      where: {
-        id: challengeId,
-        status: 'accepted'
-      },
-      data: {
-        status: 'completed'
-      }
-    })
+    // Only mark challenge as completed if match is actually completed
+    // If match is pending_confirmation, challenge should stay as accepted
+    if (matchStatus === 'completed') {
+      await db.challenge.updateMany({
+        where: {
+          id: challengeId,
+          status: 'accepted'
+        },
+        data: {
+          status: 'completed'
+        }
+      })
+    }
 
     // If match is completed (admin override), update Elo ratings immediately
     if (matchStatus === 'completed') {
