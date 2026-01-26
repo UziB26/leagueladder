@@ -119,7 +119,7 @@ erDiagram
     
     matches {
         uuid id PK
-        uuid challenge_id FK UK
+        uuid challenge_id FK
         uuid player1_id FK
         uuid player2_id FK
         uuid winner_id FK
