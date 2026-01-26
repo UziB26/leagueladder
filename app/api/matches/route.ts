@@ -378,8 +378,30 @@ export async function GET(request: Request) {
       return NextResponse.json({ matches: [] })
     }
 
-    // Get matches for the current player using Prisma
+    // Check if filtering by challengeId
+    const { searchParams } = new URL(request.url)
+    const challengeId = searchParams.get('challengeId')
+
+    // Build where clause
+    let whereClause: any
+    
+    // If challengeId is provided, just check if ANY match exists for that challenge
+    // (regardless of which player - needed to hide report button for both players)
+    if (challengeId) {
+      whereClause = { challengeId }
+    } else {
+      // Otherwise, get matches for the current player
+      whereClause = {
+        OR: [
+          { player1Id: player.id },
+          { player2Id: player.id }
+        ]
+      }
+    }
+
+    // Get matches using Prisma
     const matches = await db.match.findMany({
+      where: whereClause,
       where: {
         OR: [
           { player1Id: player.id },

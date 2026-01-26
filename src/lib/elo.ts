@@ -42,40 +42,21 @@ export class EloCalculator {
     
     /**
      * Calculate actual score value based on match scores.
-     * Uses score ratio to determine the "strength" of victory.
+     * Returns 1.0 for win, 0.0 for loss, 0.5 for draw.
+     * The margin of victory is handled separately via the multiplier.
      * 
      * @param player1Score - Score of player 1
      * @param player2Score - Score of player 2
-     * @returns Score value between 0 and 1 (0.5 for draw)
+     * @returns Score value: 1.0 if player1 wins, 0.0 if player2 wins, 0.5 for draw
      */
     calculateScoreValue(player1Score: number, player2Score: number): number {
       if (player1Score === player2Score) {
         return 0.5 // Draw
       }
       
-      const totalScore = player1Score + player2Score
-      if (totalScore === 0) {
-        return 0.5 // Edge case: both scores are 0
-      }
-      
-      // Use score ratio to determine strength of victory
-      // This gives more credit for larger victories
-      // Formula: (player1Score / totalScore) adjusted to be between 0 and 1
-      const scoreRatio = player1Score / totalScore
-      
-      // For close matches, use standard win/loss (0 or 1)
-      // For larger margins, adjust towards the extremes
-      const margin = Math.abs(player1Score - player2Score)
-      const total = player1Score + player2Score
-      
-      if (margin / total < 0.1) {
-        // Very close match - use standard win/loss
-        return player1Score > player2Score ? 1 : 0
-      } else {
-        // Larger margin - use score ratio with adjustment
-        // This rewards larger victories more
-        return scoreRatio
-      }
+      // Winner always gets 1.0, loser always gets 0.0
+      // This ensures winners always gain rating and losers always lose rating
+      return player1Score > player2Score ? 1.0 : 0.0
     }
     
     calculateNewRatings(

@@ -36,11 +36,39 @@ export function ChallengeCard({
   const [player2Score, setPlayer2Score] = useState("")
   const [reportError, setReportError] = useState("")
   const [matchReported, setMatchReported] = useState(false)
+  const [hasExistingMatch, setHasExistingMatch] = useState(false)
   const router = useRouter()
   const confirmationDialog = useConfirmationDialog()
   
   const isChallenger = challenge.challenger_id === currentPlayerId
   const isChallengee = challenge.challengee_id === currentPlayerId
+
+  // Check if a match already exists for this challenge
+  useEffect(() => {
+    const checkForExistingMatch = async () => {
+      if (!challenge.id) return
+      
+      try {
+        // Check if match exists for this challenge
+        const response = await fetch(`/api/matches?challengeId=${challenge.id}`)
+        if (response.ok) {
+          const data = await response.json()
+          // If any matches exist for this challenge, hide the report button
+          if (data.matches && data.matches.length > 0) {
+            setHasExistingMatch(true)
+            setMatchReported(true)
+          }
+        }
+      } catch (error) {
+        console.error('Error checking for existing match:', error)
+      }
+    }
+    
+    // Only check if challenge is accepted (no point checking for pending/declined challenges)
+    if (challenge.status === 'accepted') {
+      checkForExistingMatch()
+    }
+  }, [challenge.id, challenge.status])
   
   const handleAction = async (action: 'accept' | 'decline' | 'cancel') => {
     // Show confirmation for cancel action
@@ -239,7 +267,8 @@ export function ChallengeCard({
       })
     }
 
-    if (challenge.status === 'accepted' && (isChallenger || isChallengee)) {
+    // Only show report score option if challenge is accepted, user is involved, and no match exists yet
+    if (challenge.status === 'accepted' && (isChallenger || isChallengee) && !hasExistingMatch && !matchReported) {
       options.push({
         label: 'Report Score',
         icon: <MoreVertical className="h-4 w-4" />,
@@ -359,7 +388,7 @@ export function ChallengeCard({
         </div>
       )}
       
-      {challenge.status === 'accepted' && !matchReported && (
+      {challenge.status === 'accepted' && !matchReported && !hasExistingMatch && (
         <div className="mt-4">
           {!showReportForm ? (
             <>
