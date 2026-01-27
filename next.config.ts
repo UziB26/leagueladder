@@ -33,9 +33,6 @@ const nextConfig: NextConfig = {
       allowedOrigins: ['localhost:3000'],
     },
   },
-  // Allow build to continue even if Google Fonts fail to load
-  // This is useful for offline builds or network-restricted environments
-  optimizeFonts: true,
   // CRITICAL: Expose environment variables to Next.js build process
   // This ensures PRISMA_CLIENT_ENGINE_TYPE is available during module evaluation
   // This is especially important for AWS Amplify builds
