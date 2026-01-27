@@ -67,28 +67,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Format matches
-    const formattedMatches = matches.map((m: {
-      id: string
-      player1Id: string
-      player2Id: string
-      leagueId: string
-      player1Score: number
-      player2Score: number
-      status: string
-      winnerId: string | null
-      challengeId: string | null
-      playedAt: Date
-      player1: { name: string }
-      player2: { name: string }
-      league: { name: string }
-      confirmations: Array<{
-        disputeReason: string | null
-        confirmedScore1: number | null
-        confirmedScore2: number | null
-        createdAt: Date
-        player: { name: string }
-      }>
-    }) => {
+    const formattedMatches = matches.map(m => {
       const dispute = m.confirmations[0]
       return {
         id: m.id,

@@ -55,18 +55,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Format players
-    const formattedPlayers = players.map((p: {
-      id: string
-      userId: string
-      name: string | null
-      email: string | null
-      avatar: string | null
-      createdAt: Date
-      user: { email: string; isAdmin: boolean }
-      memberships: Array<{ isActive: boolean }>
-      matchesAsPlayer1: Array<unknown>
-      matchesAsPlayer2: Array<unknown>
-    }) => {
+    const formattedPlayers = players.map(p => {
       const allMatches = [...p.matchesAsPlayer1, ...p.matchesAsPlayer2]
       return {
         id: p.id,

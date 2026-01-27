@@ -54,17 +54,6 @@ const globalForPrisma = globalThis as unknown as {
   prisma: ReturnType<typeof createPrismaClient> | undefined
 }
 
-// Next.js Build-Phase Guard
-// Detect if we're in Next.js production build phase
-const isNextBuildPhase: boolean = process.env.NEXT_PHASE === 'phase-production-build'
-
-// Proxy-based buildTimeStub that throws if accessed during build
-const buildTimeStub = new Proxy({} as PrismaClient, {
-  get(): never {
-    throw new Error('PrismaClient is not available during Next.js build phase')
-  }
-})
-
 // Allow self-signed certs during local builds (Prisma fetch)
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
@@ -230,15 +219,11 @@ if (!isBuildTime && process.env.NODE_ENV === 'production') {
 }
 
 console.log('[Prisma Debug] Creating Prisma singleton instance...')
-console.log('[Prisma Debug]   isNextBuildPhase:', isNextBuildPhase)
 console.log('[Prisma Debug]   globalForPrisma.prisma exists:', !!globalForPrisma.prisma)
+const prisma = globalForPrisma.prisma ?? createPrismaClient()
+console.log('[Prisma Debug]   Prisma instance created/reused')
 
-// Use buildTimeStub during Next.js build phase, otherwise create real client
-const prisma: any = globalForPrisma.prisma ?? (isNextBuildPhase ? buildTimeStub : createPrismaClient())
-console.log('[Prisma Debug]   Prisma instance created/reused (or stub during build)')
-
-// Prevent caching buildTimeStub on globalThis during build phase
-if (process.env.NODE_ENV !== 'production' && !isNextBuildPhase) {
+if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma
   console.log('[Prisma Debug]   Cached Prisma instance in global (development)')
 }

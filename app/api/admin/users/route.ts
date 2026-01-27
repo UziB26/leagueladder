@@ -50,13 +50,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Format users to match expected format
-    const formattedUsers = users.map((u: {
-      id: string
-      email: string
-      name: string | null
-      isAdmin: boolean
-      createdAt: Date
-    }) => ({
+    const formattedUsers = users.map(u => ({
       id: u.id,
       email: u.email,
       name: u.name,

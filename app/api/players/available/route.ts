@@ -81,13 +81,7 @@ export async function GET(request: NextRequest) {
         }
       }>
       
-      players = memberships.map((m: {
-        player: {
-          id: string
-          name: string
-          ratings: Array<{ rating: number }>
-        }
-      }) => ({
+      players = memberships.map(m => ({
         id: m.player.id,
         name: m.player.name,
         rating: m.player.ratings[0]?.rating ?? 1000

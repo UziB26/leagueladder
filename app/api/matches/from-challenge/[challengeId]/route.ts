@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { elo } from '@/lib/elo'
-import { Prisma } from '@prisma/client'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
 export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
@@ -264,7 +263,7 @@ export async function POST(
         const player1Won = player1Score > player2Score
         const player2Won = player2Score > player1Score
 
-        await db.$transaction(async (tx: Prisma.TransactionClient) => {
+        await db.$transaction(async (tx) => {
           await tx.playerRating.update({
             where: { id: rating1.id },
             data: {

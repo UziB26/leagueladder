@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { elo } from '@/lib/elo'
-import { Prisma } from '@prisma/client'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
 export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
@@ -70,7 +69,7 @@ async function updateEloRatings(matchId: string) {
   )
 
   // Update ratings in a transaction
-  await db.$transaction(async (tx: Prisma.TransactionClient) => {
+  await db.$transaction(async (tx) => {
     // Update player ratings
     await tx.playerRating.update({
       where: { id: rating1.id },
@@ -463,22 +462,7 @@ export async function GET(request: Request) {
     }>
 
     // Transform to match expected format
-    const formattedMatches = matches.map((m: {
-      id: string
-      player1Id: string
-      player2Id: string
-      leagueId: string
-      player1Score: number
-      player2Score: number
-      winnerId: string | null
-      status: string
-      reportedBy: string | null
-      playedAt: Date
-      confirmedAt: Date | null
-      league: { name: string }
-      player1: { name: string }
-      player2: { name: string }
-    }) => ({
+    const formattedMatches = matches.map(m => ({
       ...m,
       league_name: m.league.name,
       player1_name: m.player1.name,

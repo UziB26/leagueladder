@@ -13,17 +13,11 @@ import { OnboardingWrapper } from "@/components/onboarding/onboarding-wrapper";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
-  display: "swap",
-  fallback: ["system-ui", "arial"],
-  adjustFontFallback: true,
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-  display: "swap",
-  fallback: ["Consolas", "Monaco", "monospace"],
-  adjustFontFallback: true,
 });
 
 export const viewport: Viewport = {

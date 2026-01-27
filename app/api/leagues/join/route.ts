@@ -4,7 +4,6 @@ import { db } from '@/lib/db'
 import { apiRateLimit } from '@/lib/rate-limit'
 import { validateRequest, requestSchemas } from '@/lib/validation'
 import { sanitizeString } from '@/lib/sanitize'
-import { Prisma } from '@prisma/client'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
 export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
@@ -140,7 +139,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Join league and initialize rating in a transaction
-    const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+    const result = await db.$transaction(async (tx) => {
       // Create league membership
       const membership = await tx.leagueMembership.upsert({
         where: {

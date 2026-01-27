@@ -74,16 +74,7 @@ export async function GET(
     }
 
     // Format ratings
-    const ratings = player.ratings.map((r: {
-      playerId: string
-      leagueId: string
-      rating: number
-      wins: number
-      losses: number
-      draws: number
-      gamesPlayed: number
-      league: { name: string }
-    }) => ({
+    const ratings = player.ratings.map(r => ({
       player_id: r.playerId,
       league_id: r.leagueId,
       rating: r.rating,

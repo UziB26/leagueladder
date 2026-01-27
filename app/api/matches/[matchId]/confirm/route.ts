@@ -4,7 +4,6 @@ import { db } from '@/lib/db'
 import { elo } from '@/lib/elo'
 import { apiRateLimit } from '@/lib/rate-limit'
 import { sanitizeUUID } from '@/lib/sanitize'
-import { Prisma } from '@prisma/client'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
 export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
@@ -178,7 +177,7 @@ export async function POST(
         })
         
         // Use Prisma transaction for atomicity
-        const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+        const result = await db.$transaction(async (tx) => {
           // Record confirmation
           await tx.matchConfirmation.create({
             data: {
@@ -395,7 +394,7 @@ export async function POST(
         })
       } else {
         // Player disputed the match - use Prisma
-        await db.$transaction(async (tx: Prisma.TransactionClient) => {
+        await db.$transaction(async (tx) => {
           // Record dispute
           await tx.matchConfirmation.create({
             data: {
