@@ -5,6 +5,7 @@ import { strictRateLimit } from '@/lib/rate-limit'
 import { sanitizeUUID } from '@/lib/sanitize'
 import { elo } from '@/lib/elo'
 import { NextRequest } from 'next/server'
+import { Prisma } from '@prisma/client'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
 export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
@@ -68,7 +69,7 @@ export async function PUT(
     }
 
     // Use transaction to ensure data consistency
-    const result = await db.$transaction(async (tx) => {
+    const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
       // Get match with current rating updates
       const match = await tx.match.findUnique({
         where: { id: sanitizedMatchId },
@@ -302,7 +303,7 @@ export async function DELETE(
     }
 
     // Use transaction to ensure data consistency
-    const result = await db.$transaction(async (tx) => {
+    const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
       // Get match with rating updates before deletion
       const match = await tx.match.findUnique({
         where: { id: sanitizedMatchId },

@@ -32,6 +32,17 @@ const accelerateUrl = process.env.PRISMA_DATABASE_URL?.startsWith('prisma+')
   ? process.env.PRISMA_DATABASE_URL
   : undefined
 
+// DEBUG: Log environment variables during seed script
+console.log('[Seed Debug] Environment check:')
+console.log('[Seed Debug]   NODE_ENV:', process.env.NODE_ENV)
+console.log('[Seed Debug]   PRISMA_CLIENT_ENGINE_TYPE:', process.env.PRISMA_CLIENT_ENGINE_TYPE)
+console.log('[Seed Debug]   DATABASE_URL present:', !!process.env.DATABASE_URL)
+console.log('[Seed Debug]   PRISMA_DATABASE_URL present:', !!process.env.PRISMA_DATABASE_URL)
+console.log('[Seed Debug]   POSTGRES_PRISMA_URL present:', !!process.env.POSTGRES_PRISMA_URL)
+console.log('[Seed Debug]   POSTGRES_URL present:', !!process.env.POSTGRES_URL)
+console.log('[Seed Debug]   databaseUrl resolved:', databaseUrl ? `${databaseUrl.substring(0, 30)}...` : 'undefined')
+console.log('[Seed Debug]   accelerateUrl:', accelerateUrl ? `${accelerateUrl.substring(0, 30)}...` : 'undefined')
+
 if (!databaseUrl) {
   console.error('❌ Error: DATABASE_URL not found in environment variables')
   console.error('Make sure .env file exists with DATABASE_URL set')
@@ -39,10 +50,14 @@ if (!databaseUrl) {
 }
 
 // Create PrismaClient with same pattern as main db file
-const prisma = new PrismaClient({
+console.log('[Seed Debug] Creating PrismaClient...')
+const clientConfig: any = {
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   ...(accelerateUrl ? { accelerateUrl } : {}),
-})
+}
+console.log('[Seed Debug]   clientConfig:', JSON.stringify(clientConfig, null, 2))
+const prisma = new PrismaClient(clientConfig)
+console.log('[Seed Debug]   PrismaClient instantiated successfully')
 
 async function main() {
   console.log('🌱 Starting database seed...')

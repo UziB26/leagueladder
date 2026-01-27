@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
         leagues_to_preserve: leagues.length
       },
       counts,
-      leagues_to_preserve: leagues.map(l => ({
+      leagues_to_preserve: leagues.map((l: { id: string; name: string; gameType: string }) => ({
         id: l.id,
         name: l.name,
         game_type: l.gameType
@@ -315,7 +315,7 @@ export async function POST(request: NextRequest) {
         leagues_preserved: remainingLeagues.length
       },
       results,
-      leagues_preserved: remainingLeagues.map(l => ({
+      leagues_preserved: remainingLeagues.map((l: { id: string; name: string; gameType: string }) => ({
         id: l.id,
         name: l.name,
         game_type: l.gameType

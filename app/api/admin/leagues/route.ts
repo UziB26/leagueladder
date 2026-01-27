@@ -47,7 +47,13 @@ export async function GET(request: NextRequest) {
     })
 
     // Format leagues
-    const formattedLeagues = leagues.map(l => ({
+    const formattedLeagues = leagues.map((l: { 
+      id: string; 
+      name: string; 
+      gameType: string; 
+      createdAt: Date; 
+      memberships: Array<{ isActive: boolean }> 
+    }) => ({
       id: l.id,
       name: l.name,
       game_type: l.gameType,

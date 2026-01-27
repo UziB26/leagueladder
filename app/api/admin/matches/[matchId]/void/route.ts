@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { strictRateLimit } from '@/lib/rate-limit'
 import { sanitizeUUID } from '@/lib/sanitize'
 import { NextRequest } from 'next/server'
+import { Prisma } from '@prisma/client'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
 export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
@@ -50,7 +51,7 @@ export async function POST(
     }
 
     // Use transaction to ensure data consistency
-    const result = await db.$transaction(async (tx) => {
+    const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
       // Get match with rating updates
       const match = await tx.match.findUnique({
         where: { id: sanitizedMatchId },

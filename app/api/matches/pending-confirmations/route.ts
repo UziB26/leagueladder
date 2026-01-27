@@ -96,7 +96,24 @@ export async function GET(request: NextRequest) {
     }>
 
     // Transform to match expected format
-    const formattedMatches = matches.map(m => ({
+    const formattedMatches = matches.map((m: {
+      id: string
+      challengeId: string | null
+      player1Id: string
+      player2Id: string
+      leagueId: string
+      player1Score: number
+      player2Score: number
+      winnerId: string | null
+      status: string
+      reportedBy: string | null
+      playedAt: Date
+      confirmedAt: Date | null
+      league: { name: string }
+      player1: { name: string }
+      player2: { name: string }
+      reporter: { name: string } | null
+    }) => ({
       id: m.id,
       challenge_id: m.challengeId,
       player1_id: m.player1Id,

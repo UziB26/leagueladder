@@ -97,7 +97,16 @@ export async function GET() {
     
     // Transform to match expected format
     // If challenge has a match with pending_confirmation status, show as "pending"
-    const formattedChallenges = challenges.map(c => {
+    const formattedChallenges = challenges.map((c: {
+      id: string
+      status: string
+      challengerId: string
+      leagueId: string
+      challenger: { name: string }
+      challengee: { name: string }
+      league: { name: string }
+      match: { id: string; status: string } | null
+    }) => {
       let displayStatus = c.status
       // If there's a match waiting for confirmation, show challenge as "pending"
       if (c.match && c.match.status === 'pending_confirmation') {

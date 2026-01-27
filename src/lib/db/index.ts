@@ -54,6 +54,17 @@ const globalForPrisma = globalThis as unknown as {
   prisma: ReturnType<typeof createPrismaClient> | undefined
 }
 
+// Next.js Build-Phase Guard
+// Detect if we're in Next.js production build phase
+const isNextBuildPhase: boolean = process.env.NEXT_PHASE === 'phase-production-build'
+
+// Proxy-based buildTimeStub that throws if accessed during build
+const buildTimeStub = new Proxy({} as PrismaClient, {
+  get(): never {
+    throw new Error('PrismaClient is not available during Next.js build phase')
+  }
+})
+
 // Allow self-signed certs during local builds (Prisma fetch)
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
@@ -66,6 +77,22 @@ const databaseUrl =
 const accelerateUrl = process.env.PRISMA_DATABASE_URL?.startsWith('prisma+')
   ? process.env.PRISMA_DATABASE_URL
   : undefined
+
+// DEBUG: Log environment variables during module load
+console.log('[Prisma Debug] Module load - Environment check:')
+console.log('[Prisma Debug]   NODE_ENV:', process.env.NODE_ENV)
+console.log('[Prisma Debug]   PRISMA_CLIENT_ENGINE_TYPE:', process.env.PRISMA_CLIENT_ENGINE_TYPE)
+console.log('[Prisma Debug]   VERCEL:', process.env.VERCEL)
+console.log('[Prisma Debug]   AWS_AMPLIFY:', process.env.AWS_AMPLIFY)
+console.log('[Prisma Debug]   AWS_EXECUTION_ENV:', process.env.AWS_EXECUTION_ENV)
+console.log('[Prisma Debug]   CI:', process.env.CI)
+console.log('[Prisma Debug]   NEXT_PHASE:', process.env.NEXT_PHASE)
+console.log('[Prisma Debug]   DATABASE_URL present:', !!process.env.DATABASE_URL)
+console.log('[Prisma Debug]   PRISMA_DATABASE_URL present:', !!process.env.PRISMA_DATABASE_URL)
+console.log('[Prisma Debug]   POSTGRES_PRISMA_URL present:', !!process.env.POSTGRES_PRISMA_URL)
+console.log('[Prisma Debug]   POSTGRES_URL present:', !!process.env.POSTGRES_URL)
+console.log('[Prisma Debug]   databaseUrl resolved:', databaseUrl ? `${databaseUrl.substring(0, 20)}...` : 'undefined')
+console.log('[Prisma Debug]   accelerateUrl:', accelerateUrl ? `${accelerateUrl.substring(0, 20)}...` : 'undefined')
 
 // Warn if no database URL is configured
 if (!databaseUrl) {
@@ -83,6 +110,8 @@ if (!databaseUrl) {
 
 // Create Prisma Client (without Accelerate to avoid type issues in build)
 function createPrismaClient() {
+  console.log('[Prisma Debug] createPrismaClient() called')
+  
   // CRITICAL: Set environment variables AGAIN right before PrismaClient instantiation
   // This is the last chance to ensure they're set before Prisma reads them
   if (!process.env.PRISMA_CLIENT_ENGINE_TYPE) {
@@ -90,13 +119,21 @@ function createPrismaClient() {
   }
   process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
   
+  console.log('[Prisma Debug]   PRISMA_CLIENT_ENGINE_TYPE set to:', process.env.PRISMA_CLIENT_ENGINE_TYPE)
+  
   // Ensure DATABASE_URL is set (prevents client engine type detection)
-  if (!process.env.DATABASE_URL && (process.env.AWS_AMPLIFY === 'true' || process.env.AWS_EXECUTION_ENV || process.env.VERCEL === '1' || process.env.CI === 'true')) {
-    process.env.DATABASE_URL = process.env.DATABASE_URL || 
+  const isBuildContext = process.env.AWS_AMPLIFY === 'true' || process.env.AWS_EXECUTION_ENV || process.env.VERCEL === '1' || process.env.CI === 'true'
+  console.log('[Prisma Debug]   isBuildContext:', isBuildContext)
+  console.log('[Prisma Debug]   DATABASE_URL before check:', process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 30)}...` : 'undefined')
+  
+  if (!process.env.DATABASE_URL && isBuildContext) {
+    const fallbackUrl = process.env.DATABASE_URL || 
       process.env.PRISMA_DATABASE_URL || 
       process.env.POSTGRES_PRISMA_URL || 
       process.env.POSTGRES_URL ||
       'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
+    process.env.DATABASE_URL = fallbackUrl
+    console.log('[Prisma Debug]   Set DATABASE_URL to fallback:', fallbackUrl.substring(0, 30) + '...')
   }
   
   const logLevels: Prisma.LogLevel[] =
@@ -123,13 +160,22 @@ function createPrismaClient() {
     log: logLevels,
   }
   
+  console.log('[Prisma Debug]   logLevels:', logLevels)
+  console.log('[Prisma Debug]   accelerateUrl check:', accelerateUrl ? `${accelerateUrl.substring(0, 30)}...` : 'undefined')
+  
   // Only use accelerateUrl if explicitly provided (and it's a real Accelerate URL)
   // For AWS RDS, we use direct connection, not Accelerate
   // IMPORTANT: Do NOT set accelerateUrl unless it's a real Prisma Accelerate URL
   // Setting it incorrectly will cause the "requires adapter or accelerateUrl" error
   if (accelerateUrl && accelerateUrl.startsWith('prisma+')) {
     clientConfig.accelerateUrl = accelerateUrl
+    console.log('[Prisma Debug]   Added accelerateUrl to clientConfig')
+  } else {
+    console.log('[Prisma Debug]   No accelerateUrl added (using binary engine)')
   }
+  
+  console.log('[Prisma Debug]   clientConfig:', JSON.stringify(clientConfig, null, 2))
+  console.log('[Prisma Debug]   Final DATABASE_URL in env:', process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 30)}...` : 'undefined')
   
   // CRITICAL: NEVER set engineType in the constructor
   // The engine type is determined by:
@@ -140,7 +186,10 @@ function createPrismaClient() {
   
   // Prisma Client reads DATABASE_URL from environment automatically
   // We don't need to pass it via constructor
-  return new PrismaClient(clientConfig)
+  console.log('[Prisma Debug]   Instantiating PrismaClient...')
+  const client = new PrismaClient(clientConfig)
+  console.log('[Prisma Debug]   PrismaClient instantiated successfully')
+  return client
 }
 
 // Create singleton instance (reused in development, new in production)
@@ -180,10 +229,18 @@ if (!isBuildTime && process.env.NODE_ENV === 'production') {
   }
 }
 
-const prisma = globalForPrisma.prisma ?? createPrismaClient()
+console.log('[Prisma Debug] Creating Prisma singleton instance...')
+console.log('[Prisma Debug]   isNextBuildPhase:', isNextBuildPhase)
+console.log('[Prisma Debug]   globalForPrisma.prisma exists:', !!globalForPrisma.prisma)
 
-if (process.env.NODE_ENV !== 'production') {
+// Use buildTimeStub during Next.js build phase, otherwise create real client
+const prisma: any = globalForPrisma.prisma ?? (isNextBuildPhase ? buildTimeStub : createPrismaClient())
+console.log('[Prisma Debug]   Prisma instance created/reused (or stub during build)')
+
+// Prevent caching buildTimeStub on globalThis during build phase
+if (process.env.NODE_ENV !== 'production' && !isNextBuildPhase) {
   globalForPrisma.prisma = prisma
+  console.log('[Prisma Debug]   Cached Prisma instance in global (development)')
 }
 
 // Export as 'db' for compatibility with existing code
