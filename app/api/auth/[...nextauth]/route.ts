@@ -1,6 +1,7 @@
 import { handlers } from "@/lib/auth"
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
+export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
 
 // Verify AUTH_SECRET is configured
 if (!process.env.AUTH_SECRET && !process.env.NEXTAUTH_SECRET) {

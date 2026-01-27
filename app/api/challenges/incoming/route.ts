@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
+export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
 
 export async function GET() {
   try {

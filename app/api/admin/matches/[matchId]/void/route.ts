@@ -6,6 +6,7 @@ import { sanitizeUUID } from '@/lib/sanitize'
 import { NextRequest } from 'next/server'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
+export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
 
 export async function POST(
   request: NextRequest,

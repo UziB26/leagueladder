@@ -166,6 +166,12 @@ if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma
 }
 
+// Guard Prisma initialization in production
+if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL && !process.env.POSTGRES_URL && !process.env.POSTGRES_PRISMA_URL && !process.env.PRISMA_DATABASE_URL) {
+  console.error('⚠️  WARNING: Database URL not configured in production!')
+  console.error('⚠️  Please set DATABASE_URL, POSTGRES_URL, POSTGRES_PRISMA_URL, or PRISMA_DATABASE_URL')
+}
+
 // Export as 'db' for compatibility with existing code
 export const db = prisma
 

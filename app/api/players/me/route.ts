@@ -5,6 +5,7 @@ import { Player } from '@/types/database'
 import { sanitizeString } from '@/lib/sanitize'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
+export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
 
 interface User {
   id: string;

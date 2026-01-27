@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 
 // CRITICAL: Force Node.js runtime to prevent edge runtime from triggering client engine type
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
 
 /**
  * GET /api/user/onboarding-status

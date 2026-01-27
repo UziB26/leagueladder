@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { elo } from '@/lib/elo'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
+export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
 
 // Helper function to update Elo ratings after match completion
 async function updateEloRatings(matchId: string) {

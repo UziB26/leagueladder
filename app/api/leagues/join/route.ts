@@ -6,6 +6,7 @@ import { validateRequest, requestSchemas } from '@/lib/validation'
 import { sanitizeString } from '@/lib/sanitize'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
+export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
 
 export async function POST(request: NextRequest) {
   try {

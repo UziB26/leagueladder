@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { auth } from '@/lib/auth'
 
 export const runtime = 'nodejs' // Required for Prisma on Vercel
+export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
 
 /**
  * GET /api/players/[playerId]/ratings

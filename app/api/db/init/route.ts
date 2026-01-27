@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
  * GET /api/db/init
  */
 export const runtime = 'nodejs' // Required for Prisma on Vercel
+export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
 
 export async function GET() {
   try {

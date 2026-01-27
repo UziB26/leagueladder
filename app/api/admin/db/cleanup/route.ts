@@ -15,6 +15,7 @@ import { apiRateLimit } from '@/lib/rate-limit'
  * Only leagues will be preserved.
  */
 export const runtime = 'nodejs' // Required for Prisma on Vercel
+export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
 
 /**
  * GET - Preview what will be deleted (dry run)
