@@ -3,6 +3,12 @@ import { db } from '@/lib/db'
 import { auth } from '@/lib/auth'
 import { apiRateLimit } from '@/lib/rate-limit'
 
+// CRITICAL: Export route config to prevent build-time execution
+export const runtime = 'nodejs' // Required for Prisma on Vercel
+export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
+export const revalidate = 0 // Never cache, always dynamic
+export const fetchCache = 'force-no-store' // Prevent any caching during build
+
 /**
  * Database Cleanup Endpoint
  * Clears all user data, challenges, matches, and ratings
@@ -14,8 +20,6 @@ import { apiRateLimit } from '@/lib/rate-limit'
  * ⚠️ WARNING: POST will delete ALL user data, players, challenges, matches, and ratings!
  * Only leagues will be preserved.
  */
-export const runtime = 'nodejs' // Required for Prisma on Vercel
-export const dynamic = 'force-dynamic' // Prevent build-time execution on Amplify
 
 /**
  * GET - Preview what will be deleted (dry run)

@@ -160,10 +160,36 @@ if (!process.env.DATABASE_URL && (process.env.AWS_AMPLIFY === 'true' || process.
     'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
 }
 
+// Detect if we're in build context (not runtime)
+// During build, Next.js may try to collect page data, which imports modules
+// We should allow dummy DATABASE_URL during build, but require real one at runtime
+// Check for various build-time indicators
+const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build' || 
+                    process.env.NEXT_PHASE === 'phase-development-build' ||
+                    (process.env.NODE_ENV === 'production' && 
+                     (process.env.VERCEL === '1' || process.env.AWS_AMPLIFY === 'true' || process.env.CI === 'true') && 
+                     !process.env.AWS_LAMBDA_FUNCTION_NAME && 
+                     !process.env.VERCEL_ENV &&
+                     !process.env.AWS_EXECUTION_ENV?.includes('Lambda'))
+
 // Guard Prisma initialization - prevent running without DATABASE_URL in production runtime
 // This makes failures explicit instead of cryptic
-if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL && !process.env.POSTGRES_URL && !process.env.POSTGRES_PRISMA_URL && !process.env.PRISMA_DATABASE_URL) {
-  throw new Error('DATABASE_URL not configured')
+// Only check at runtime, not during build
+// During build, we allow dummy DATABASE_URL to prevent Prisma initialization errors
+if (!isBuildTime && process.env.NODE_ENV === 'production') {
+  const hasDatabaseUrl = process.env.DATABASE_URL || 
+                        process.env.POSTGRES_URL || 
+                        process.env.POSTGRES_PRISMA_URL || 
+                        process.env.PRISMA_DATABASE_URL
+  
+  // Check if DATABASE_URL is a real URL (not the dummy one)
+  const isRealDatabaseUrl = hasDatabaseUrl && 
+                           !hasDatabaseUrl.includes('dummy:dummy@localhost') &&
+                           !hasDatabaseUrl.includes('postgresql://dummy')
+  
+  if (!isRealDatabaseUrl) {
+    throw new Error('DATABASE_URL not configured')
+  }
 }
 
 const prisma = globalForPrisma.prisma ?? createPrismaClient()
