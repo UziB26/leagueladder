@@ -151,7 +151,7 @@ if (!process.env.PRISMA_CLIENT_ENGINE_TYPE) {
 }
 process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
 
-// Ensure DATABASE_URL is set before PrismaClient instantiation
+// Ensure DATABASE_URL is set before PrismaClient instantiation (for build-time)
 if (!process.env.DATABASE_URL && (process.env.AWS_AMPLIFY === 'true' || process.env.AWS_EXECUTION_ENV || process.env.VERCEL === '1')) {
   process.env.DATABASE_URL = process.env.DATABASE_URL || 
     process.env.PRISMA_DATABASE_URL || 
@@ -160,16 +160,16 @@ if (!process.env.DATABASE_URL && (process.env.AWS_AMPLIFY === 'true' || process.
     'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
 }
 
+// Guard Prisma initialization - prevent running without DATABASE_URL in production runtime
+// This makes failures explicit instead of cryptic
+if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL && !process.env.POSTGRES_URL && !process.env.POSTGRES_PRISMA_URL && !process.env.PRISMA_DATABASE_URL) {
+  throw new Error('DATABASE_URL not configured')
+}
+
 const prisma = globalForPrisma.prisma ?? createPrismaClient()
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma
-}
-
-// Guard Prisma initialization in production
-if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL && !process.env.POSTGRES_URL && !process.env.POSTGRES_PRISMA_URL && !process.env.PRISMA_DATABASE_URL) {
-  console.error('⚠️  WARNING: Database URL not configured in production!')
-  console.error('⚠️  Please set DATABASE_URL, POSTGRES_URL, POSTGRES_PRISMA_URL, or PRISMA_DATABASE_URL')
 }
 
 // Export as 'db' for compatibility with existing code
