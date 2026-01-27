@@ -16,19 +16,15 @@ if (typeof process !== 'undefined') {
     process.env.AWS_AMPLIFY = 'true'
   }
   
-  // During build time (Amplify/Vercel), ensure DATABASE_URL is set even if dummy
-  // This prevents Prisma from detecting "client" engine type
-  const isBuildTime = process.env.VERCEL === '1' || 
-                      process.env.AWS_AMPLIFY === 'true' || 
-                      process.env.AWS_EXECUTION_ENV !== undefined ||
-                      process.env.CI === 'true'
-  
-  if (isBuildTime && !process.env.DATABASE_URL) {
-    process.env.DATABASE_URL = process.env.DATABASE_URL || 
-      process.env.PRISMA_DATABASE_URL || 
+  // CRITICAL: Always ensure DATABASE_URL is set (not just during build)
+  // Prisma detects "client" engine type if DATABASE_URL is missing
+  // This must be set BEFORE PrismaClient is imported
+  if (!process.env.DATABASE_URL) {
+    const fallbackUrl = process.env.PRISMA_DATABASE_URL || 
       process.env.POSTGRES_PRISMA_URL || 
       process.env.POSTGRES_URL ||
       'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
+    process.env.DATABASE_URL = fallbackUrl
   }
   
   // Re-assert binary engine type after setting DATABASE_URL

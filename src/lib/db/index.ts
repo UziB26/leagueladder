@@ -48,6 +48,19 @@ if (isBuildTime && !process.env.DATABASE_URL) {
 // This is the absolute last chance before Prisma reads the environment
 process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
 
+// CRITICAL for Amplify: Ensure DATABASE_URL is ALWAYS set before PrismaClient import
+// Prisma detects "client" engine type if DATABASE_URL is missing or undefined
+// This must be set BEFORE the import statement below
+if (!process.env.DATABASE_URL && !process.env.PRISMA_DATABASE_URL && !process.env.POSTGRES_URL && !process.env.POSTGRES_PRISMA_URL) {
+  // Set a dummy URL to prevent Prisma from detecting "client" engine type
+  // This is safe because Prisma won't actually connect during build
+  process.env.DATABASE_URL = 'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
+  console.log('[Prisma Debug] Set dummy DATABASE_URL before PrismaClient import to prevent client engine detection')
+}
+
+// Re-assert binary engine type one final time
+process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+
 import { PrismaClient, Prisma } from '@prisma/client'
 
 const globalForPrisma = globalThis as unknown as {
@@ -110,19 +123,27 @@ function createPrismaClient() {
   
   console.log('[Prisma Debug]   PRISMA_CLIENT_ENGINE_TYPE set to:', process.env.PRISMA_CLIENT_ENGINE_TYPE)
   
-  // Ensure DATABASE_URL is set (prevents client engine type detection)
+  // CRITICAL: Ensure DATABASE_URL is ALWAYS set before PrismaClient instantiation
+  // Prisma will detect "client" engine type if DATABASE_URL is missing
+  // This must happen BEFORE new PrismaClient() is called
   const isBuildContext = process.env.AWS_AMPLIFY === 'true' || process.env.AWS_EXECUTION_ENV || process.env.VERCEL === '1' || process.env.CI === 'true'
   console.log('[Prisma Debug]   isBuildContext:', isBuildContext)
   console.log('[Prisma Debug]   DATABASE_URL before check:', process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 30)}...` : 'undefined')
   
-  if (!process.env.DATABASE_URL && isBuildContext) {
-    const fallbackUrl = process.env.DATABASE_URL || 
-      process.env.PRISMA_DATABASE_URL || 
+  // ALWAYS ensure DATABASE_URL is set - this is critical to prevent "client" engine detection
+  if (!process.env.DATABASE_URL) {
+    const fallbackUrl = process.env.PRISMA_DATABASE_URL || 
       process.env.POSTGRES_PRISMA_URL || 
       process.env.POSTGRES_URL ||
       'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
     process.env.DATABASE_URL = fallbackUrl
-    console.log('[Prisma Debug]   Set DATABASE_URL to fallback:', fallbackUrl.substring(0, 30) + '...')
+    console.log('[Prisma Debug]   Set DATABASE_URL to fallback (CRITICAL for binary engine):', fallbackUrl.substring(0, 30) + '...')
+  }
+  
+  // Double-check: If DATABASE_URL is still not set, force it
+  if (!process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = 'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
+    console.log('[Prisma Debug]   FORCED DATABASE_URL to prevent client engine detection')
   }
   
   const logLevels: Prisma.LogLevel[] =
@@ -173,9 +194,26 @@ function createPrismaClient() {
   // Setting engineType: 'client' here would require adapter/accelerateUrl and cause errors
   // Do NOT add: engineType: 'client' or engineType: 'binary' here
   
+  // CRITICAL: Verify DATABASE_URL is set one final time before instantiation
+  // Prisma will throw "requires adapter or accelerateUrl" if it detects "client" engine
+  // This happens when DATABASE_URL is missing or undefined
+  if (!process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = 'postgresql://dummy:dummy@localhost:5432/dummy?schema=public'
+    console.log('[Prisma Debug]   LAST CHANCE: Set DATABASE_URL before PrismaClient()')
+  }
+  
+  // Verify PRISMA_CLIENT_ENGINE_TYPE is still set
+  if (process.env.PRISMA_CLIENT_ENGINE_TYPE !== 'binary') {
+    process.env.PRISMA_CLIENT_ENGINE_TYPE = 'binary'
+    console.log('[Prisma Debug]   LAST CHANCE: Re-set PRISMA_CLIENT_ENGINE_TYPE to binary')
+  }
+  
   // Prisma Client reads DATABASE_URL from environment automatically
   // We don't need to pass it via constructor
   console.log('[Prisma Debug]   Instantiating PrismaClient...')
+  console.log('[Prisma Debug]   Final check - DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'MISSING')
+  console.log('[Prisma Debug]   Final check - PRISMA_CLIENT_ENGINE_TYPE:', process.env.PRISMA_CLIENT_ENGINE_TYPE)
+  
   const client = new PrismaClient(clientConfig)
   console.log('[Prisma Debug]   PrismaClient instantiated successfully')
   return client

@@ -38,7 +38,8 @@ const nextConfig: NextConfig = {
   // This is especially important for AWS Amplify builds
   env: {
     PRISMA_CLIENT_ENGINE_TYPE: 'binary', // Always set to binary, never allow override
-    // Set DATABASE_URL if not already set (for build time)
+    // CRITICAL: Always set DATABASE_URL (even if dummy) to prevent Prisma from detecting "client" engine type
+    // Prisma will use "client" engine if DATABASE_URL is missing, which requires adapter/accelerateUrl
     DATABASE_URL: process.env.DATABASE_URL || 
       process.env.PRISMA_DATABASE_URL || 
       process.env.POSTGRES_PRISMA_URL || 
