@@ -248,17 +248,6 @@ export default function DashboardPage() {
           })}
           </div>
         )}
-        
-        <div className="mt-12">
-          <h3 className="text-xl font-semibold mb-4 text-white">How it works</h3>
-          <ol className="list-decimal pl-5 space-y-2 text-gray-300">
-            <li>Register and create your player profile</li>
-            <li>Join either FIFA or Table Tennis league (or both!)</li>
-            <li>Challenge other players to matches</li>
-            <li>Record match results to update Elo ratings</li>
-            <li>Climb the leaderboard and become #1</li>
-          </ol>
-        </div>
       </div>
     </main>
   )

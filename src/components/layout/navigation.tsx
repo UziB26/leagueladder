@@ -71,6 +71,11 @@ export function Navigation() {
     { href: '/matches', label: 'Matches', badge: pendingMatchesCount > 0 ? pendingMatchesCount : undefined },
   ]
 
+  // Add profile link if user is logged in
+  if (session?.user) {
+    navLinks.push({ href: '/profile', label: 'Profile' })
+  }
+
   if (session?.user && (session.user as { is_admin?: boolean }).is_admin) {
     navLinks.push({ href: '/admin', label: 'Admin' })
   }

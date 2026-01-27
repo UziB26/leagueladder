@@ -8,11 +8,13 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { Gamepad2 } from "lucide-react"
+import { CreateChallengeForm } from "@/components/challenge/create-challenge-form"
 
 export default function Home() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [currentPlayerId, setCurrentPlayerId] = useState<string>("")
 
   useEffect(() => {
     // Small delay to show loading state if session is being checked
@@ -20,6 +22,22 @@ export default function Home() {
       setLoading(false)
     }
   }, [status])
+
+  useEffect(() => {
+    if (session) {
+      fetchCurrentPlayer()
+    }
+  }, [session])
+
+  const fetchCurrentPlayer = async () => {
+    try {
+      const response = await fetch('/api/players/me')
+      const data = await response.json()
+      setCurrentPlayerId(data.player?.id || "")
+    } catch (error) {
+      console.error('Error fetching current player:', error)
+    }
+  }
 
   const handleJoinLeague = (gameType: 'fifa' | 'table-tennis') => {
     if (!session) {
@@ -56,16 +74,22 @@ export default function Home() {
           <p className="text-gray-300 mt-2">Table Tennis & FIFA leagues with Elo rankings</p>
         </header>
         
-        <div className="mb-12">
-          <h3 className="text-xl font-semibold mb-4 text-white">How it works</h3>
-          <ol className="list-decimal pl-5 space-y-2 text-gray-300">
-            <li>Register and create your player profile</li>
-            <li>Join either FIFA or Table Tennis league (or both!)</li>
-            <li>Challenge other players to matches</li>
-            <li>Record match results to update Elo ratings</li>
-            <li>Climb the leaderboard and become #1</li>
-          </ol>
-        </div>
+        {/* Quick Challenge Section - Only show when logged in */}
+        {session && currentPlayerId && (
+          <div className="mb-12">
+            <div className="bg-gray-900 p-6 rounded-lg shadow border border-gray-700">
+              <h2 className="text-2xl font-semibold mb-4 text-white">Quick Challenge</h2>
+              <p className="text-gray-300 mb-4">Send a challenge to another player right away!</p>
+              <CreateChallengeForm 
+                currentPlayerId={currentPlayerId}
+                onSuccess={() => {
+                  // Optionally show success message or redirect
+                  console.log('Challenge created successfully!')
+                }}
+              />
+            </div>
+          </div>
+        )}
         
         <div className="grid md:grid-cols-2 gap-8 mb-12">
           <div className="bg-gray-900 p-6 rounded-lg shadow border border-gray-700">
@@ -116,6 +140,12 @@ export default function Home() {
               <div className="p-4 border border-gray-700 rounded-lg hover:bg-gray-800 cursor-pointer">
                 <div className="font-medium text-white">Recent Matches</div>
                 <div className="text-sm text-gray-300">See latest match results</div>
+              </div>
+            </Link>
+            <Link href="/help">
+              <div className="p-4 border border-gray-700 rounded-lg hover:bg-gray-800 cursor-pointer">
+                <div className="font-medium text-white">Help & Instructions</div>
+                <div className="text-sm text-gray-300">Learn how to use League Ladder</div>
               </div>
             </Link>
           </div>
