@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get all matches with related data
+    // Get all matches with related data including dispute information
     const matches = await db.match.findMany({
       include: {
         player1: {
@@ -46,27 +46,51 @@ export async function GET(request: NextRequest) {
         },
         league: {
           select: { name: true }
+        },
+        confirmations: {
+          where: {
+            action: 'disputed'
+          },
+          orderBy: {
+            createdAt: 'desc'
+          },
+          take: 1,
+          include: {
+            player: {
+              select: { name: true }
+            }
+          }
         }
       },
       orderBy: { playedAt: 'desc' }
     })
 
     // Format matches
-    const formattedMatches = matches.map(m => ({
-      id: m.id,
-      player1_id: m.player1Id,
-      player2_id: m.player2Id,
-      league_id: m.leagueId,
-      player1_score: m.player1Score,
-      player2_score: m.player2Score,
-      status: m.status,
-      winner_id: m.winnerId,
-      challenge_id: m.challengeId,
-      played_at: m.playedAt.toISOString(),
-      player1_name: m.player1.name,
-      player2_name: m.player2.name,
-      league_name: m.league.name
-    }))
+    const formattedMatches = matches.map(m => {
+      const dispute = m.confirmations[0]
+      return {
+        id: m.id,
+        player1_id: m.player1Id,
+        player2_id: m.player2Id,
+        league_id: m.leagueId,
+        player1_score: m.player1Score,
+        player2_score: m.player2Score,
+        status: m.status,
+        winner_id: m.winnerId,
+        challenge_id: m.challengeId,
+        played_at: m.playedAt.toISOString(),
+        player1_name: m.player1.name,
+        player2_name: m.player2.name,
+        league_name: m.league.name,
+        dispute: dispute ? {
+          reason: dispute.disputeReason,
+          disputed_by: dispute.player.name,
+          corrected_score1: dispute.confirmedScore1,
+          corrected_score2: dispute.confirmedScore2,
+          disputed_at: dispute.createdAt.toISOString()
+        } : null
+      }
+    })
     
     return NextResponse.json({ matches: formattedMatches })
     

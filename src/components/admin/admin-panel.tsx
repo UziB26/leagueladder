@@ -40,6 +40,13 @@ interface Match {
   player1_name?: string
   player2_name?: string
   league_name?: string
+  dispute?: {
+    reason: string | null
+    disputed_by: string
+    corrected_score1: number | null
+    corrected_score2: number | null
+    disputed_at: string
+  } | null
 }
 
 interface Stats {
@@ -113,11 +120,13 @@ export function AdminPanel() {
   const voidMatchDialog = useConfirmationDialog()
   const deletePlayerDialog = useConfirmationDialog()
   const unvoidMatchDialog = useConfirmationDialog()
+  const resolveDisputeDialog = useConfirmationDialog()
   
   // Modal states for correction features
   const [adjustRatingModal, setAdjustRatingModal] = useState<{ open: boolean; playerId?: string; leagueId?: string; currentRating?: number; availableLeagues?: Array<{ league_id: string; league_name: string; rating: number }> }>({ open: false })
   const [editMatchScoreModal, setEditMatchScoreModal] = useState<{ open: boolean; match?: Match }>({ open: false })
   const [adjustStatsModal, setAdjustStatsModal] = useState<{ open: boolean; playerId?: string; leagueId?: string; stats?: PlayerRating }>({ open: false })
+  const [resolveDisputeModal, setResolveDisputeModal] = useState<{ open: boolean; match?: Match }>({ open: false })
 
   useEffect(() => {
     fetchData()
@@ -233,6 +242,11 @@ export function AdminPanel() {
           const data = await response.json()
           setSuccess(data.message || 'Match voided successfully')
           setTimeout(() => setSuccess(""), 3000)
+          
+          // Trigger leaderboard refresh
+          window.dispatchEvent(new CustomEvent('leaderboard:refresh', { detail: { immediate: true } }))
+          window.dispatchEvent(new Event('match:confirmed'))
+          
           fetchData()
         } catch (err: any) {
           setError(err.message || 'Failed to void match')
@@ -245,7 +259,7 @@ export function AdminPanel() {
   const deleteMatch = async (matchId: string) => {
     deleteMatchDialog.openDialog({
       title: "Delete Match",
-      message: "Are you sure you want to delete this match? This will permanently remove the match record and may affect player ratings. This action cannot be undone.",
+      message: "Are you sure you want to delete this match? This will permanently remove the match record, revert all rating changes, and update player stats. This action cannot be undone.",
       confirmText: "Delete Match",
       cancelText: "Cancel",
       variant: "destructive",
@@ -260,8 +274,14 @@ export function AdminPanel() {
             throw new Error(data.error || 'Failed to delete match')
           }
 
-          setSuccess('Match deleted successfully')
+          const data = await response.json()
+          setSuccess(data.message || 'Match deleted successfully')
           setTimeout(() => setSuccess(""), 3000)
+          
+          // Trigger leaderboard refresh
+          window.dispatchEvent(new CustomEvent('leaderboard:refresh', { detail: { immediate: true } }))
+          window.dispatchEvent(new Event('match:confirmed'))
+          
           fetchData()
         } catch (err: any) {
           setError(err.message || 'Failed to delete match')
@@ -269,6 +289,39 @@ export function AdminPanel() {
         }
       },
     })
+  }
+
+  const resolveDispute = async (matchId: string, useReportedScores: boolean) => {
+    try {
+      const response = await fetch(`/api/admin/matches/${matchId}/resolve-dispute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ use_reported_scores: useReportedScores })
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to resolve dispute')
+      }
+
+      const data = await response.json()
+      setSuccess(data.message || 'Dispute resolved successfully')
+      setTimeout(() => setSuccess(""), 3000)
+      setResolveDisputeModal({ open: false })
+      
+      // Trigger leaderboard refresh
+      window.dispatchEvent(new CustomEvent('leaderboard:refresh', { detail: { immediate: true } }))
+      window.dispatchEvent(new Event('match:confirmed'))
+      
+      fetchData()
+    } catch (err: any) {
+      setError(err.message || 'Failed to resolve dispute')
+      setTimeout(() => setError(""), 5000)
+    }
+  }
+
+  const openResolveDisputeModal = (match: Match) => {
+    setResolveDisputeModal({ open: true, match })
   }
 
   const deletePlayer = async (playerId: string) => {
@@ -321,6 +374,11 @@ export function AdminPanel() {
           const data = await response.json()
           setSuccess(data.message || 'Match un-voided successfully')
           setTimeout(() => setSuccess(""), 3000)
+          
+          // Trigger leaderboard refresh
+          window.dispatchEvent(new CustomEvent('leaderboard:refresh', { detail: { immediate: true } }))
+          window.dispatchEvent(new Event('match:confirmed'))
+          
           fetchData()
         } catch (err: any) {
           setError(err.message || 'Failed to un-void match')
@@ -382,6 +440,11 @@ export function AdminPanel() {
       setSuccess(data.message || 'Match scores updated successfully')
       setTimeout(() => setSuccess(""), 3000)
       setEditMatchScoreModal({ open: false })
+      
+      // Trigger leaderboard refresh
+      window.dispatchEvent(new CustomEvent('leaderboard:refresh', { detail: { immediate: true } }))
+      window.dispatchEvent(new Event('match:confirmed'))
+      
       fetchData()
     } catch (err: any) {
       setError(err.message || 'Failed to update match scores')
@@ -654,6 +717,76 @@ export function AdminPanel() {
           </>
         )}
       </FormModal>
+
+      {/* Resolve Dispute Modal */}
+      {resolveDisputeModal.open && resolveDisputeModal.match && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-2xl w-full mx-4">
+            <h2 className="text-2xl font-bold text-white mb-4">Resolve Match Dispute</h2>
+            
+            <div className="space-y-4 mb-6">
+              <div className="text-sm text-gray-300">
+                <p className="font-semibold mb-2 text-white">Match Details:</p>
+                <p>{resolveDisputeModal.match.player1_name} vs {resolveDisputeModal.match.player2_name}</p>
+                <p className="mt-1">League: {resolveDisputeModal.match.league_name}</p>
+              </div>
+              
+              {resolveDisputeModal.match.dispute && (
+                <div className="text-sm text-gray-300 border-t border-gray-700 pt-4">
+                  <p className="font-semibold mb-2 text-white">Dispute Information:</p>
+                  <p className="text-gray-400">Disputed by: {resolveDisputeModal.match.dispute.disputed_by}</p>
+                  <p className="text-gray-400 mt-1">Reason: {resolveDisputeModal.match.dispute.reason || 'No reason provided'}</p>
+                  <div className="mt-3 space-y-2">
+                    <p className="font-semibold text-white">Reported Scores:</p>
+                    <p className="text-lg font-bold">{resolveDisputeModal.match.player1_score} - {resolveDisputeModal.match.player2_score}</p>
+                    {resolveDisputeModal.match.dispute.corrected_score1 !== null && resolveDisputeModal.match.dispute.corrected_score2 !== null && (
+                      <>
+                        <p className="font-semibold text-white mt-3">Disputed Scores:</p>
+                        <p className="text-lg font-bold">{resolveDisputeModal.match.dispute.corrected_score1} - {resolveDisputeModal.match.dispute.corrected_score2}</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="border-t border-gray-700 pt-4">
+              <p className="text-sm font-semibold text-white mb-3">Choose which scores are correct:</p>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => {
+                    if (resolveDisputeModal.match) {
+                      resolveDispute(resolveDisputeModal.match.id, true)
+                    }
+                  }}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Use Reported Scores
+                </Button>
+                {resolveDisputeModal.match.dispute?.corrected_score1 !== null && resolveDisputeModal.match.dispute?.corrected_score2 !== null && (
+                  <Button
+                    onClick={() => {
+                      if (resolveDisputeModal.match) {
+                        resolveDispute(resolveDisputeModal.match.id, false)
+                      }
+                    }}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Use Disputed Scores
+                  </Button>
+                )}
+                <Button
+                  onClick={() => setResolveDisputeModal({ open: false })}
+                  variant="outline"
+                  className="text-white border-white hover:bg-white hover:text-black"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Adjust Stats Modal */}
       <FormModal
@@ -1057,26 +1190,40 @@ export function AdminPanel() {
                           {match.league_name || 'Unknown'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-white font-medium">
-                          {match.player1_score} - {match.player2_score}
+                          <div>
+                            {match.player1_score} - {match.player2_score}
+                            {match.dispute && match.dispute.corrected_score1 !== null && match.dispute.corrected_score2 !== null && (
+                              <div className="text-xs text-orange-400 mt-1">
+                                Disputed: {match.dispute.corrected_score1} - {match.dispute.corrected_score2}
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            match.status === 'completed' 
-                              ? 'bg-green-900 text-green-300' 
-                              : match.status === 'voided'
-                              ? 'bg-red-900 text-red-300'
-                              : match.status === 'pending_confirmation'
-                              ? 'bg-yellow-900 text-yellow-300'
-                              : match.status === 'disputed'
-                              ? 'bg-orange-900 text-orange-300'
-                              : 'bg-gray-700 text-gray-300'
-                          }`}>
-                            {match.status === 'pending_confirmation' 
-                              ? 'PENDING' 
-                              : match.status === 'disputed'
-                              ? 'DISPUTED'
-                              : match.status.toUpperCase()}
-                          </span>
+                          <div className="space-y-1">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              match.status === 'completed' 
+                                ? 'bg-green-900 text-green-300' 
+                                : match.status === 'voided'
+                                ? 'bg-red-900 text-red-300'
+                                : match.status === 'pending_confirmation'
+                                ? 'bg-yellow-900 text-yellow-300'
+                                : match.status === 'disputed'
+                                ? 'bg-orange-900 text-orange-300'
+                                : 'bg-gray-700 text-gray-300'
+                            }`}>
+                              {match.status === 'pending_confirmation' 
+                                ? 'PENDING' 
+                                : match.status === 'disputed'
+                                ? 'DISPUTED'
+                                : match.status.toUpperCase()}
+                            </span>
+                            {match.dispute && (
+                              <div className="text-xs text-orange-400">
+                                {match.dispute.disputed_by}
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
                           {match.played_at 
@@ -1084,6 +1231,26 @@ export function AdminPanel() {
                             : parseDatabaseDate(match.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                          {match.status === 'disputed' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openResolveDisputeModal(match)}
+                                className="text-xs bg-green-600 hover:bg-green-700 text-white border-green-600"
+                              >
+                                Resolve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => deleteMatch(match.id)}
+                                className="text-xs bg-red-600 hover:bg-red-700 text-white border-red-600"
+                              >
+                                Delete
+                              </Button>
+                            </>
+                          )}
                           {match.status === 'completed' && (
                             <>
                               <Button
@@ -1102,26 +1269,46 @@ export function AdminPanel() {
                               >
                                 Void
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => deleteMatch(match.id)}
+                                className="text-xs bg-red-600 hover:bg-red-700 text-white border-red-600"
+                              >
+                                Delete
+                              </Button>
                             </>
                           )}
                           {match.status === 'voided' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => unvoidMatch(match.id)}
+                                className="text-xs bg-green-600 hover:bg-green-700 text-white border-green-600"
+                              >
+                                Un-void
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => deleteMatch(match.id)}
+                                className="text-xs bg-red-600 hover:bg-red-700 text-white border-red-600"
+                              >
+                                Delete
+                              </Button>
+                            </>
+                          )}
+                          {(match.status === 'pending' || match.status === 'pending_confirmation') && (
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => unvoidMatch(match.id)}
-                              className="text-xs bg-green-600 hover:bg-green-700 text-white border-green-600"
+                              onClick={() => deleteMatch(match.id)}
+                              className="text-xs bg-red-600 hover:bg-red-700 text-white border-red-600"
                             >
-                              Un-void
+                              Delete
                             </Button>
                           )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => deleteMatch(match.id)}
-                            className="text-xs bg-red-600 hover:bg-red-700 text-white border-red-600"
-                          >
-                            Delete
-                          </Button>
                         </td>
                       </tr>
                     ))}

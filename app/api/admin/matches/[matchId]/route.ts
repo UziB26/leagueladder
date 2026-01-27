@@ -300,22 +300,64 @@ export async function DELETE(
       )
     }
 
-    // Get match before deletion for logging
-    const match = await db.match.findUnique({
-      where: { id: sanitizedMatchId },
-      select: { id: true }
-    })
+    // Use transaction to ensure data consistency
+    const result = await db.$transaction(async (tx) => {
+      // Get match with rating updates before deletion
+      const match = await tx.match.findUnique({
+        where: { id: sanitizedMatchId },
+        include: {
+          ratingUpdates: true
+        }
+      })
 
-    if (!match) {
-      return NextResponse.json(
-        { error: 'Match not found' },
-        { status: 404 }
-      )
-    }
+      if (!match) {
+        throw new Error('Match not found')
+      }
 
-    // Delete match (cascades to rating updates, confirmations, etc.)
-    await db.match.delete({
-      where: { id: sanitizedMatchId }
+      // If match was completed, revert rating changes and stats
+      if (match.status === 'completed' && match.ratingUpdates.length > 0) {
+        // Revert ratings and stats for each player
+        for (const update of match.ratingUpdates) {
+          const rating = await tx.playerRating.findUnique({
+            where: {
+              playerId_leagueId: {
+                playerId: update.playerId,
+                leagueId: update.leagueId
+              }
+            }
+          })
+
+          if (!rating) continue
+
+          // Determine if this was a win, loss, or draw based on match result
+          const isPlayer1 = match.player1Id === update.playerId
+          const isPlayer2 = match.player2Id === update.playerId
+          const playerWon = (isPlayer1 && match.player1Score > match.player2Score) ||
+                            (isPlayer2 && match.player2Score > match.player1Score)
+          const playerLost = (isPlayer1 && match.player1Score < match.player2Score) ||
+                             (isPlayer2 && match.player2Score < match.player1Score)
+          const isDraw = match.player1Score === match.player2Score
+
+          // Revert rating and stats
+          await tx.playerRating.update({
+            where: { id: rating.id },
+            data: {
+              rating: update.oldRating,
+              gamesPlayed: { decrement: 1 },
+              wins: playerWon ? { decrement: 1 } : undefined,
+              losses: playerLost ? { decrement: 1 } : undefined,
+              draws: isDraw ? { decrement: 1 } : undefined
+            }
+          })
+        }
+      }
+
+      // Delete match (cascades to rating updates, confirmations, etc. via schema)
+      await tx.match.delete({
+        where: { id: sanitizedMatchId }
+      })
+
+      return { message: 'Match deleted and all rating/stats changes reverted successfully' }
     })
 
     // Log admin action
@@ -332,13 +374,13 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: 'Match deleted successfully'
+      message: result.message
     })
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deleting match:', error)
     return NextResponse.json(
-      { error: 'Failed to delete match' },
+      { error: error.message || 'Failed to delete match' },
       { status: 500 }
     )
   }
