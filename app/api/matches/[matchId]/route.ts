@@ -384,6 +384,11 @@ export async function PUT(
             }
           })
 
+          // Record rating updates - delete existing ones first to prevent duplicates
+          await tx.ratingUpdate.deleteMany({
+            where: { matchId: updatedMatch.id }
+          })
+
           await tx.ratingUpdate.createMany({
             data: [
               {

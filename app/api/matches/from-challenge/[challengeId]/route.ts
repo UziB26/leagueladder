@@ -287,17 +287,37 @@ export async function POST(
             }
           })
 
-          await tx.ratingUpdate.createMany({
-            data: [
-              {
+          // Record rating updates - check if they already exist first to prevent duplicates
+          const existingUpdate1 = await tx.ratingUpdate.findFirst({
+            where: {
+              matchId: match.id,
+              playerId: match.player1Id
+            }
+          })
+          
+          const existingUpdate2 = await tx.ratingUpdate.findFirst({
+            where: {
+              matchId: match.id,
+              playerId: match.player2Id
+            }
+          })
+
+          if (!existingUpdate1) {
+            await tx.ratingUpdate.create({
+              data: {
                 matchId: match.id,
                 playerId: match.player1Id,
                 leagueId: match.leagueId,
                 oldRating: rating1.rating,
                 newRating: Math.round(eloResult.newRatingA),
                 change: eloResult.changeA
-              },
-              {
+              }
+            })
+          }
+
+          if (!existingUpdate2) {
+            await tx.ratingUpdate.create({
+              data: {
                 matchId: match.id,
                 playerId: match.player2Id,
                 leagueId: match.leagueId,
@@ -305,8 +325,8 @@ export async function POST(
                 newRating: Math.round(eloResult.newRatingB),
                 change: eloResult.changeB
               }
-            ]
-          })
+            })
+          }
         })
       } catch (error: any) {
         console.error('Error updating Elo ratings:', error)

@@ -243,8 +243,21 @@ export async function POST(
 
           console.log('Elo calculation result:', {
             player1: { old: rating1.rating, new: newRating1, change: eloResult.changeA },
-            player2: { old: rating2.rating, new: newRating2, change: eloResult.changeB }
+            player2: { old: rating2.rating, new: newRating2, change: eloResult.changeB },
+            scores: { player1: match.player1Score, player2: match.player2Score },
+            matchId: sanitizedMatchId
           })
+
+          // Warn if change is 0 for a win/loss (shouldn't happen)
+          if ((match.player1Score > match.player2Score && eloResult.changeA === 0) ||
+              (match.player2Score > match.player1Score && eloResult.changeB === 0)) {
+            console.warn('WARNING: Elo change is 0 for a win!', {
+              matchId: sanitizedMatchId,
+              scores: { player1: match.player1Score, player2: match.player2Score },
+              ratings: { player1: rating1.rating, player2: rating2.rating },
+              changes: { player1: eloResult.changeA, player2: eloResult.changeB }
+            })
+          }
 
           // Determine winner for stats
           const isDraw = match.player1Score === match.player2Score
@@ -293,18 +306,37 @@ export async function POST(
             data: player2UpdateData
           })
 
-          // Record rating updates
-          await tx.ratingUpdate.createMany({
-            data: [
-              {
+          // Record rating updates - check if they already exist first to prevent duplicates
+          const existingUpdate1 = await tx.ratingUpdate.findFirst({
+            where: {
+              matchId: sanitizedMatchId,
+              playerId: match.player1Id
+            }
+          })
+          
+          const existingUpdate2 = await tx.ratingUpdate.findFirst({
+            where: {
+              matchId: sanitizedMatchId,
+              playerId: match.player2Id
+            }
+          })
+
+          if (!existingUpdate1) {
+            await tx.ratingUpdate.create({
+              data: {
                 matchId: sanitizedMatchId,
                 playerId: match.player1Id,
                 leagueId: match.leagueId,
                 oldRating: rating1.rating,
                 newRating: newRating1,
                 change: eloResult.changeA
-              },
-              {
+              }
+            })
+          }
+
+          if (!existingUpdate2) {
+            await tx.ratingUpdate.create({
+              data: {
                 matchId: sanitizedMatchId,
                 playerId: match.player2Id,
                 leagueId: match.leagueId,
@@ -312,8 +344,8 @@ export async function POST(
                 newRating: newRating2,
                 change: eloResult.changeB
               }
-            ]
-          })
+            })
+          }
 
           // Update match status to completed
           await tx.match.update({

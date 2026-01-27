@@ -86,18 +86,37 @@ async function updateEloRatings(matchId: string) {
       }
     })
 
-    // Record rating updates
-    await tx.ratingUpdate.createMany({
-      data: [
-        {
+    // Record rating updates - check if they already exist first to prevent duplicates
+    const existingUpdate1 = await tx.ratingUpdate.findFirst({
+      where: {
+        matchId: match.id,
+        playerId: match.player1Id
+      }
+    })
+    
+    const existingUpdate2 = await tx.ratingUpdate.findFirst({
+      where: {
+        matchId: match.id,
+        playerId: match.player2Id
+      }
+    })
+
+    if (!existingUpdate1) {
+      await tx.ratingUpdate.create({
+        data: {
           matchId: match.id,
           playerId: match.player1Id,
           leagueId: match.leagueId,
           oldRating: rating1.rating,
           newRating: Math.round(result.newRatingA),
           change: result.changeA
-        },
-        {
+        }
+      })
+    }
+
+    if (!existingUpdate2) {
+      await tx.ratingUpdate.create({
+        data: {
           matchId: match.id,
           playerId: match.player2Id,
           leagueId: match.leagueId,
@@ -105,8 +124,8 @@ async function updateEloRatings(matchId: string) {
           newRating: Math.round(result.newRatingB),
           change: result.changeB
         }
-      ]
-    })
+      })
+    }
 
     // Update player stats (wins/losses/draws)
     if (match.winnerId === match.player1Id) {

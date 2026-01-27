@@ -201,7 +201,11 @@ export async function PUT(
             }
           })
 
-          // Record new rating updates
+          // Record new rating updates - delete existing ones first to prevent duplicates
+          await tx.ratingUpdate.deleteMany({
+            where: { matchId: sanitizedMatchId }
+          })
+
           await tx.ratingUpdate.createMany({
             data: [
               {
