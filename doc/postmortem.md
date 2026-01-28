@@ -12,10 +12,13 @@
 ### Core Features
 
 #### Authentication & User Management
-- ✅ **User Registration & Login**: Email/password authentication via NextAuth.js
-- ✅ **Session Management**: Secure session handling with JWT tokens
+- ✅ **User Registration & Login**: Email/password authentication via NextAuth.js v5
+- ✅ **Session Management**: Secure session handling with JWT tokens and client-side caching
 - ✅ **Player Profile Creation**: Automatic profile creation upon registration
 - ✅ **User Dashboard**: Centralized hub for league management and navigation
+- ✅ **Profile Management**: Dedicated profile page for viewing and editing username
+- ✅ **Username Synchronization**: Player and User tables kept in sync for consistent display
+- ✅ **Session Refresh**: Custom event system for immediate username updates across UI
 
 #### League System
 - ✅ **Dual League Support**: Separate leagues for Table Tennis and FIFA
@@ -25,6 +28,7 @@
 
 #### Challenge System
 - ✅ **Challenge Creation**: Players can issue challenges to opponents
+- ✅ **Quick Challenge**: Quick challenge feature on home page for immediate challenges after login
 - ✅ **Challenge Management**: Accept, decline, and cancel challenges
 - ✅ **Challenge Expiration**: Automatic expiration after 7 days
 - ✅ **Challenge Tracking**: View incoming and outgoing challenges
@@ -33,10 +37,13 @@
 #### Match Management
 - ✅ **Match Reporting**: Report match results with score validation
 - ✅ **Two-Player Confirmation**: Opponent must confirm before ratings update
-- ✅ **Match Disputes**: Players can dispute incorrect match results
-- ✅ **Match History**: Complete history with rating changes and opponent details
-- ✅ **Rating History**: Track all rating changes over time per league
-- ✅ **Void/Un-void Matches**: Admin can void matches and revert ratings
+- ✅ **Match Disputes**: Players can dispute incorrect match results with reason and optional corrected scores
+- ✅ **Dispute Resolution**: Admin can resolve disputes by confirming or voiding matches
+- ✅ **Match History**: Complete history with rating changes and opponent details (voided matches excluded)
+- ✅ **Rating History**: Track all rating changes over time per league (voided matches excluded)
+- ✅ **Void/Un-void Matches**: Admin can void matches and revert ratings, or restore voided matches
+- ✅ **Match Score Editing**: Admin can edit match scores with automatic rating recalculation
+- ✅ **Match Deletion**: Admin can delete matches with automatic rating and stat reversion
 
 #### Ranking System
 - ✅ **Elo Rating Algorithm**: Mathematical ranking system with K-factor of 32
@@ -48,11 +55,13 @@
 #### Administrative Features
 - ✅ **Admin Dashboard**: Comprehensive system statistics and overview
 - ✅ **User Management**: View users, toggle admin status, delete users
-- ✅ **Player Management**: View players, adjust ratings/stats, delete players
-- ✅ **Match Management**: View all matches, void/un-void, edit scores, delete
+- ✅ **Player Management**: View players, adjust ratings/stats (with league selection), delete players
+- ✅ **Match Management**: View all matches, void/un-void, edit scores, delete matches with rating reversion
+- ✅ **Dispute Resolution**: Admin can resolve disputed matches by confirming or voiding
 - ✅ **League Management**: View league statistics and member counts
+- ✅ **Database Cleanup**: Preview and perform database cleanup operations
 - ✅ **Admin Action Logging**: All admin actions are logged for audit trail
-- ✅ **Admin Activity Indicators**: Admin changes visible in player profiles
+- ✅ **Admin Activity Indicators**: Admin changes visible in player profiles and match history
 
 #### Security & Validation
 - ✅ **Input Sanitization**: Protection against SQL injection and XSS attacks
@@ -70,10 +79,12 @@
 - ✅ **Success Feedback**: Clear confirmation messages for successful actions
 - ✅ **Navigation Badges**: Pending items count displayed in navigation
 - ✅ **Dark Theme**: Modern dark theme with consistent styling
+- ✅ **Help/FAQ Page**: Dedicated instructions and help page with app usage information
 
 #### Technical Infrastructure
-- ✅ **Next.js 14 App Router**: Modern React framework with server-side rendering
+- ✅ **Next.js 16 App Router**: Modern React framework with server-side rendering
 - ✅ **TypeScript**: Full type safety across the application
+- ✅ **NextAuth.js v5**: Authentication system with session management
 - ✅ **PostgreSQL Database**: Production-ready persistent storage
 - ✅ **Prisma ORM**: Type-safe database access with migrations
 - ✅ **Vercel Deployment**: Serverless deployment with automatic scaling
@@ -149,6 +160,8 @@
 - **No Password Reset**: Users who forget passwords cannot recover accounts
 - **No Email Verification**: Invalid emails can be used for registration
 - **Session Management**: Sessions expire but no explicit session timeout UI
+- **NextAuth v5 Beta**: Using beta version (beta.30) which may have breaking changes in future releases
+- **Username Update Mechanism**: Requires custom event dispatch and router refresh for immediate UI updates (though mechanism is in place)
 
 #### Data Management
 - **No Data Export**: Users cannot export their match history or statistics
@@ -362,17 +375,21 @@
 - **Status**: Production Ready ✅
 
 ### Codebase Statistics
-- **Framework**: Next.js 14 (App Router)
+- **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript
+- **Authentication**: NextAuth.js v5 (beta.30)
 - **Database**: PostgreSQL with Prisma ORM
 - **Deployment**: Vercel (Serverless)
-- **Test Coverage**: Core functionality tested
+- **Test Coverage**: Core functionality tested (Elo calculator, state transitions, UI components)
 
 ### Feature Completion
 - **MVP Features**: 100% Complete ✅
-- **Core User Stories**: 30/30 Complete ✅
+- **User Stories**: 43/43 Complete ✅
 - **Admin Features**: All Implemented ✅
 - **Security Features**: All Implemented ✅
+- **Profile Management**: Complete ✅
+- **Quick Challenge**: Complete ✅
+- **Help/FAQ Page**: Complete ✅
 
 ---
 
@@ -390,12 +407,18 @@
 2. **Real-Time Updates**: Polling-based approach chosen over WebSockets for MVP simplicity
 3. **Admin Features**: Balancing comprehensive admin tools with MVP scope
 4. **State Management**: Managing complex state across challenge and match flows
+5. **Session Refresh**: Implementing username updates across client-side cached sessions required custom event system
+6. **NextAuth v5 Beta**: Working with beta version required adapting to API changes (e.g., no direct `update` export)
+7. **TypeScript Strictness**: Addressing implicit `any` types across codebase for build compliance
 
 ### Technical Decisions
 1. **PostgreSQL over SQLite**: Chose PostgreSQL for production persistence
-2. **Serverless over Traditional**: Vercel serverless for scalability and ease of deployment
+2. **Vercel over Other Platforms**: Vercel serverless for scalability and ease of deployment (Amplify deployment was attempted but reverted)
 3. **Polling over WebSockets**: Simpler implementation for MVP, can upgrade later
 4. **Prisma over Raw SQL**: Better type safety and developer experience
+5. **NextAuth v5 Beta**: Chose v5 for modern API despite beta status
+6. **Custom Event System**: Used DOM events for session refresh instead of NextAuth's `update` method (not available in v5 beta)
+7. **Application-Layer Logic**: All business logic in application layer rather than database triggers for better testability
 
 ---
 
@@ -409,4 +432,6 @@ The system is ready for real-world use with a small to medium-sized user base. F
 
 ---
 
-**Last Updated**: January 2026
+**Last Updated**: January 2026  
+**Document Version**: 2.0  
+**Status**: MVP Complete ✅

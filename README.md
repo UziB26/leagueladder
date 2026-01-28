@@ -168,8 +168,9 @@ cp .env.example .env.local
 Or create `.env.local` manually with:
 
 ```env
-# NextAuth Configuration
+# NextAuth Configuration (NextAuth v5)
 NEXTAUTH_URL=http://localhost:3000
+AUTH_SECRET=your-secret-key-here-generate-with-openssl-rand-base64-32
 NEXTAUTH_SECRET=your-secret-key-here-generate-with-openssl-rand-base64-32
 
 # Database Connection (PostgreSQL)
@@ -185,7 +186,7 @@ DATABASE_URL=postgresql://user:password@localhost:5432/league_ladder
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-**Generate a secure NEXTAUTH_SECRET:**
+**Generate a secure AUTH_SECRET (and NEXTAUTH_SECRET):**
 ```bash
 # On Linux/Mac
 openssl rand -base64 32
@@ -330,13 +331,14 @@ League Ladder is optimized for Vercel deployment with serverless functions.
    In Vercel project settings → Environment Variables, add:
    ```
    NEXTAUTH_URL=https://your-app.vercel.app
+   AUTH_SECRET=your-secret-key-here
    NEXTAUTH_SECRET=your-secret-key-here
    NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
    ```
 
    **Important Notes:**
    - Use your actual Vercel deployment URL for `NEXTAUTH_URL`
-   - Generate a secure `NEXTAUTH_SECRET` (see Local Development section)
+   - Generate a secure `AUTH_SECRET` (and set `NEXTAUTH_SECRET` to the same value for compatibility) - see Local Development section
    - The PostgreSQL connection strings are automatically set by Vercel when you create the database
    - For Prisma migrations, use `POSTGRES_URL` or `POSTGRES_PRISMA_URL`
 

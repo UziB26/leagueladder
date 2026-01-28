@@ -186,27 +186,62 @@ Ensure all dependencies are installed:
 npm install
 ```
 
+**Note:** The `package.json` may not have a `test` script defined. You can either:
+1. Use Jest directly: `npx jest`
+2. Add test scripts to `package.json` (recommended):
+   ```json
+   {
+     "scripts": {
+       "test": "jest",
+       "test:watch": "jest --watch",
+       "test:coverage": "jest --coverage"
+     }
+   }
+   ```
+
 ### Basic Test Commands
 
 #### Run All Tests
 ```bash
-npm test
+# Using Jest directly (if test script is not in package.json)
+npx jest
+
+# Or add to package.json scripts:
+# "test": "jest"
+# Then use: npm test
 ```
 
 This runs Jest and executes all test files matching the pattern:
 - `**/__tests__/**/*.[jt]s?(x)`
 - `**/?(*.)+(spec|test).[jt]s?(x)`
 
+**Note:** If `npm test` doesn't work, use `npx jest` directly. You can add a test script to `package.json`:
+```json
+{
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  }
+}
+```
+
 #### Run Tests in Watch Mode
 ```bash
-npm test -- --watch
+# Using Jest directly
+npx jest --watch
+
+# Or if test script is added: npm test -- --watch
 ```
 
 Runs tests in watch mode, automatically re-running tests when files change. Useful during development.
 
 #### Run Tests with Coverage Report
 ```bash
-npm test -- --coverage
+# Using Jest directly
+npx jest --coverage
+
+# Or if test script is added: npm test -- --coverage
 ```
 
 Generates a coverage report showing:
@@ -219,28 +254,40 @@ Coverage report is saved to `coverage/` directory and can be viewed in HTML form
 
 #### Run Specific Test File
 ```bash
-npm test -- src/lib/elo.test.ts
+# Using Jest directly
+npx jest src/lib/elo.test.ts
+
+# Or if test script is added: npm test -- src/lib/elo.test.ts
 ```
 
 Runs only the specified test file.
 
 #### Run Tests Matching a Pattern
 ```bash
-npm test -- --testNamePattern="Elo"
+# Using Jest directly
+npx jest --testNamePattern="Elo"
+
+# Or if test script is added: npm test -- --testNamePattern="Elo"
 ```
 
 Runs only tests whose names match the pattern.
 
 #### Run Tests in Verbose Mode
 ```bash
-npm test -- --verbose
+# Using Jest directly
+npx jest --verbose
+
+# Or if test script is added: npm test -- --verbose
 ```
 
 Shows detailed output for each test, including which tests are running.
 
 #### Run Tests in Silent Mode
 ```bash
-npm test -- --silent
+# Using Jest directly
+npx jest --silent
+
+# Or if test script is added: npm test -- --silent
 ```
 
 Suppresses console output from tests (useful for CI/CD).
@@ -249,29 +296,44 @@ Suppresses console output from tests (useful for CI/CD).
 
 #### Run Tests with Specific Reporter
 ```bash
-npm test -- --reporters=default --reporters=jest-junit
+# Using Jest directly
+npx jest --reporters=default --reporters=jest-junit
+
+# Or if test script is added: npm test -- --reporters=default --reporters=jest-junit
 ```
 
 #### Run Tests with Maximum Workers
 ```bash
-npm test -- --maxWorkers=4
+# Using Jest directly
+npx jest --maxWorkers=4
+
+# Or if test script is added: npm test -- --maxWorkers=4
 ```
 
 #### Run Tests and Update Snapshots
 ```bash
-npm test -- --updateSnapshot
+# Using Jest directly
+npx jest --updateSnapshot
+
+# Or if test script is added: npm test -- --updateSnapshot
 ```
 
 #### Run Tests and Clear Cache
 ```bash
-npm test -- --clearCache
+# Using Jest directly
+npx jest --clearCache
+
+# Or if test script is added: npm test -- --clearCache
 ```
 
 ### Continuous Integration
 
 For CI/CD pipelines, use:
 ```bash
-npm test -- --ci --coverage --maxWorkers=2
+# Using Jest directly
+npx jest --ci --coverage --maxWorkers=2
+
+# Or if test script is added: npm test -- --ci --coverage --maxWorkers=2
 ```
 
 This runs tests in CI mode (non-interactive), generates coverage, and limits workers for resource-constrained environments.
@@ -285,7 +347,13 @@ This runs tests in CI mode (non-interactive), generates coverage, and limits wor
 The project uses Next.js's Jest integration with custom configuration:
 
 ```javascript
-{
+const nextJest = require('next/jest')
+
+const createJestConfig = nextJest({
+  dir: './',
+})
+
+const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jest-environment-jsdom',
   moduleNameMapper: {
@@ -302,7 +370,17 @@ The project uses Next.js's Jest integration with custom configuration:
     '**/__tests__/**/*.[jt]s?(x)',
     '**/?(*.)+(spec|test).[jt]s?(x)',
   ],
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
+  transform: {
+    '^.+\\.(ts|tsx)$': ['ts-jest', {
+      tsconfig: {
+        jsx: 'react',
+      },
+    }],
+  },
 }
+
+module.exports = createJestConfig(customJestConfig)
 ```
 
 **Key Configuration Details:**
@@ -349,6 +427,9 @@ src/
 │       ├── button.tsx
 │       └── button.test.tsx   # Tests for Button component
 └── ...
+
+app/
+└── (test files would be co-located with components if added)
 ```
 
 **Naming Conventions:**
@@ -573,7 +654,7 @@ npm test -- --verbose
 
 Before committing code, ensure:
 
-- [ ] All existing tests pass (`npm test`)
+- [ ] All existing tests pass (`npx jest` or `npm test` if script is added)
 - [ ] New functionality has corresponding tests
 - [ ] Tests follow naming conventions (`*.test.ts` or `*.spec.ts`)
 - [ ] Tests are isolated and don't depend on each other

@@ -16,6 +16,9 @@ erDiagram
     users ||--o{ accounts : "has"
     users ||--o{ admin_actions : "performs"
     
+    accounts }o--|| users : "belongs to"
+    sessions }o--|| users : "belongs to"
+    
     players ||--o{ league_memberships : "joins"
     players ||--o{ player_ratings : "has"
     players ||--o{ challenges_challenger : "creates"
@@ -162,6 +165,12 @@ erDiagram
         string details
         datetime created_at
     }
+    
+    verification_tokens {
+        string identifier
+        string token
+        datetime expires
+    }
 ```
 
 ---
@@ -239,9 +248,29 @@ Stores active user sessions (NextAuth.js).
 
 ---
 
+#### 4. **verification_tokens**
+Stores email verification tokens for NextAuth.js (currently not actively used but part of NextAuth schema).
+
+**Attributes:**
+- `identifier` (string) - Email or identifier being verified
+- `token` (string) - Verification token
+- `expires` (datetime) - Token expiration timestamp
+
+**Relationships:**
+- No direct relationships (standalone table)
+
+**Constraints:**
+- Unique constraint on (`identifier`, `token`)
+
+**Notes:**
+- Part of NextAuth.js schema but not actively used in current implementation
+- Used for email verification flows (future feature)
+
+---
+
 ### Application Entities
 
-#### 4. **players**
+#### 5. **players**
 Represents individual competitors in the system. Each user can have one or more player profiles.
 
 **Attributes:**
@@ -275,7 +304,7 @@ Represents individual competitors in the system. Each user can have one or more 
 
 ---
 
-#### 5. **leagues**
+#### 6. **leagues**
 Represents different competitive leagues (e.g., FIFA, Table Tennis).
 
 **Attributes:**
@@ -297,7 +326,7 @@ Represents different competitive leagues (e.g., FIFA, Table Tennis).
 
 ---
 
-#### 6. **league_memberships**
+#### 7. **league_memberships**
 Tracks which players are members of which leagues (many-to-many relationship).
 
 **Attributes:**
@@ -321,7 +350,7 @@ Tracks which players are members of which leagues (many-to-many relationship).
 
 ---
 
-#### 7. **player_ratings**
+#### 8. **player_ratings**
 Stores individual player ratings within specific leagues using the Elo rating system.
 
 **Attributes:**
@@ -352,7 +381,7 @@ Stores individual player ratings within specific leagues using the Elo rating sy
 
 ---
 
-#### 8. **challenges**
+#### 9. **challenges**
 Records pending or completed challenges between players within a league.
 
 **Attributes:**
@@ -381,7 +410,7 @@ Records pending or completed challenges between players within a league.
 
 ---
 
-#### 9. **matches**
+#### 10. **matches**
 Records the results of games between players.
 
 **Attributes:**
@@ -424,7 +453,7 @@ Records the results of games between players.
 
 ---
 
-#### 10. **match_confirmations**
+#### 11. **match_confirmations**
 Records player confirmations or disputes of match results.
 
 **Attributes:**
@@ -452,7 +481,7 @@ Records player confirmations or disputes of match results.
 
 ---
 
-#### 11. **rating_updates**
+#### 12. **rating_updates**
 Tracks all rating changes for audit and history purposes.
 
 **Attributes:**
@@ -481,7 +510,7 @@ Tracks all rating changes for audit and history purposes.
 
 ---
 
-#### 12. **admin_actions**
+#### 13. **admin_actions**
 Audit trail for all administrative actions performed in the system.
 
 **Attributes:**
@@ -521,6 +550,7 @@ Audit trail for all administrative actions performed in the system.
 
 10. **users ↔ sessions**: One-to-many (users can have multiple active sessions)
 11. **users ↔ accounts**: One-to-many (users can have multiple OAuth accounts)
+12. **verification_tokens**: Standalone table (no relationships, used for email verification)
 
 ---
 
@@ -592,6 +622,7 @@ All foreign key relationships are enforced with cascade deletes where appropriat
 - `match_confirmations(match_id, player_id)` - One confirmation per player per match
 - `accounts(provider, provider_account_id)` - One account per provider
 - `sessions.session_token` - Unique session tokens
+- `verification_tokens(identifier, token)` - Unique token per identifier
 
 ### Default Values
 - `player_ratings.rating` - Defaults to 1000 (initial Elo rating)
@@ -658,4 +689,4 @@ When migrating or updating the schema:
 ---
 
 **Last Updated**: January 2026  
-**Schema Version**: 1.0
+**Schema Version**: 2.0

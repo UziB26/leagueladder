@@ -1132,6 +1132,82 @@ Get the authenticated player's profile.
 
 ---
 
+### Update Current Player
+
+#### `PUT /api/players/me`
+
+Update the authenticated player's profile (currently supports updating the player name).
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "name": "New Player Name"
+}
+```
+
+**Response:**
+```json
+{
+  "player": {
+    "id": "player-uuid",
+    "userId": "user-uuid",
+    "name": "New Player Name",
+    "email": "john@example.com",
+    "avatar": null,
+    "createdAt": "2026-01-10T10:00:00.000Z"
+  },
+  "message": "Name updated successfully"
+}
+```
+
+**Important Notes:**
+- This endpoint updates both the `Player` table and the `User` table to keep them in sync
+- The updated name will be reflected in the NextAuth session after a session refresh
+- Name must be unique across all players
+- Name must be between 1 and 100 characters
+- Name is sanitized to prevent injection attacks
+
+**Error Responses:**
+
+```json
+{
+  "error": "Name is required"
+}
+```
+Status: `400` - Missing name field
+
+```json
+{
+  "error": "Invalid name format"
+}
+```
+Status: `400` - Name is empty or invalid after sanitization
+
+```json
+{
+  "error": "Name must be 100 characters or less"
+}
+```
+Status: `400` - Name too long
+
+```json
+{
+  "error": "This name is already taken"
+}
+```
+Status: `400` - Name already in use by another player
+
+**Status Codes:**
+- `200` - Success
+- `400` - Bad request (validation error or name taken)
+- `401` - Unauthorized
+- `404` - Player profile not found
+- `500` - Server error
+
+---
+
 ### Get Player Details
 
 #### `GET /api/players/[playerId]`
@@ -1250,6 +1326,45 @@ Get match history for a specific player (excluding voided matches).
         "stats_adjusted": false,
         "match_score_edited": false
       }
+    }
+  ]
+}
+```
+
+**Status Codes:**
+- `200` - Success
+- `404` - Player not found
+- `500` - Server error
+
+---
+
+### Get Player Ratings
+
+#### `GET /api/players/[playerId]/ratings`
+
+Get ratings for a specific player across all leagues.
+
+**Authentication:** Not required
+
+**Path Parameters:**
+- `playerId` - The UUID of the player
+
+**Response:**
+```json
+{
+  "ratings": [
+    {
+      "id": "rating-uuid",
+      "player_id": "player-uuid",
+      "league_id": "fifa_league",
+      "rating": 1250,
+      "games_played": 10,
+      "wins": 7,
+      "losses": 3,
+      "draws": 0,
+      "updated_at": "2026-01-15T10:00:00.000Z",
+      "league_name": "FIFA League",
+      "game_type": "fifa"
     }
   ]
 }
@@ -2058,11 +2173,75 @@ Status: `400` - Match not voided
 
 ---
 
+### Resolve Disputed Match
+
+#### `POST /api/admin/matches/[matchId]/resolve-dispute`
+
+Resolve a disputed match by choosing which set of scores is correct (reported scores or disputed scores).
+
+**Authentication:** Required (Admin only)
+
+**Path Parameters:**
+- `matchId` - The UUID of the match
+
+**Request Body:**
+```json
+{
+  "use_reported_scores": true,  // true to use reported scores, false to use disputed scores
+  "reason": "Verified with both players"  // Optional reason for the resolution
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Dispute resolved successfully",
+  "match": {
+    "id": "match-uuid",
+    "status": "completed"
+  }
+}
+```
+
+**Error Responses:**
+
+```json
+{
+  "error": "Match not found or not disputed"
+}
+```
+Status: `404` - Match not found or not in disputed status
+
+```json
+{
+  "error": "use_reported_scores is required"
+}
+```
+Status: `400` - Missing required field
+
+**Status Codes:**
+- `200` - Success
+- `400` - Bad request
+- `401` - Unauthorized
+- `403` - Forbidden (not admin)
+- `404` - Match not found or not disputed
+- `500` - Server error
+
+**Important Notes:**
+- If `use_reported_scores` is `true`, the match is confirmed with the originally reported scores
+- If `use_reported_scores` is `false`, the match uses the corrected scores provided in the dispute
+- Ratings are calculated and updated based on the chosen scores
+- Player stats are updated accordingly
+- Resolution action is logged in admin actions
+
+---
+
 ### Delete Match
 
 #### `DELETE /api/admin/matches/[matchId]`
 
-Permanently delete a match from the database.
+Permanently delete a match from the database. If the match was completed, ratings and stats are reverted before deletion.
 
 **Authentication:** Required (Admin only)
 
@@ -2076,6 +2255,11 @@ Permanently delete a match from the database.
   "message": "Match deleted successfully"
 }
 ```
+
+**Important Notes:**
+- If the match was completed, ratings and stats are automatically reverted before deletion
+- All related data (confirmations, rating updates) are deleted
+- Delete action is logged in admin actions
 
 **Status Codes:**
 - `200` - Success

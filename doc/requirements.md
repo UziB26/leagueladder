@@ -49,8 +49,10 @@ The League Ladder MVP is a **competitive ranking system** that enables players t
 - **Dual League System**: Table Tennis and FIFA leagues with separate ratings
 - **User Authentication**: Email/password registration and login via NextAuth.js
 - **Player Profiles**: Basic profile creation linked to user accounts
+- **Profile Management**: Users can view and edit their username in a dedicated profile page
 - **League Membership**: Players can join multiple leagues simultaneously
 - **Challenge System**: Issue, accept, decline, cancel, and track challenges
+- **Quick Challenge**: Quick challenge feature on home page for immediate challenges after login
 - **Challenge Expiration**: Automatic expiration after 7 days
 - **Match Reporting**: Report match results with score validation
 - **Opponent Confirmation**: Two-player confirmation before rating updates
@@ -60,6 +62,7 @@ The League Ladder MVP is a **competitive ranking system** that enables players t
 - **Match History**: Complete game history with rating changes (excluding voided matches)
 - **Rating History**: Track rating changes over time per player (excluding voided matches)
 - **Player Profiles**: View player statistics, ratings, and match history
+- **Help/FAQ Page**: Dedicated instructions and help page with app usage information
 
 #### Administrative Features
 - **Admin Dashboard**: Comprehensive system statistics and overview
@@ -154,7 +157,6 @@ The League Ladder MVP is a **competitive ranking system** that enables players t
 
 #### Hosting
 - **Current**: Vercel (serverless) with PostgreSQL
-- **Future**: Consider AWS Amplify or other platforms for additional deployment options
 - **Decision**: Vercel sufficient for MVP deployment with persistent PostgreSQL database
 
 #### Real-time Updates
@@ -844,6 +846,57 @@ The League Ladder MVP is a **competitive ranking system** that enables players t
 
 ---
 
+#### ✅ US-041: Quick Challenge on Home Page
+**As a** logged-in player  
+**I want to** create a challenge directly from the home page  
+**So that** I can quickly challenge opponents without navigating to the challenges page
+
+**Acceptance Criteria:**
+- Quick challenge form is displayed on home page when user is logged in
+- Player can select opponent and league from the quick challenge form
+- Challenge is created immediately after submission
+- Success feedback is provided
+- Form is only visible to authenticated users with a player profile
+
+**Status**: ✅ Complete
+
+---
+
+#### ✅ US-042: View and Edit Profile
+**As a** user  
+**I want to** view and edit my profile information  
+**So that** I can manage my username and view my statistics
+
+**Acceptance Criteria:**
+- User can access a dedicated profile page
+- Profile displays current username, email, and player statistics
+- User can edit their username
+- Username updates are reflected immediately in navigation and dashboard
+- Username must be unique across all players
+- Username validation and sanitization is applied
+- Both Player and User tables are updated to keep data in sync
+- Session is refreshed to show updated name immediately
+
+**Status**: ✅ Complete
+
+---
+
+#### ✅ US-043: Help and Instructions Page
+**As a** user  
+**I want to** access a help page with instructions  
+**So that** I can learn how to use the application
+
+**Acceptance Criteria:**
+- Dedicated help/FAQ page is accessible from navigation
+- Page contains clear instructions on how to use the app
+- Instructions cover: registration, joining leagues, challenges, match reporting, and ratings
+- Page is well-organized and easy to navigate
+- Instructions are clear and user-friendly
+
+**Status**: ✅ Complete
+
+---
+
 ## Feature Status Summary
 
 ### ✅ Completed Features (MVP)
@@ -853,6 +906,8 @@ The League Ladder MVP is a **competitive ranking system** that enables players t
 - ✅ User login/logout
 - ✅ Session management (NextAuth.js)
 - ✅ Player profile creation (automatic on first league join)
+- ✅ Profile page with username viewing and editing
+- ✅ Username synchronization between Player and User tables
 
 #### League Management
 - ✅ League listing
@@ -863,6 +918,7 @@ The League Ladder MVP is a **competitive ranking system** that enables players t
 
 #### Challenge System
 - ✅ Challenge creation
+- ✅ Quick challenge feature on home page
 - ✅ Challenge acceptance/decline/cancel
 - ✅ Challenge tracking (incoming/outgoing)
 - ✅ Challenge expiration (7 days)
@@ -915,6 +971,7 @@ The League Ladder MVP is a **competitive ranking system** that enables players t
 - ✅ Success feedback
 - ✅ Navigation with badges
 - ✅ PWA support
+- ✅ Help/FAQ page with instructions
 
 #### Testing
 - ✅ Elo calculator tests
@@ -1074,7 +1131,7 @@ The League Ladder MVP is a **competitive ranking system** that enables players t
 ## Success Metrics
 
 ### MVP Success Metrics
-- ✅ All core user stories implemented (40 user stories)
+- ✅ All core user stories implemented (43 user stories)
 - ✅ System is functional and deployable
 - ✅ Security measures in place
 - ✅ Data integrity maintained

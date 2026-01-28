@@ -1,7 +1,7 @@
 # League Ladder - System Architecture
 
 **Last Updated**: January 2026  
-**Version**: 1.0
+**Version**: 2.1
 
 ---
 
@@ -91,10 +91,17 @@ graph TB
   - Match components (`src/components/match/`)
   - League components (`src/components/league/`)
   - Player components (`src/components/player/`)
+  - Challenge components (`src/components/challenge/`)
   - Admin components (`src/components/admin/`)
   - UI components (`src/components/ui/`)
+  - Layout components (`src/components/layout/`)
+- **Pages**: Organized by feature
+  - Home page with quick challenge feature
+  - Profile page for username management
+  - Help/FAQ page with instructions
+  - Dashboard, matches, challenges, leagues, leaderboards
 - **Tailwind CSS**: Utility-first CSS framework for styling
-- **NextAuth Session**: Client-side session management
+- **NextAuth Session**: Client-side session management with automatic refresh
 - **Server Components**: Next.js server components for data fetching
 
 ### 3. API Layer
@@ -111,11 +118,16 @@ graph TB
 - **Elo Calculator**: Rating calculation with margin of victory (K-factor: 32)
 - **Match Confirmation Handler**: Two-player confirmation workflow
 - **Challenge Manager**: Challenge creation, acceptance, expiration (7 days)
+  - Quick challenge feature on home page
+- **Profile Manager**: Username management and synchronization
+  - Updates both Player and User tables to keep data in sync
+  - Triggers session refresh for immediate UI updates
 - **Admin Controller**: Administrative operations
   - Void/un-void matches with rating reversion
   - Adjust player ratings and stats
   - Edit match scores with rating recalculation
   - User and player management
+  - Dispute resolution
 - **Transaction Manager**: Prisma transactions for data consistency
 - **Rating Reversion**: Automatic rating/stats rollback for voided matches
 
@@ -402,6 +414,7 @@ stateDiagram-v2
 ├── /players                     # Player operations
 │   ├── GET /available           # Get available players
 │   ├── GET /me                  # Get current player
+│   ├── PUT /me                  # Update current player (username)
 │   └── /[playerId]
 │       ├── GET                  # Get player details
 │       ├── GET /matches         # Get player matches
@@ -969,9 +982,24 @@ src/components/
 │   ├── card.tsx
 │   ├── form-modal.tsx
 │   ├── confirmation-dialog.tsx
+│   ├── loading-state.tsx
+│   ├── error-state.tsx
+│   ├── empty-state.tsx
 │   └── ...
 └── layout/             # Layout components
     └── navigation.tsx
+
+app/
+├── page.tsx            # Home page with quick challenge
+├── profile/            # Profile page for username editing
+│   └── page.tsx
+├── help/               # Help/FAQ page with instructions
+│   └── page.tsx
+├── dashboard/          # User dashboard
+├── matches/            # Match management
+├── challenges/         # Challenge management
+├── leagues/            # League pages
+└── leaderboard/        # Leaderboard pages
 ```
 
 ---
@@ -994,4 +1022,4 @@ The system is designed to be **maintainable, secure, and scalable** while provid
 ---
 
 **Last Updated**: January 2026  
-**Document Version**: 2.0
+**Document Version**: 2.1

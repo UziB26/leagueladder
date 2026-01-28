@@ -14,7 +14,7 @@ This document describes how production deployment works, including environment v
 - **Hosting**: Vercel (serverless functions)
 - **Database**: PostgreSQL (Vercel Postgres or external provider)
 - **ORM**: Prisma 7 with binary engine
-- **Framework**: Next.js 14 (App Router)
+- **Framework**: Next.js 16 (App Router)
 - **Authentication**: NextAuth.js v5
 - **Runtime**: Node.js 18+ (serverless functions)
 
@@ -33,7 +33,7 @@ graph LR
 
 **Build Steps:**
 1. Vercel automatically builds on push to `main` branch
-2. Build command: `npm run build` (which runs `prisma generate && next build`)
+2. Build command: `npm run build` (which runs `npm run prisma-generate && next build`)
 3. **Prisma Client Generation**:
    - `prisma.config.ts` is read to get database URL
    - During build, a dummy connection string is used if no real URL is available
