@@ -25,6 +25,20 @@ interface LeagueWithMembership extends League {
 export default function DashboardPage() {
   const { data: session } = useSession()
   const router = useRouter()
+  
+  // Listen for session refresh events (e.g., when username is updated)
+  useEffect(() => {
+    const handleSessionRefresh = () => {
+      // Refresh the router to trigger server-side session refresh
+      // This will cause useSession() to refetch the session with updated data
+      router.refresh()
+    }
+    
+    window.addEventListener('session:refresh', handleSessionRefresh)
+    return () => {
+      window.removeEventListener('session:refresh', handleSessionRefresh)
+    }
+  }, [router])
   const [leagues, setLeagues] = useState<LeagueWithMembership[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

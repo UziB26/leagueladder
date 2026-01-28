@@ -135,20 +135,24 @@ export const authOptions = {
         token.name = (user as DBUser).name
         token.is_admin = (user as DBUser).is_admin || false
       } else if (token.email) {
-        // Refresh admin status from database on each request
-        // This ensures status changes are reflected immediately
+        // Refresh user data from database on each request
+        // This ensures name and admin status changes are reflected immediately
         if (db) {
           try {
             const dbUser = await db.user.findUnique({
               where: { email: token.email as string },
-              select: { isAdmin: true }
+              select: { name: true, isAdmin: true }
             })
             if (dbUser) {
+              // Update name if it exists in database
+              if (dbUser.name) {
+                token.name = dbUser.name
+              }
               token.is_admin = dbUser.isAdmin || false
             }
           } catch (error) {
             // If database query fails, keep existing token value
-            console.error('Error refreshing user status:', error)
+            console.error('Error refreshing user data:', error)
           }
         }
       }

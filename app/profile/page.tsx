@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSession, update } from "next-auth/react"
+import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { LoadingState } from "@/components/ui/loading-state"
@@ -156,7 +156,22 @@ export default function ProfilePage() {
       
       // CRITICAL: Refresh NextAuth session to update the cached name
       // This ensures "Hi, {name}" and "Welcome, {name}!" update immediately
-      await update()
+      // Trigger session refresh by fetching session endpoint with cache busting
+      try {
+        await fetch('/api/auth/session', { 
+          method: 'GET', 
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        })
+        // Dispatch custom event to notify components to refresh session
+        window.dispatchEvent(new CustomEvent('session:refresh'))
+        // Trigger a router refresh to update server components and re-fetch session
+        router.refresh()
+      } catch (error) {
+        console.error('Error refreshing session:', error)
+        // Still refresh router even if session update fails
+        router.refresh()
+      }
       
       // Refresh the page data
       setTimeout(() => {
