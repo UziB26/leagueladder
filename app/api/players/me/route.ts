@@ -130,11 +130,18 @@ export async function PUT(request: Request) {
       )
     }
 
-    // Update player name
-    const updatedPlayer = await db.player.update({
-      where: { id: player.id },
-      data: { name: sanitizedName }
-    })
+    // Update both player name AND user name to keep them in sync
+    // This ensures the session reflects the updated name
+    const [updatedPlayer, updatedUser] = await Promise.all([
+      db.player.update({
+        where: { id: player.id },
+        data: { name: sanitizedName }
+      }),
+      db.user.update({
+        where: { id: user.id },
+        data: { name: sanitizedName }
+      })
+    ])
 
     return NextResponse.json({ 
       player: updatedPlayer,

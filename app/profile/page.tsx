@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
+import { useSession, update } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { LoadingState } from "@/components/ui/loading-state"
@@ -153,6 +153,10 @@ export default function ProfilePage() {
       setPlayer({ ...player!, name: data.player.name })
       setSuccess('Username updated successfully!')
       setEditing(false)
+      
+      // CRITICAL: Refresh NextAuth session to update the cached name
+      // This ensures "Hi, {name}" and "Welcome, {name}!" update immediately
+      await update()
       
       // Refresh the page data
       setTimeout(() => {
